@@ -67,7 +67,3 @@ Se utilizarán:
 
 GitHub Projects será utilizado para la planificación y trazabilidad del
 desarrollo.
-
-## Estado del proyecto
-
-Objetivo Específico 3 — Implementación de la aplicación.
