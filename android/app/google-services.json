@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "376836586691",
+    "project_id": "sendaris-app-xavcue",
+    "storage_bucket": "sendaris-app-xavcue.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:376836586691:android:cd6720943dbeef8f4c3676",
+        "android_client_info": {
+          "package_name": "com.xavcue.sendaris"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA3kS6QhT1a5foEYtspiuxS744L72EAPrM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
