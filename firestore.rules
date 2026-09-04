@@ -1,0 +1,76 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    function hasValidTrackingProfileFields() {
+      return request.resource.data.keys().hasAll([
+          'fechaCreacion',
+          'activo'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'fechaCreacion',
+          'activo'
+        ])
+        && request.resource.data.fechaCreacion is timestamp
+        && request.resource.data.activo is bool;
+    }
+
+    function isValidTrackingProfileCreate() {
+      return hasValidTrackingProfileFields();
+    }
+
+    function isValidTrackingProfileUpdate() {
+      return hasValidTrackingProfileFields()
+        && request.resource.data.fechaCreacion
+          == resource.data.fechaCreacion;
+    }
+
+    match /usuarios/{uid} {
+      // El documento raíz del usuario no se utiliza todavía.
+      // Las reglas de sus subcolecciones se definen explícitamente.
+      allow read, write: if false;
+
+      match /seguimientos/{idAnonimo} {
+        allow read: if isOwner(uid);
+
+        allow create: if isOwner(uid)
+          && isValidTrackingProfileCreate();
+
+        allow update: if isOwner(uid)
+          && isValidTrackingProfileUpdate();
+
+        // El diseño OE2 prioriza desactivación mediante activo=false
+        // para conservar el historial.
+        allow delete: if false;
+
+        // Estas colecciones se habilitarán únicamente cuando
+        // implementemos y validemos su esquema definitivo.
+        match /registros/{idRegistro} {
+          allow read, write: if false;
+        }
+
+        match /rutinas/{idRutina} {
+          allow read, write: if false;
+        }
+
+        match /reportes/{idReporte} {
+          allow read, write: if false;
+        }
+      }
+    }
+
+    // Todo lo que no esté expresamente permitido queda bloqueado.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
