@@ -1,1 +1,28 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"sendaris-app-xavcue","appId":"1:376836586691:android:cd6720943dbeef8f4c3676","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"sendaris-app-xavcue","configurations":{"android":"1:376836586691:android:cd6720943dbeef8f4c3676","ios":"1:376836586691:ios:c042e26fe658db084c3676"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "sendaris-app-xavcue",
+          "appId": "1:376836586691:android:cd6720943dbeef8f4c3676",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "sendaris-app-xavcue",
+          "configurations": {
+            "android": "1:376836586691:android:cd6720943dbeef8f4c3676",
+            "ios": "1:376836586691:ios:c042e26fe658db084c3676"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "database": "(default)",
+    "location": "southamerica-west1",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}
