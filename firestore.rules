@@ -167,6 +167,63 @@ service cloud.firestore {
         && hasValidOptionalBehaviorObservation();
     }
 
+    function hasValidRoutineFields() {
+      return request.resource.data.keys().hasAll([
+          'nombre',
+          'activa'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'nombre',
+          'descripcion',
+          'horaProgramada',
+          'recurrencia',
+          'activa'
+        ])
+        && request.resource.data.nombre is string
+        && request.resource.data.nombre.size() > 0
+        && request.resource.data.activa is bool
+        && (
+          !('descripcion' in request.resource.data)
+          || (
+            request.resource.data.descripcion is string
+            && request.resource.data.descripcion.size() > 0
+          )
+        )
+        && (
+          !('horaProgramada' in request.resource.data)
+          || (
+            request.resource.data.horaProgramada is string
+            && request.resource.data.horaProgramada.matches(
+              '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+            )
+          )
+        )
+        && (
+          !('recurrencia' in request.resource.data)
+          || (
+            request.resource.data.recurrencia is string
+            && request.resource.data.recurrencia in [
+              'diaria',
+              'semanal',
+              'mensual'
+            ]
+          )
+        );
+    }
+
+    function isValidRoutineCreate() {
+      return hasValidRoutineFields()
+        && request.resource.data.activa == true;
+    }
+
+    function isValidRoutineUpdate() {
+      return hasValidRoutineFields()
+        && (
+          resource.data.activa == true
+          || request.resource.data.activa == false
+        );
+    }
+
     match /usuarios/{uid} {
       // El documento raíz del usuario no almacena
       // actualmente datos funcionales.
@@ -204,7 +261,30 @@ service cloud.firestore {
         }
 
         match /rutinas/{idRutina} {
-          allow read, write: if false;
+          // Las rutinas permanecen asociadas al ámbito
+          // anónimo y únicamente son visibles por su propietario.
+          allow read: if isOwner(uid);
+
+          // Una rutina nueva requiere un seguimiento activo
+          // y siempre inicia con activa=true.
+          allow create: if isOwner(uid)
+            && trackingProfileExistsAndIsActive(
+              uid,
+              idAnonimo
+            )
+            && isValidRoutineCreate();
+
+          // HU-03 permite modificar y desactivar rutinas.
+          // Una rutina ya desactivada no puede reactivarse.
+          allow update: if isOwner(uid)
+            && trackingProfileExistsAndIsActive(
+              uid,
+              idAnonimo
+            )
+            && isValidRoutineUpdate();
+
+          // El historial se conserva mediante activa=false.
+          allow delete: if false;
         }
 
         match /reportes/{idReporte} {

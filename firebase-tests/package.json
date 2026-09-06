@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node --test firestore.rules.test.mjs"
+    "test": "node --test --test-concurrency=1 firestore.rules.test.mjs firestore.routines.rules.test.mjs"
   },
   "keywords": [],
   "author": "",
