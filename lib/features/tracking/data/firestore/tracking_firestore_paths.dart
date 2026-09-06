@@ -35,6 +35,23 @@ abstract final class TrackingFirestorePaths {
     return '${trackingRecordsCollection(uid: uid, anonymousId: anonymousId)}/$recordId';
   }
 
+  static String routinesCollection({
+    required String uid,
+    required String anonymousId,
+  }) {
+    return '${anonymousTrackingDocument(uid: uid, anonymousId: anonymousId)}/rutinas';
+  }
+
+  static String routineDocument({
+    required String uid,
+    required String anonymousId,
+    required String routineId,
+  }) {
+    _validateSegment(routineId, 'routineId');
+
+    return '${routinesCollection(uid: uid, anonymousId: anonymousId)}/$routineId';
+  }
+
   static void _validateSegment(String value, String name) {
     if (value.trim().isEmpty || value.contains('/')) {
       throw ArgumentError.value(

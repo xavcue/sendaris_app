@@ -107,9 +107,9 @@ class RegisterView extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-            const Row(
+            Row(
               children: [
-                Expanded(
+                const Expanded(
                   child: _RegisterOptionCard(
                     title: 'Situación atípica',
                     subtitle: 'Disponible próximamente',
@@ -119,15 +119,19 @@ class RegisterView extends StatelessWidget {
                   ),
                 ),
 
-                SizedBox(width: 12),
+                const SizedBox(width: 12),
 
                 Expanded(
                   child: _RegisterOptionCard(
+                    key: const Key('register-routines-option'),
                     title: 'Rutinas',
-                    subtitle: 'Disponible próximamente',
+                    subtitle: 'Administrar rutinas',
                     icon: Icons.checklist_rounded,
-                    accentColor: Color(0xFF5E8FC7),
-                    enabled: false,
+                    accentColor: const Color(0xFF5E8FC7),
+                    enabled: trackingViewModel.hasActiveProfile,
+                    onTap: () {
+                      context.push('/routines');
+                    },
                   ),
                 ),
               ],

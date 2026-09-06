@@ -265,6 +265,63 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
           ),
         ),
 
+        const SizedBox(height: 12),
+
+        Card(
+          key: const Key('home-routines-action'),
+          margin: EdgeInsets.zero,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () {
+              context.push('/routines');
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF5E8FC7).withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.checklist_rounded,
+                      color: Color(0xFF5E8FC7),
+                    ),
+                  ),
+
+                  const SizedBox(width: 14),
+
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Rutinas',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+
+                        const SizedBox(height: 4),
+
+                        const Text(
+                          'Crear y administrar '
+                          'rutinas',
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const Icon(Icons.arrow_forward_ios, size: 18),
+                ],
+              ),
+            ),
+          ),
+        ),
+
         const SizedBox(height: 24),
 
         Card(
