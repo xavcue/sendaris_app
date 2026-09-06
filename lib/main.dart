@@ -1,13 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/material.dart';
-import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
 import 'app/app.dart';
 import 'features/auth/data/repositories/firebase_auth_repository.dart';
 import 'features/auth/data/services/firebase_auth_service.dart';
+import 'features/behavior/data/repositories/firebase_behavior_repository.dart';
+import 'features/behavior/data/services/firestore_behavior_service.dart';
+import 'features/behavior/data/services/uuid_behavior_record_id_generator.dart';
+import 'features/behavior/domain/services/behavior_record_factory.dart';
 import 'features/tracking/data/repositories/firebase_tracking_repository.dart';
 import 'features/tracking/data/services/firestore_tracking_service.dart';
 import 'features/tracking/data/services/uuid_anonymous_id_generator.dart';
@@ -34,6 +38,7 @@ Future<void> main() async {
   firestore.settings = const Settings(persistenceEnabled: true);
 
   final authService = FirebaseAuthService(firebaseAuth);
+
   final authRepository = FirebaseAuthRepository(authService);
 
   final trackingService = FirestoreTrackingService(firestore, firebaseAuth);
@@ -44,11 +49,21 @@ Future<void> main() async {
     UuidAnonymousIdGenerator(),
   );
 
+  final behaviorService = FirestoreBehaviorService(firestore, firebaseAuth);
+
+  final behaviorRepository = FirebaseBehaviorRepository(behaviorService);
+
+  final behaviorRecordFactory = BehaviorRecordFactory(
+    UuidBehaviorRecordIdGenerator(),
+  );
+
   runApp(
     SendarisApp(
       authRepository: authRepository,
       trackingRepository: trackingRepository,
       trackingProfileFactory: trackingProfileFactory,
+      behaviorRepository: behaviorRepository,
+      behaviorRecordFactory: behaviorRecordFactory,
     ),
   );
 }
