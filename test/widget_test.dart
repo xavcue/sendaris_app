@@ -7,6 +7,10 @@ import 'package:sendaris/features/behavior/domain/models/behavior_record.dart';
 import 'package:sendaris/features/behavior/domain/repositories/behavior_repository.dart';
 import 'package:sendaris/features/behavior/domain/services/behavior_record_factory.dart';
 import 'package:sendaris/features/behavior/domain/services/behavior_record_id_generator.dart';
+import 'package:sendaris/features/routine/domain/models/routine.dart';
+import 'package:sendaris/features/routine/domain/repositories/routine_repository.dart';
+import 'package:sendaris/features/routine/domain/services/routine_factory.dart';
+import 'package:sendaris/features/routine/domain/services/routine_id_generator.dart';
 import 'package:sendaris/features/tracking/domain/models/anonymous_tracking_profile.dart';
 import 'package:sendaris/features/tracking/domain/repositories/tracking_repository.dart';
 import 'package:sendaris/features/tracking/domain/services/anonymous_id_generator.dart';
@@ -30,6 +34,10 @@ void main() {
       FakeBehaviorRecordIdGenerator(),
     );
 
+    final routineRepository = FakeRoutineRepository();
+
+    const routineFactory = RoutineFactory(FakeRoutineIdGenerator());
+
     await tester.pumpWidget(
       SendarisApp(
         authRepository: authRepository,
@@ -37,6 +45,8 @@ void main() {
         trackingProfileFactory: profileFactory,
         behaviorRepository: behaviorRepository,
         behaviorRecordFactory: behaviorRecordFactory,
+        routineRepository: routineRepository,
+        routineFactory: routineFactory,
       ),
     );
 
@@ -103,6 +113,25 @@ class FakeBehaviorRepository implements BehaviorRepository {
   }
 }
 
+class FakeRoutineRepository implements RoutineRepository {
+  @override
+  Future<void> createRoutine(Routine routine) async {}
+
+  @override
+  Future<List<Routine>> recoverRoutines({required String anonymousId}) async {
+    return [];
+  }
+
+  @override
+  Future<void> updateRoutine(Routine routine) async {}
+
+  @override
+  Future<void> deactivateRoutine({
+    required String anonymousId,
+    required String routineId,
+  }) async {}
+}
+
 class FakeAnonymousIdGenerator implements AnonymousIdGenerator {
   @override
   String generate() {
@@ -116,5 +145,14 @@ class FakeBehaviorRecordIdGenerator implements BehaviorRecordIdGenerator {
   @override
   String generate() {
     return 'registro-widget-test';
+  }
+}
+
+class FakeRoutineIdGenerator implements RoutineIdGenerator {
+  const FakeRoutineIdGenerator();
+
+  @override
+  String generate() {
+    return 'rutina-widget-test';
   }
 }

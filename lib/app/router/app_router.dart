@@ -7,6 +7,11 @@ import '../../features/behavior/domain/services/behavior_record_factory.dart';
 import '../../features/behavior/presentation/views/behavior_form_view.dart';
 import '../../features/home/presentation/views/home_placeholder_view.dart';
 import '../../features/register/presentation/views/register_view.dart';
+import '../../features/routine/domain/models/routine.dart';
+import '../../features/routine/domain/repositories/routine_repository.dart';
+import '../../features/routine/domain/services/routine_factory.dart';
+import '../../features/routine/presentation/views/routine_form_view.dart';
+import '../../features/routine/presentation/views/routine_management_view.dart';
 import '../../features/tracking/presentation/viewmodels/tracking_view_model.dart';
 
 abstract final class AppRouter {
@@ -15,6 +20,8 @@ abstract final class AppRouter {
     required TrackingViewModel trackingViewModel,
     required BehaviorRepository behaviorRepository,
     required BehaviorRecordFactory behaviorRecordFactory,
+    required RoutineRepository routineRepository,
+    required RoutineFactory routineFactory,
   }) {
     return GoRouter(
       initialLocation: '/',
@@ -68,6 +75,69 @@ abstract final class AppRouter {
               repository: behaviorRepository,
               recordFactory: behaviorRecordFactory,
               anonymousId: anonymousId,
+            );
+          },
+        ),
+
+        GoRoute(
+          path: '/routines',
+          name: 'routine-management',
+          builder: (context, state) {
+            final anonymousId = trackingViewModel.activeAnonymousId;
+
+            if (anonymousId == null) {
+              return HomePlaceholderView(trackingViewModel: trackingViewModel);
+            }
+
+            return RoutineManagementView(
+              repository: routineRepository,
+              anonymousId: anonymousId,
+            );
+          },
+        ),
+
+        GoRoute(
+          path: '/routines/new',
+          name: 'routine-new',
+          builder: (context, state) {
+            final anonymousId = trackingViewModel.activeAnonymousId;
+
+            if (anonymousId == null) {
+              return HomePlaceholderView(trackingViewModel: trackingViewModel);
+            }
+
+            return RoutineFormView(
+              repository: routineRepository,
+              routineFactory: routineFactory,
+              anonymousId: anonymousId,
+            );
+          },
+        ),
+
+        GoRoute(
+          path: '/routines/edit',
+          name: 'routine-edit',
+          builder: (context, state) {
+            final anonymousId = trackingViewModel.activeAnonymousId;
+
+            if (anonymousId == null) {
+              return HomePlaceholderView(trackingViewModel: trackingViewModel);
+            }
+
+            final extra = state.extra;
+
+            if (extra is! Routine || extra.anonymousId != anonymousId) {
+              return RoutineManagementView(
+                repository: routineRepository,
+                anonymousId: anonymousId,
+              );
+            }
+
+            return RoutineFormView(
+              repository: routineRepository,
+              routineFactory: routineFactory,
+              anonymousId: anonymousId,
+              initialRoutine: extra,
             );
           },
         ),
