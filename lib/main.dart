@@ -6,6 +6,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'app/app.dart';
+import 'features/atypical_situation/data/repositories/firebase_atypical_situation_repository.dart';
+import 'features/atypical_situation/data/services/firestore_atypical_situation_service.dart';
+import 'features/atypical_situation/data/services/uuid_atypical_situation_record_id_generator.dart';
+import 'features/atypical_situation/domain/services/atypical_situation_record_factory.dart';
 import 'features/auth/data/repositories/firebase_auth_repository.dart';
 import 'features/auth/data/services/firebase_auth_service.dart';
 import 'features/behavior/data/repositories/firebase_behavior_repository.dart';
@@ -84,6 +88,19 @@ Future<void> main() async {
     UuidRoutineStatusRecordIdGenerator(),
   );
 
+  final atypicalSituationService = FirestoreAtypicalSituationService(
+    firestore,
+    firebaseAuth,
+  );
+
+  final atypicalSituationRepository = FirebaseAtypicalSituationRepository(
+    atypicalSituationService,
+  );
+
+  final atypicalSituationRecordFactory = AtypicalSituationRecordFactory(
+    UuidAtypicalSituationRecordIdGenerator(),
+  );
+
   runApp(
     SendarisApp(
       authRepository: authRepository,
@@ -95,6 +112,8 @@ Future<void> main() async {
       routineFactory: routineFactory,
       routineStatusRepository: routineStatusRepository,
       routineStatusRecordFactory: routineStatusRecordFactory,
+      atypicalSituationRepository: atypicalSituationRepository,
+      atypicalSituationRecordFactory: atypicalSituationRecordFactory,
     ),
   );
 }

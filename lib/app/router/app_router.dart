@@ -1,5 +1,8 @@
 import 'package:go_router/go_router.dart';
 
+import '../../features/atypical_situation/domain/repositories/atypical_situation_repository.dart';
+import '../../features/atypical_situation/domain/services/atypical_situation_record_factory.dart';
+import '../../features/atypical_situation/presentation/views/atypical_situation_form_view.dart';
 import '../../features/auth/presentation/viewmodels/auth_view_model.dart';
 import '../../features/auth/presentation/views/login_view.dart';
 import '../../features/behavior/domain/repositories/behavior_repository.dart';
@@ -27,6 +30,8 @@ abstract final class AppRouter {
     required RoutineFactory routineFactory,
     required RoutineStatusRepository routineStatusRepository,
     required RoutineStatusRecordFactory routineStatusRecordFactory,
+    required AtypicalSituationRepository atypicalSituationRepository,
+    required AtypicalSituationRecordFactory atypicalSituationRecordFactory,
   }) {
     return GoRouter(
       initialLocation: '/',
@@ -79,6 +84,24 @@ abstract final class AppRouter {
             return BehaviorFormView(
               repository: behaviorRepository,
               recordFactory: behaviorRecordFactory,
+              anonymousId: anonymousId,
+            );
+          },
+        ),
+
+        GoRoute(
+          path: '/register/atypical-situation',
+          name: 'register-atypical-situation',
+          builder: (context, state) {
+            final anonymousId = trackingViewModel.activeAnonymousId;
+
+            if (anonymousId == null) {
+              return const RegisterView();
+            }
+
+            return AtypicalSituationFormView(
+              repository: atypicalSituationRepository,
+              recordFactory: atypicalSituationRecordFactory,
               anonymousId: anonymousId,
             );
           },

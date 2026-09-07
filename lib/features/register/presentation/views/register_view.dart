@@ -110,13 +110,17 @@ class RegisterView extends StatelessWidget {
 
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: _RegisterOptionCard(
+                    key: const Key('register-atypical-situation-option'),
                     title: 'Situación atípica',
-                    subtitle: 'Disponible próximamente',
+                    subtitle: 'Registrar situación',
                     icon: Icons.warning_amber_outlined,
-                    accentColor: Color(0xFFB6A27C),
-                    enabled: false,
+                    accentColor: const Color(0xFFB6A27C),
+                    enabled: trackingViewModel.hasActiveProfile,
+                    onTap: () {
+                      context.push('/register/atypical-situation');
+                    },
                   ),
                 ),
 
