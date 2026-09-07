@@ -2,6 +2,10 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sendaris/app/app.dart';
+import 'package:sendaris/features/atypical_situation/domain/models/atypical_situation_record.dart';
+import 'package:sendaris/features/atypical_situation/domain/repositories/atypical_situation_repository.dart';
+import 'package:sendaris/features/atypical_situation/domain/services/atypical_situation_record_factory.dart';
+import 'package:sendaris/features/atypical_situation/domain/services/atypical_situation_record_id_generator.dart';
 import 'package:sendaris/features/auth/domain/repositories/auth_repository.dart';
 import 'package:sendaris/features/behavior/domain/models/behavior_record.dart';
 import 'package:sendaris/features/behavior/domain/repositories/behavior_repository.dart';
@@ -48,6 +52,12 @@ void main() {
       FakeRoutineStatusRecordIdGenerator(),
     );
 
+    final atypicalSituationRepository = FakeAtypicalSituationRepository();
+
+    const atypicalSituationRecordFactory = AtypicalSituationRecordFactory(
+      FakeAtypicalSituationRecordIdGenerator(),
+    );
+
     await tester.pumpWidget(
       SendarisApp(
         authRepository: authRepository,
@@ -59,6 +69,8 @@ void main() {
         routineFactory: routineFactory,
         routineStatusRepository: routineStatusRepository,
         routineStatusRecordFactory: routineStatusRecordFactory,
+        atypicalSituationRepository: atypicalSituationRepository,
+        atypicalSituationRecordFactory: atypicalSituationRecordFactory,
       ),
     );
 
@@ -156,6 +168,18 @@ class FakeRoutineStatusRepository implements RoutineStatusRepository {
   }
 }
 
+class FakeAtypicalSituationRepository implements AtypicalSituationRepository {
+  @override
+  Future<void> saveAtypicalSituation(AtypicalSituationRecord record) async {}
+
+  @override
+  Future<List<AtypicalSituationRecord>> recoverAtypicalSituations({
+    required String anonymousId,
+  }) async {
+    return [];
+  }
+}
+
 class FakeAnonymousIdGenerator implements AnonymousIdGenerator {
   @override
   String generate() {
@@ -188,5 +212,15 @@ class FakeRoutineStatusRecordIdGenerator
   @override
   String generate() {
     return 'estado-rutina-widget-test';
+  }
+}
+
+class FakeAtypicalSituationRecordIdGenerator
+    implements AtypicalSituationRecordIdGenerator {
+  const FakeAtypicalSituationRecordIdGenerator();
+
+  @override
+  String generate() {
+    return 'situacion-widget-test';
   }
 }

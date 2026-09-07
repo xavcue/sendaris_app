@@ -274,6 +274,82 @@ service cloud.firestore {
         );
     }
 
+    function hasValidAtypicalSituationTopLevelFields(uid) {
+      return request.resource.data.keys().hasAll([
+          'tipoRegistro',
+          'fechaEvento',
+          'fechaCreacion',
+          'fechaActualizacion',
+          'uidOperacion',
+          'datos'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'tipoRegistro',
+          'fechaEvento',
+          'fechaCreacion',
+          'fechaActualizacion',
+          'uidOperacion',
+          'datos'
+        ])
+        && request.resource.data.tipoRegistro
+          == 'situacionAtipica'
+        && request.resource.data.fechaEvento is timestamp
+        && request.resource.data.fechaCreacion is timestamp
+        && request.resource.data.fechaActualizacion is timestamp
+        && request.resource.data.fechaCreacion
+          == request.resource.data.fechaActualizacion
+        && request.resource.data.uidOperacion is string
+        && request.resource.data.uidOperacion == uid
+        && request.resource.data.uidOperacion
+          == request.auth.uid
+        && request.resource.data.datos is map;
+    }
+
+    function hasValidAtypicalSituationDataFields() {
+      return request.resource.data.datos.keys().hasAll([
+          'fecha',
+          'categoriaGeneral',
+          'observacion'
+        ])
+        && request.resource.data.datos.keys().hasOnly([
+          'fecha',
+          'categoriaGeneral',
+          'observacion'
+        ]);
+    }
+
+    function hasValidAtypicalSituationDate() {
+      return request.resource.data.datos.fecha is timestamp
+        && request.resource.data.fechaEvento
+          == request.resource.data.datos.fecha;
+    }
+
+    function hasValidAtypicalSituationCategory() {
+      return request.resource.data.datos.categoriaGeneral is string
+        && request.resource.data.datos.categoriaGeneral in [
+          'cambio_entorno',
+          'transicion_traslado',
+          'evento_inesperado',
+          'actividad_no_habitual',
+          'cambio_horario',
+          'interrupcion_externa',
+          'otro'
+        ];
+    }
+
+    function hasValidAtypicalSituationObservation() {
+      return request.resource.data.datos.observacion is string
+        && request.resource.data.datos.observacion.size() > 0;
+    }
+
+    function isValidAtypicalSituationCreate(uid) {
+      return hasValidAtypicalSituationTopLevelFields(uid)
+        && hasValidAtypicalSituationDataFields()
+        && hasValidAtypicalSituationDate()
+        && hasValidAtypicalSituationCategory()
+        && hasValidAtypicalSituationObservation();
+    }
+
     function hasValidRoutineFields() {
       return request.resource.data.keys().hasAll([
           'nombre',
@@ -355,6 +431,7 @@ service cloud.firestore {
 
           // HU-02 permite registros de conducta.
           // HU-04 incorpora estados válidos de rutinas.
+          // HU-09 incorpora situaciones generales.
           allow create: if isOwner(uid)
             && trackingProfileExistsAndIsActive(
               uid,
@@ -366,6 +443,7 @@ service cloud.firestore {
                 uid,
                 idAnonimo
               )
+              || isValidAtypicalSituationCreate(uid)
             );
 
           // Edición y eliminación se habilitarán únicamente

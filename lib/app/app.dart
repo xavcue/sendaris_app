@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../features/atypical_situation/domain/repositories/atypical_situation_repository.dart';
+import '../features/atypical_situation/domain/services/atypical_situation_record_factory.dart';
 import '../features/auth/domain/repositories/auth_repository.dart';
 import '../features/auth/presentation/viewmodels/auth_view_model.dart';
 import '../features/behavior/domain/repositories/behavior_repository.dart';
@@ -27,6 +29,8 @@ class SendarisApp extends StatefulWidget {
     required this.routineFactory,
     required this.routineStatusRepository,
     required this.routineStatusRecordFactory,
+    required this.atypicalSituationRepository,
+    required this.atypicalSituationRecordFactory,
     super.key,
   });
 
@@ -47,6 +51,10 @@ class SendarisApp extends StatefulWidget {
   final RoutineStatusRepository routineStatusRepository;
 
   final RoutineStatusRecordFactory routineStatusRecordFactory;
+
+  final AtypicalSituationRepository atypicalSituationRepository;
+
+  final AtypicalSituationRecordFactory atypicalSituationRecordFactory;
 
   @override
   State<SendarisApp> createState() => _SendarisAppState();
@@ -79,6 +87,8 @@ class _SendarisAppState extends State<SendarisApp> {
       routineFactory: widget.routineFactory,
       routineStatusRepository: widget.routineStatusRepository,
       routineStatusRecordFactory: widget.routineStatusRecordFactory,
+      atypicalSituationRepository: widget.atypicalSituationRepository,
+      atypicalSituationRecordFactory: widget.atypicalSituationRecordFactory,
     );
   }
 
