@@ -12,6 +12,9 @@ import '../../features/routine/domain/repositories/routine_repository.dart';
 import '../../features/routine/domain/services/routine_factory.dart';
 import '../../features/routine/presentation/views/routine_form_view.dart';
 import '../../features/routine/presentation/views/routine_management_view.dart';
+import '../../features/routine_status/domain/repositories/routine_status_repository.dart';
+import '../../features/routine_status/domain/services/routine_status_record_factory.dart';
+import '../../features/routine_status/presentation/views/routine_status_form_view.dart';
 import '../../features/tracking/presentation/viewmodels/tracking_view_model.dart';
 
 abstract final class AppRouter {
@@ -22,6 +25,8 @@ abstract final class AppRouter {
     required BehaviorRecordFactory behaviorRecordFactory,
     required RoutineRepository routineRepository,
     required RoutineFactory routineFactory,
+    required RoutineStatusRepository routineStatusRepository,
+    required RoutineStatusRecordFactory routineStatusRecordFactory,
   }) {
     return GoRouter(
       initialLocation: '/',
@@ -138,6 +143,25 @@ abstract final class AppRouter {
               routineFactory: routineFactory,
               anonymousId: anonymousId,
               initialRoutine: extra,
+            );
+          },
+        ),
+
+        GoRoute(
+          path: '/routines/status/new',
+          name: 'routine-status-new',
+          builder: (context, state) {
+            final anonymousId = trackingViewModel.activeAnonymousId;
+
+            if (anonymousId == null) {
+              return HomePlaceholderView(trackingViewModel: trackingViewModel);
+            }
+
+            return RoutineStatusFormView(
+              routineRepository: routineRepository,
+              routineStatusRepository: routineStatusRepository,
+              recordFactory: routineStatusRecordFactory,
+              anonymousId: anonymousId,
             );
           },
         ),

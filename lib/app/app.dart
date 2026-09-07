@@ -8,6 +8,8 @@ import '../features/behavior/domain/repositories/behavior_repository.dart';
 import '../features/behavior/domain/services/behavior_record_factory.dart';
 import '../features/routine/domain/repositories/routine_repository.dart';
 import '../features/routine/domain/services/routine_factory.dart';
+import '../features/routine_status/domain/repositories/routine_status_repository.dart';
+import '../features/routine_status/domain/services/routine_status_record_factory.dart';
 import '../features/tracking/domain/repositories/tracking_repository.dart';
 import '../features/tracking/domain/services/anonymous_tracking_profile_factory.dart';
 import '../features/tracking/presentation/viewmodels/tracking_view_model.dart';
@@ -23,6 +25,8 @@ class SendarisApp extends StatefulWidget {
     required this.behaviorRecordFactory,
     required this.routineRepository,
     required this.routineFactory,
+    required this.routineStatusRepository,
+    required this.routineStatusRecordFactory,
     super.key,
   });
 
@@ -39,6 +43,10 @@ class SendarisApp extends StatefulWidget {
   final RoutineRepository routineRepository;
 
   final RoutineFactory routineFactory;
+
+  final RoutineStatusRepository routineStatusRepository;
+
+  final RoutineStatusRecordFactory routineStatusRecordFactory;
 
   @override
   State<SendarisApp> createState() => _SendarisAppState();
@@ -69,6 +77,8 @@ class _SendarisAppState extends State<SendarisApp> {
       behaviorRecordFactory: widget.behaviorRecordFactory,
       routineRepository: widget.routineRepository,
       routineFactory: widget.routineFactory,
+      routineStatusRepository: widget.routineStatusRepository,
+      routineStatusRecordFactory: widget.routineStatusRecordFactory,
     );
   }
 

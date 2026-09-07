@@ -167,6 +167,113 @@ service cloud.firestore {
         && hasValidOptionalBehaviorObservation();
     }
 
+    function hasValidRoutineStatusTopLevelFields(uid) {
+      return request.resource.data.keys().hasAll([
+          'tipoRegistro',
+          'fechaEvento',
+          'fechaCreacion',
+          'fechaActualizacion',
+          'uidOperacion',
+          'datos'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'tipoRegistro',
+          'fechaEvento',
+          'fechaCreacion',
+          'fechaActualizacion',
+          'uidOperacion',
+          'datos'
+        ])
+        && request.resource.data.tipoRegistro == 'estadoRutina'
+        && request.resource.data.fechaEvento is timestamp
+        && request.resource.data.fechaCreacion is timestamp
+        && request.resource.data.fechaActualizacion is timestamp
+        && request.resource.data.fechaCreacion
+          == request.resource.data.fechaActualizacion
+        && request.resource.data.uidOperacion is string
+        && request.resource.data.uidOperacion == uid
+        && request.resource.data.uidOperacion
+          == request.auth.uid
+        && request.resource.data.datos is map;
+    }
+
+    function hasValidRoutineStatusDataFields() {
+      return request.resource.data.datos.keys().hasAll([
+          'fecha',
+          'idRutina',
+          'estado'
+        ])
+        && request.resource.data.datos.keys().hasOnly([
+          'fecha',
+          'idRutina',
+          'estado',
+          'observacion'
+        ]);
+    }
+
+    function hasValidRoutineStatusDate() {
+      return request.resource.data.datos.fecha is timestamp
+        && request.resource.data.fechaEvento
+          == request.resource.data.datos.fecha;
+    }
+
+    function hasValidRoutineStatusRoutineId() {
+      return request.resource.data.datos.idRutina is string
+        && request.resource.data.datos.idRutina.size() > 0;
+    }
+
+    function hasValidRoutineStatusValue() {
+      return request.resource.data.datos.estado is string
+        && request.resource.data.datos.estado in [
+          'completada',
+          'modificada',
+          'interrumpida',
+          'no_realizada'
+        ];
+    }
+
+    function hasValidOptionalRoutineStatusObservation() {
+      return !('observacion' in request.resource.data.datos)
+        || (
+          request.resource.data.datos.observacion is string
+          && request.resource.data.datos.observacion.size() > 0
+        );
+    }
+
+    function routineExistsAndIsActive(
+      uid,
+      idAnonimo,
+      idRutina
+    ) {
+      return exists(
+          /databases/$(database)/documents
+          /usuarios/$(uid)/seguimientos/$(idAnonimo)
+          /rutinas/$(idRutina)
+        )
+        && get(
+          /databases/$(database)/documents
+          /usuarios/$(uid)/seguimientos/$(idAnonimo)
+          /rutinas/$(idRutina)
+        ).data.activa == true;
+    }
+
+    function isValidRoutineStatusCreate(
+      uid,
+      idAnonimo
+    ) {
+      return hasValidRoutineStatusTopLevelFields(uid)
+        && hasValidRoutineStatusDataFields()
+        && hasValidRoutineStatusDate()
+        && hasValidRoutineStatusRoutineId()
+        && hasValidRoutineStatusValue()
+        && hasValidOptionalRoutineStatusObservation()
+        && routineExistsAndIsActive(
+          uid,
+          idAnonimo,
+          request.resource.data.datos.idRutina
+        );
+    }
+
     function hasValidRoutineFields() {
       return request.resource.data.keys().hasAll([
           'nombre',
@@ -246,14 +353,20 @@ service cloud.firestore {
           // pertenecientes a su propio ámbito.
           allow read: if isOwner(uid);
 
-          // HU-02 habilita exclusivamente la creación
-          // de registros de conducta válidos.
+          // HU-02 permite registros de conducta.
+          // HU-04 incorpora estados válidos de rutinas.
           allow create: if isOwner(uid)
             && trackingProfileExistsAndIsActive(
               uid,
               idAnonimo
             )
-            && isValidBehaviorCreate(uid);
+            && (
+              isValidBehaviorCreate(uid)
+              || isValidRoutineStatusCreate(
+                uid,
+                idAnonimo
+              )
+            );
 
           // Edición y eliminación se habilitarán únicamente
           // cuando exista una historia que las defina.

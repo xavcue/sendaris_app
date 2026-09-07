@@ -12,6 +12,7 @@ class RegisterView extends StatelessWidget {
     final trackingViewModel = context.watch<TrackingViewModel>();
 
     final theme = Theme.of(context);
+
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
@@ -137,6 +138,20 @@ class RegisterView extends StatelessWidget {
               ],
             ),
 
+            const SizedBox(height: 12),
+
+            _RegisterOptionCard(
+              key: const Key('register-routine-status-option'),
+              title: 'Estado de rutina',
+              subtitle: 'Registrar cumplimiento o cambio',
+              icon: Icons.event_available_outlined,
+              accentColor: const Color(0xFF67B49A),
+              enabled: trackingViewModel.hasActiveProfile,
+              onTap: () {
+                context.push('/routines/status/new');
+              },
+            ),
+
             if (!trackingViewModel.hasActiveProfile) ...[
               const SizedBox(height: 24),
 
@@ -187,15 +202,21 @@ class _RegisterOptionCard extends StatelessWidget {
   });
 
   final String title;
+
   final String subtitle;
+
   final IconData icon;
+
   final Color accentColor;
+
   final bool enabled;
+
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     final colorScheme = theme.colorScheme;
 
     final contentOpacity = enabled ? 1.0 : 0.52;

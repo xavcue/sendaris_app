@@ -16,6 +16,10 @@ import 'features/routine/data/repositories/firebase_routine_repository.dart';
 import 'features/routine/data/services/firestore_routine_service.dart';
 import 'features/routine/data/services/uuid_routine_id_generator.dart';
 import 'features/routine/domain/services/routine_factory.dart';
+import 'features/routine_status/data/repositories/firebase_routine_status_repository.dart';
+import 'features/routine_status/data/services/firestore_routine_status_service.dart';
+import 'features/routine_status/data/services/uuid_routine_status_record_id_generator.dart';
+import 'features/routine_status/domain/services/routine_status_record_factory.dart';
 import 'features/tracking/data/repositories/firebase_tracking_repository.dart';
 import 'features/tracking/data/services/firestore_tracking_service.dart';
 import 'features/tracking/data/services/uuid_anonymous_id_generator.dart';
@@ -67,6 +71,19 @@ Future<void> main() async {
 
   final routineFactory = RoutineFactory(UuidRoutineIdGenerator());
 
+  final routineStatusService = FirestoreRoutineStatusService(
+    firestore,
+    firebaseAuth,
+  );
+
+  final routineStatusRepository = FirebaseRoutineStatusRepository(
+    routineStatusService,
+  );
+
+  final routineStatusRecordFactory = RoutineStatusRecordFactory(
+    UuidRoutineStatusRecordIdGenerator(),
+  );
+
   runApp(
     SendarisApp(
       authRepository: authRepository,
@@ -76,6 +93,8 @@ Future<void> main() async {
       behaviorRecordFactory: behaviorRecordFactory,
       routineRepository: routineRepository,
       routineFactory: routineFactory,
+      routineStatusRepository: routineStatusRepository,
+      routineStatusRecordFactory: routineStatusRecordFactory,
     ),
   );
 }
