@@ -11,6 +11,10 @@ import 'package:sendaris/features/routine/domain/models/routine.dart';
 import 'package:sendaris/features/routine/domain/repositories/routine_repository.dart';
 import 'package:sendaris/features/routine/domain/services/routine_factory.dart';
 import 'package:sendaris/features/routine/domain/services/routine_id_generator.dart';
+import 'package:sendaris/features/routine_status/domain/models/routine_status_record.dart';
+import 'package:sendaris/features/routine_status/domain/repositories/routine_status_repository.dart';
+import 'package:sendaris/features/routine_status/domain/services/routine_status_record_factory.dart';
+import 'package:sendaris/features/routine_status/domain/services/routine_status_record_id_generator.dart';
 import 'package:sendaris/features/tracking/domain/models/anonymous_tracking_profile.dart';
 import 'package:sendaris/features/tracking/domain/repositories/tracking_repository.dart';
 import 'package:sendaris/features/tracking/domain/services/anonymous_id_generator.dart';
@@ -38,6 +42,12 @@ void main() {
 
     const routineFactory = RoutineFactory(FakeRoutineIdGenerator());
 
+    final routineStatusRepository = FakeRoutineStatusRepository();
+
+    const routineStatusRecordFactory = RoutineStatusRecordFactory(
+      FakeRoutineStatusRecordIdGenerator(),
+    );
+
     await tester.pumpWidget(
       SendarisApp(
         authRepository: authRepository,
@@ -47,6 +57,8 @@ void main() {
         behaviorRecordFactory: behaviorRecordFactory,
         routineRepository: routineRepository,
         routineFactory: routineFactory,
+        routineStatusRepository: routineStatusRepository,
+        routineStatusRecordFactory: routineStatusRecordFactory,
       ),
     );
 
@@ -132,6 +144,18 @@ class FakeRoutineRepository implements RoutineRepository {
   }) async {}
 }
 
+class FakeRoutineStatusRepository implements RoutineStatusRepository {
+  @override
+  Future<void> saveRoutineStatus(RoutineStatusRecord record) async {}
+
+  @override
+  Future<List<RoutineStatusRecord>> recoverRoutineStatuses({
+    required String anonymousId,
+  }) async {
+    return [];
+  }
+}
+
 class FakeAnonymousIdGenerator implements AnonymousIdGenerator {
   @override
   String generate() {
@@ -154,5 +178,15 @@ class FakeRoutineIdGenerator implements RoutineIdGenerator {
   @override
   String generate() {
     return 'rutina-widget-test';
+  }
+}
+
+class FakeRoutineStatusRecordIdGenerator
+    implements RoutineStatusRecordIdGenerator {
+  const FakeRoutineStatusRecordIdGenerator();
+
+  @override
+  String generate() {
+    return 'estado-rutina-widget-test';
   }
 }
