@@ -1,0 +1,15 @@
+flutter_native_splash:
+  color: "#F4FBF8"
+  image: "assets/branding/sendaris_splash_logo.png"
+
+  android: true
+  ios: true
+  web: false
+
+  android_gravity: center
+  ios_content_mode: center
+
+  android_12:
+    color: "#F4FBF8"
+    image: "assets/branding/sendaris_splash_logo.png"
+    icon_background_color: "#F4FBF8"

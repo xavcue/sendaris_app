@@ -6,11 +6,11 @@ abstract final class RoutineStatusRecordValidator {
     final errors = <String, String>{};
 
     if (anonymousId.trim().isEmpty) {
-      errors['anonymousId'] = 'El seguimiento anónimo es obligatorio.';
+      errors['anonymousId'] = 'No hay un perfil activo disponible.';
     }
 
     if (routineId.trim().isEmpty) {
-      errors['routineId'] = 'La rutina seleccionada es obligatoria.';
+      errors['routineId'] = 'Selecciona una rutina para continuar.';
     }
 
     return errors;

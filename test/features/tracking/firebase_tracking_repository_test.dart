@@ -8,10 +8,12 @@ import 'package:sendaris/features/tracking/domain/models/anonymous_tracking_prof
 void main() {
   group('FirebaseTrackingRepository', () {
     late FakeTrackingRemoteService service;
+
     late FirebaseTrackingRepository repository;
 
     setUp(() {
       service = FakeTrackingRemoteService();
+
       repository = FirebaseTrackingRepository(service);
     });
 
@@ -37,25 +39,31 @@ void main() {
       final recovered = await repository.recoverProfiles();
 
       expect(recovered.length, 1);
+
       expect(recovered.first.anonymousId, profile.anonymousId);
+
       expect(recovered.first.createdAt, profile.createdAt);
+
       expect(recovered.first.isActive, profile.isActive);
     });
 
-    test('convierte falta de sesión en un error controlado', () async {
-      service.error = StateError('Internal authentication error');
+    test(
+      'convierte falta de sesión en un mensaje orientado al usuario',
+      () async {
+        service.error = StateError('Internal authentication error');
 
-      expect(
-        repository.recoverProfiles,
-        throwsA(
-          isA<TrackingFailure>().having(
-            (failure) => failure.message,
-            'message',
-            'Debes iniciar sesión antes de recuperar información.',
+        expect(
+          repository.recoverProfiles,
+          throwsA(
+            isA<TrackingFailure>().having(
+              (failure) => failure.message,
+              'message',
+              'Debes iniciar sesión antes de cargar la información.',
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
     test('no expone permission-denied de Firebase al usuario', () async {
       service.error = FirebaseException(
@@ -69,13 +77,13 @@ void main() {
           isA<TrackingFailure>().having(
             (failure) => failure.message,
             'message',
-            'No tienes autorización para recuperar esta información.',
+            'No tienes autorización para consultar esta información.',
           ),
         ),
       );
     });
 
-    test('un error de red no se presenta como recuperación exitosa', () async {
+    test('un error de red utiliza un mensaje comprensible', () async {
       service.error = FirebaseException(
         plugin: 'cloud_firestore',
         code: 'unavailable',
@@ -87,11 +95,39 @@ void main() {
           isA<TrackingFailure>().having(
             (failure) => failure.message,
             'message',
-            contains('Verifica tu conexión'),
+            'No fue posible cargar la información. '
+                'Verifica tu conexión.',
           ),
         ),
       );
     });
+
+    test(
+      'un error de guardado por red no utiliza terminología remota',
+      () async {
+        service.error = FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'unavailable',
+        );
+
+        expect(
+          () => repository.persistProfile(
+            AnonymousTrackingProfile(
+              anonymousId: '550e8400-e29b-41d4-a716-446655440000',
+              createdAt: DateTime.utc(2026, 9, 3),
+            ),
+          ),
+          throwsA(
+            isA<TrackingFailure>().having(
+              (failure) => failure.message,
+              'message',
+              'No fue posible guardar la información. '
+                  'Verifica tu conexión.',
+            ),
+          ),
+        );
+      },
+    );
   });
 }
 

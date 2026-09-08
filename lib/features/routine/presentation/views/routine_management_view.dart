@@ -56,7 +56,8 @@ class _RoutineManagementContent extends StatelessWidget {
           content: Text(
             '“${routine.name}” dejará de mostrarse '
             'como rutina activa. Su información '
-            'se conservará en el historial.',
+            'se conservará para que puedas '
+            'consultarla más adelante.',
           ),
           actions: [
             TextButton(
@@ -245,8 +246,8 @@ class _RoutineManagementContent extends StatelessWidget {
                 '(${viewModel.inactiveRoutines.length})',
               ),
               subtitle: const Text(
-                'Se conservan para mantener '
-                'la trazabilidad del seguimiento.',
+                'Puedes consultarlas '
+                'más adelante.',
               ),
               childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
               children: [
@@ -279,6 +280,7 @@ class _RoutineIntroCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return Container(
+      key: const Key('routine-management-intro'),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colorScheme.primaryContainer.withValues(alpha: 0.45),
@@ -296,7 +298,9 @@ class _RoutineIntroCard extends StatelessWidget {
             ),
             child: Icon(Icons.checklist_rounded, color: colorScheme.onPrimary),
           ),
+
           const SizedBox(width: 14),
+
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -307,11 +311,13 @@ class _RoutineIntroCard extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
+
                 const SizedBox(height: 6),
+
                 Text(
-                  'Crea y administra actividades '
-                  'repetitivas asociadas al '
-                  'seguimiento anónimo activo.',
+                  'Crea y organiza las '
+                  'actividades habituales '
+                  'del perfil activo.',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                     height: 1.4,
@@ -346,7 +352,9 @@ class _RoutineSummary extends StatelessWidget {
             value: activeCount,
           ),
         ),
+
         const SizedBox(width: 12),
+
         Expanded(
           child: _SummaryCard(
             icon: Icons.history_rounded,
@@ -382,7 +390,9 @@ class _SummaryCard extends StatelessWidget {
         child: Row(
           children: [
             Icon(icon, color: colorScheme.primary),
+
             const SizedBox(width: 10),
+
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -393,6 +403,7 @@ class _SummaryCard extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+
                   Text(
                     label,
                     style: theme.textTheme.bodySmall?.copyWith(
@@ -418,6 +429,7 @@ class _SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Row(
       children: [
@@ -429,7 +441,24 @@ class _SectionTitle extends StatelessWidget {
             ),
           ),
         ),
-        Badge(label: Text('$count')),
+
+        Container(
+          key: const Key('routine-active-count'),
+          constraints: const BoxConstraints(minWidth: 30),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: colorScheme.primaryContainer,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            '$count',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: colorScheme.onPrimaryContainer,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -482,7 +511,9 @@ class _RoutineCard extends StatelessWidget {
                         : colorScheme.onSurfaceVariant,
                   ),
                 ),
+
                 const SizedBox(width: 14),
+
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -493,11 +524,14 @@ class _RoutineCard extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+
                       const SizedBox(height: 6),
+
                       _StatusChip(active: routine.isActive),
                     ],
                   ),
                 ),
+
                 if (routine.isActive)
                   PopupMenuButton<String>(
                     key: Key('routine-menu-${routine.routineId}'),
@@ -533,8 +567,10 @@ class _RoutineCard extends StatelessWidget {
                   ),
               ],
             ),
+
             if (routine.description != null) ...[
               const SizedBox(height: 14),
+
               Text(
                 routine.description!,
                 style: theme.textTheme.bodyMedium?.copyWith(
@@ -542,9 +578,11 @@ class _RoutineCard extends StatelessWidget {
                 ),
               ),
             ],
+
             if (routine.scheduledTime != null ||
                 routine.recurrence != null) ...[
               const SizedBox(height: 14),
+
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -554,6 +592,7 @@ class _RoutineCard extends StatelessWidget {
                       icon: Icons.schedule_outlined,
                       label: routine.scheduledTime!,
                     ),
+
                   if (routine.recurrence != null)
                     _InfoChip(
                       icon: Icons.repeat_rounded,
@@ -632,7 +671,9 @@ class _InfoChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 16, color: colorScheme.onSurfaceVariant),
+
           const SizedBox(width: 6),
+
           Text(label, style: Theme.of(context).textTheme.bodySmall),
         ],
       ),
@@ -659,7 +700,9 @@ class _EmptyRoutineState extends StatelessWidget {
               size: 54,
               color: colorScheme.primary,
             ),
+
             const SizedBox(height: 16),
+
             Text(
               'Aún no hay rutinas',
               textAlign: TextAlign.center,
@@ -667,11 +710,13 @@ class _EmptyRoutineState extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
+
             const SizedBox(height: 8),
+
             Text(
-              'Crea la primera rutina para '
-              'organizar actividades repetitivas '
-              'del seguimiento.',
+              'Crea la primera rutina '
+              'para organizar las actividades '
+              'habituales del perfil activo.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: colorScheme.onSurfaceVariant,
@@ -696,7 +741,9 @@ class _NoActiveRoutines extends StatelessWidget {
         child: Row(
           children: [
             const Icon(Icons.info_outline),
+
             const SizedBox(width: 12),
+
             Expanded(
               child: Text(
                 'No hay rutinas activas. '
@@ -729,7 +776,9 @@ class _InlineError extends StatelessWidget {
       child: Row(
         children: [
           Icon(Icons.error_outline, color: colorScheme.onErrorContainer),
+
           const SizedBox(width: 10),
+
           Expanded(
             child: Text(
               message,
@@ -757,16 +806,21 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           children: [
             const Icon(Icons.cloud_off_outlined, size: 48),
+
             const SizedBox(height: 16),
+
             Text(
-              'No fue posible cargar '
-              'las rutinas',
+              'No fue posible cargar las rutinas',
               style: Theme.of(context).textTheme.titleMedium
                   ?.copyWith(fontWeight: FontWeight.bold),
             ),
+
             const SizedBox(height: 8),
+
             Text(message, textAlign: TextAlign.center),
+
             const SizedBox(height: 18),
+
             FilledButton.icon(
               onPressed: () {
                 onRetry();

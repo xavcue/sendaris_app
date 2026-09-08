@@ -11,8 +11,7 @@ abstract final class BehaviorRecordValidator {
     final normalizedAnonymousId = anonymousId.trim();
 
     if (normalizedAnonymousId.isEmpty || normalizedAnonymousId.contains('/')) {
-      errors['anonymousId'] =
-          'El seguimiento anónimo seleccionado no es válido.';
+      errors['anonymousId'] = 'El perfil activo no es válido.';
     }
 
     final normalizedTime = time?.trim();

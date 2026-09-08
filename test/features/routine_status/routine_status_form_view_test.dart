@@ -22,32 +22,67 @@ void main() {
     );
   }
 
-  testWidgets('muestra únicamente rutinas activas', (tester) async {
-    await tester.pumpWidget(
-      createSubject(
-        routines: const [
-          Routine(
-            routineId: 'rutina-activa',
-            anonymousId: 'anonimo-test',
-            name: 'Preparar mochila',
-            isActive: true,
-          ),
-          Routine(
-            routineId: 'rutina-inactiva',
-            anonymousId: 'anonimo-test',
-            name: 'Rutina desactivada',
-            isActive: false,
-          ),
-        ],
-      ),
-    );
+  testWidgets(
+    'muestra únicamente rutinas activas con lenguaje orientado al usuario',
+    (tester) async {
+      await tester.pumpWidget(
+        createSubject(
+          routines: const [
+            Routine(
+              routineId: 'rutina-activa',
+              anonymousId: 'anonimo-test',
+              name: 'Preparar mochila',
+              isActive: true,
+            ),
+            Routine(
+              routineId: 'rutina-inactiva',
+              anonymousId: 'anonimo-test',
+              name: 'Rutina desactivada',
+              isActive: false,
+            ),
+          ],
+        ),
+      );
 
-    await tester.pumpAndSettle();
+      await tester.pumpAndSettle();
 
-    expect(find.text('Preparar mochila'), findsOneWidget);
+      expect(find.text('Registrar estado de rutina'), findsOneWidget);
 
-    expect(find.text('Rutina desactivada'), findsNothing);
-  });
+      expect(find.text('Estado de una rutina'), findsOneWidget);
+
+      expect(
+        find.text('Elige una rutina activa para registrar su estado.'),
+        findsOneWidget,
+      );
+
+      expect(find.text('Preparar mochila'), findsOneWidget);
+
+      expect(find.text('Rutina desactivada'), findsNothing);
+
+      expect(find.textContaining('seguimiento anónimo'), findsNothing);
+
+      expect(find.textContaining('identificador interno'), findsNothing);
+
+      final scrollable = find.byType(Scrollable).first;
+
+      final profileMessage = find.byKey(
+        const Key('routine-status-profile-message'),
+      );
+
+      await tester.scrollUntilVisible(
+        profileMessage,
+        300,
+        scrollable: scrollable,
+      );
+
+      expect(profileMessage, findsOneWidget);
+
+      expect(
+        find.text('La información se guardará en el perfil activo.'),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets('muestra mensaje cuando no existen rutinas activas', (
     tester,

@@ -14,7 +14,7 @@ abstract final class RoutineValidator {
     final errors = <String, String>{};
 
     if (anonymousId.trim().isEmpty) {
-      errors['anonymousId'] = 'El seguimiento anónimo es obligatorio.';
+      errors['anonymousId'] = 'No hay un perfil activo disponible.';
     }
 
     if (name.trim().isEmpty) {
@@ -26,7 +26,7 @@ abstract final class RoutineValidator {
     }
 
     if (recurrence != null && !allowedRecurrences.contains(recurrence)) {
-      errors['recurrence'] = 'La recurrencia seleccionada no es válida.';
+      errors['recurrence'] = 'La frecuencia seleccionada no es válida.';
     }
 
     return errors;

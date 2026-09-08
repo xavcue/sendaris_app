@@ -19,11 +19,8 @@ class RoutineStatusFormView extends StatelessWidget {
   });
 
   final RoutineRepository routineRepository;
-
   final RoutineStatusRepository routineStatusRepository;
-
   final RoutineStatusRecordFactory recordFactory;
-
   final String anonymousId;
 
   @override
@@ -50,9 +47,7 @@ class _RoutineStatusFormContent extends StatefulWidget {
 
 class _RoutineStatusFormContentState extends State<_RoutineStatusFormContent> {
   final GlobalKey _generalErrorKey = GlobalKey();
-
   final GlobalKey _routineSectionKey = GlobalKey();
-
   final GlobalKey _statusSectionKey = GlobalKey();
 
   final TextEditingController _observationController = TextEditingController();
@@ -143,7 +138,6 @@ class _RoutineStatusFormContentState extends State<_RoutineStatusFormContent> {
     final viewModel = context.watch<RoutineStatusFormViewModel>();
 
     final theme = Theme.of(context);
-
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
@@ -181,7 +175,8 @@ class _RoutineStatusFormContentState extends State<_RoutineStatusFormContent> {
                     key: _routineSectionKey,
                     child: _SectionCard(
                       title: 'Seleccionar rutina',
-                      subtitle: 'Elige una rutina activa del seguimiento.',
+                      subtitle:
+                          'Elige una rutina activa para registrar su estado.',
                       requiredField: true,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,11 +244,9 @@ class _RoutineStatusFormContentState extends State<_RoutineStatusFormContent> {
                             children: [
                               for (final status in RoutineStatus.values)
                                 ChoiceChip(
-                                  key: Key(
-                                    'routine-status-'
-                                    '${status.code}',
-                                  ),
+                                  key: Key('routine-status-${status.code}'),
                                   selected: viewModel.selectedStatus == status,
+                                  showCheckmark: false,
                                   onSelected: viewModel.isSaving
                                       ? null
                                       : (_) {
@@ -437,7 +430,6 @@ class _NoRoutinesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
     final colorScheme = theme.colorScheme;
 
     return Container(
@@ -477,17 +469,13 @@ class _RoutineOption extends StatelessWidget {
   });
 
   final Routine routine;
-
   final bool selected;
-
   final bool enabled;
-
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
     final colorScheme = theme.colorScheme;
 
     return Material(
@@ -496,10 +484,7 @@ class _RoutineOption extends StatelessWidget {
           : colorScheme.surfaceContainerLow,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        key: Key(
-          'routine-status-routine-'
-          '${routine.routineId}',
-        ),
+        key: Key('routine-status-routine-${routine.routineId}'),
         onTap: enabled ? onTap : null,
         borderRadius: BorderRadius.circular(16),
         child: Padding(
@@ -568,17 +553,13 @@ class _PickerButton extends StatelessWidget {
   });
 
   final IconData icon;
-
   final String label;
-
   final String value;
-
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
     final colorScheme = theme.colorScheme;
 
     return OutlinedButton(
@@ -632,6 +613,7 @@ class _PrivacyCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Container(
+      key: const Key('routine-status-profile-message'),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colorScheme.primaryContainer.withValues(alpha: 0.28),
@@ -646,9 +628,8 @@ class _PrivacyCard extends StatelessWidget {
 
           Expanded(
             child: Text(
-              'El registro se asociará únicamente '
-              'al identificador interno anónimo '
-              'del seguimiento activo.',
+              'La información se guardará '
+              'en el perfil activo.',
               style: theme.textTheme.bodySmall,
             ),
           ),
@@ -667,17 +648,13 @@ class _SectionCard extends StatelessWidget {
   });
 
   final String title;
-
   final String subtitle;
-
   final Widget child;
-
   final bool requiredField;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
     final colorScheme = theme.colorScheme;
 
     return Card(

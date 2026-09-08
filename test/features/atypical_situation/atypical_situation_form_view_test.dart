@@ -18,9 +18,11 @@ void main() {
     expect(find.text('¿Qué ocurrió? *'), findsOneWidget);
 
     expect(
-      find.text('La información se guardará en el perfil seleccionado.'),
+      find.text('La información se guardará en el perfil activo.'),
       findsOneWidget,
     );
+
+    expect(find.textContaining('perfil seleccionado'), findsNothing);
 
     expect(find.textContaining('identificador anónimo'), findsNothing);
 

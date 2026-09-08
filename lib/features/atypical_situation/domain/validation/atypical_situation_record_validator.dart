@@ -10,7 +10,7 @@ abstract final class AtypicalSituationRecordValidator {
     final normalizedObservation = observation.trim();
 
     if (normalizedAnonymousId.isEmpty || normalizedAnonymousId.contains('/')) {
-      errors['anonymousId'] = 'El perfil seleccionado no es válido.';
+      errors['anonymousId'] = 'El perfil activo no es válido.';
     }
 
     if (normalizedObservation.isEmpty) {

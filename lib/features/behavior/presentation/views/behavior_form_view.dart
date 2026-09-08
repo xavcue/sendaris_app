@@ -237,12 +237,17 @@ class _BehaviorFormContentState extends State<_BehaviorFormContent> {
                               'behavior-category-'
                               '${category.code}',
                             ),
+
                             selected: viewModel.selectedCategory == category,
+
+                            showCheckmark: false,
+
                             onSelected: viewModel.isSaving
                                 ? null
                                 : (_) {
                                     viewModel.setCategory(category);
                                   },
+
                             label: Text(category.label),
                           ),
                       ],
@@ -317,6 +322,7 @@ class _BehaviorFormContentState extends State<_BehaviorFormContent> {
                             '${intensity.code}',
                           ),
                           selected: viewModel.selectedIntensity == intensity,
+                          showCheckmark: false,
                           onSelected: viewModel.isSaving
                               ? null
                               : (_) {
@@ -348,22 +354,60 @@ class _BehaviorFormContentState extends State<_BehaviorFormContent> {
                 subtitle: const Text('Contexto y observaciones'),
                 childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
                 children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Contexto',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Describe brevemente dónde o en qué situación ocurrió.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
                   TextField(
                     key: const Key('behavior-context-field'),
                     controller: _contextController,
                     enabled: !viewModel.isSaving,
+                    minLines: 2,
+                    maxLines: 2,
                     textInputAction: TextInputAction.next,
                     decoration: const InputDecoration(
-                      labelText: 'Contexto',
-                      hintText:
-                          'Ej. Durante una '
-                          'actividad cotidiana',
+                      hintText: 'Ej. Durante una actividad cotidiana',
+                      hintMaxLines: 2,
                       prefixIcon: Icon(Icons.place_outlined),
                     ),
                   ),
-
-                  const SizedBox(height: 16),
-
+                  const SizedBox(height: 20),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Observación',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Añade información descriptiva solo si es necesaria.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
                   TextField(
                     key: const Key('behavior-observation-field'),
                     controller: _observationController,
@@ -372,12 +416,8 @@ class _BehaviorFormContentState extends State<_BehaviorFormContent> {
                     maxLines: 5,
                     textInputAction: TextInputAction.newline,
                     decoration: const InputDecoration(
-                      labelText: 'Observación',
-                      hintText:
-                          'Añade información '
-                          'descriptiva si es '
-                          'necesario.',
-                      alignLabelWithHint: true,
+                      hintText: 'Escribe una observación descriptiva',
+                      hintMaxLines: 2,
                       prefixIcon: Icon(Icons.description_outlined),
                     ),
                   ),
@@ -513,7 +553,7 @@ class _IntroCard extends StatelessWidget {
 
               Expanded(
                 child: Text(
-                  'Nuevo registro',
+                  'Conducta observada',
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -546,8 +586,8 @@ class _IntroCard extends StatelessWidget {
 
               Expanded(
                 child: Text(
-                  'El registro se asociará al '
-                  'seguimiento anónimo activo.',
+                  'La información se guardará '
+                  'en el perfil activo.',
                   style: theme.textTheme.bodySmall,
                 ),
               ),

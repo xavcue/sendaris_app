@@ -6,7 +6,9 @@ import 'package:sendaris/features/routine/domain/repositories/routine_repository
 import 'package:sendaris/features/routine/presentation/views/routine_management_view.dart';
 
 void main() {
-  testWidgets('muestra rutinas activas y desactivadas', (tester) async {
+  testWidgets('muestra rutinas con lenguaje orientado al usuario', (
+    tester,
+  ) async {
     final repository = _FakeRoutineRepository(
       routines: const [
         Routine(
@@ -45,6 +47,15 @@ void main() {
 
     await tester.pumpAndSettle();
 
+    expect(find.text('Organiza las rutinas'), findsOneWidget);
+
+    expect(
+      find.text(
+        'Crea y organiza las actividades habituales del perfil activo.',
+      ),
+      findsOneWidget,
+    );
+
     expect(find.text('Preparar mochila'), findsOneWidget);
 
     expect(find.text('Diaria'), findsOneWidget);
@@ -53,7 +64,15 @@ void main() {
 
     expect(find.textContaining('Rutinas desactivadas'), findsOneWidget);
 
+    expect(find.text('Puedes consultarlas más adelante.'), findsOneWidget);
+
     expect(find.byKey(const Key('routine-create-button')), findsOneWidget);
+
+    expect(find.textContaining('seguimiento anónimo'), findsNothing);
+
+    expect(find.textContaining('trazabilidad'), findsNothing);
+
+    expect(find.textContaining('identificador interno'), findsNothing);
   });
 }
 

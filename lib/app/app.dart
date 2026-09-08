@@ -17,6 +17,7 @@ import '../features/tracking/domain/services/anonymous_tracking_profile_factory.
 import '../features/tracking/presentation/viewmodels/tracking_view_model.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
+import 'theme/theme_mode_controller.dart';
 
 class SendarisApp extends StatefulWidget {
   const SendarisApp({
@@ -35,25 +36,15 @@ class SendarisApp extends StatefulWidget {
   });
 
   final AuthRepository authRepository;
-
   final TrackingRepository trackingRepository;
-
   final AnonymousTrackingProfileFactory trackingProfileFactory;
-
   final BehaviorRepository behaviorRepository;
-
   final BehaviorRecordFactory behaviorRecordFactory;
-
   final RoutineRepository routineRepository;
-
   final RoutineFactory routineFactory;
-
   final RoutineStatusRepository routineStatusRepository;
-
   final RoutineStatusRecordFactory routineStatusRecordFactory;
-
   final AtypicalSituationRepository atypicalSituationRepository;
-
   final AtypicalSituationRecordFactory atypicalSituationRecordFactory;
 
   @override
@@ -62,9 +53,8 @@ class SendarisApp extends StatefulWidget {
 
 class _SendarisAppState extends State<SendarisApp> {
   late final AuthViewModel _authViewModel;
-
   late final TrackingViewModel _trackingViewModel;
-
+  late final ThemeModeController _themeModeController;
   late final GoRouter _router;
 
   @override
@@ -77,6 +67,8 @@ class _SendarisAppState extends State<SendarisApp> {
       widget.trackingRepository,
       widget.trackingProfileFactory,
     );
+
+    _themeModeController = ThemeModeController();
 
     _router = AppRouter.create(
       _authViewModel,
@@ -95,10 +87,9 @@ class _SendarisAppState extends State<SendarisApp> {
   @override
   void dispose() {
     _router.dispose();
-
     _authViewModel.dispose();
-
     _trackingViewModel.dispose();
+    _themeModeController.dispose();
 
     super.dispose();
   }
@@ -111,12 +102,21 @@ class _SendarisAppState extends State<SendarisApp> {
         ChangeNotifierProvider<TrackingViewModel>.value(
           value: _trackingViewModel,
         ),
+        ChangeNotifierProvider<ThemeModeController>.value(
+          value: _themeModeController,
+        ),
       ],
-      child: MaterialApp.router(
-        title: 'Sendaris',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
-        routerConfig: _router,
+      child: Consumer<ThemeModeController>(
+        builder: (context, themeModeController, child) {
+          return MaterialApp.router(
+            title: 'Sendaris',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.light,
+            darkTheme: AppTheme.dark,
+            themeMode: themeModeController.themeMode,
+            routerConfig: _router,
+          );
+        },
       ),
     );
   }

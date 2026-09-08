@@ -36,17 +36,20 @@ class FirebaseBehaviorRepository implements BehaviorRepository {
       return await _remoteService.recoverBehaviors(anonymousId: anonymousId);
     } on StateError {
       throw const BehaviorFailure(
-        'Debes iniciar sesión antes de recuperar conductas.',
+        'Debes iniciar sesión antes de cargar las conductas.',
       );
     } on FirebaseException catch (error) {
       throw BehaviorFailure(_safeRecoveryMessage(error.code));
     } on FormatException {
       throw const BehaviorFailure(
-        'No fue posible interpretar la información '
-        'recuperada de forma segura.',
+        'No fue posible cargar las conductas. '
+        'Inténtalo nuevamente.',
       );
     } catch (_) {
-      throw const BehaviorFailure('No fue posible recuperar las conductas.');
+      throw const BehaviorFailure(
+        'No fue posible cargar las conductas. '
+        'Inténtalo nuevamente.',
+      );
     }
   }
 
@@ -58,7 +61,7 @@ class FirebaseBehaviorRepository implements BehaviorRepository {
 
       case 'unavailable':
       case 'network-request-failed':
-        return 'No fue posible confirmar el guardado remoto. '
+        return 'No fue posible guardar la conducta. '
             'Verifica tu conexión.';
 
       default:
@@ -71,15 +74,16 @@ class FirebaseBehaviorRepository implements BehaviorRepository {
     switch (code) {
       case 'permission-denied':
       case 'unauthenticated':
-        return 'No tienes autorización para recuperar estas conductas.';
+        return 'No tienes autorización para consultar estas conductas.';
 
       case 'unavailable':
       case 'network-request-failed':
-        return 'No fue posible recuperar las conductas remotas. '
+        return 'No fue posible cargar las conductas. '
             'Verifica tu conexión.';
 
       default:
-        return 'No fue posible recuperar las conductas.';
+        return 'No fue posible cargar las conductas. '
+            'Inténtalo nuevamente.';
     }
   }
 }

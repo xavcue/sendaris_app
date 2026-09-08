@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/atypical_situation/domain/repositories/atypical_situation_repository.dart';
@@ -19,6 +20,8 @@ import '../../features/routine_status/domain/repositories/routine_status_reposit
 import '../../features/routine_status/domain/services/routine_status_record_factory.dart';
 import '../../features/routine_status/presentation/views/routine_status_form_view.dart';
 import '../../features/tracking/presentation/viewmodels/tracking_view_model.dart';
+import '../animation/app_motion.dart';
+import '../theme/ambient_background.dart';
 
 abstract final class AppRouter {
   static GoRouter create(
@@ -55,36 +58,58 @@ abstract final class AppRouter {
         GoRoute(
           path: '/login',
           name: 'login',
-          builder: (context, state) => const LoginView(),
+          pageBuilder: (context, state) {
+            return _animatedPage(
+              state: state,
+              child: _ambientScreen(
+                state: state,
+                compact: false,
+                child: const LoginView(),
+              ),
+            );
+          },
         ),
 
+        // Home ya contiene su AmbientBackground propio.
         GoRoute(
           path: '/',
           name: 'home',
-          builder: (context, state) =>
-              HomePlaceholderView(trackingViewModel: trackingViewModel),
+          pageBuilder: (context, state) {
+            return _animatedPage(
+              state: state,
+              child: HomePlaceholderView(trackingViewModel: trackingViewModel),
+            );
+          },
         ),
 
         GoRoute(
           path: '/register',
           name: 'register',
-          builder: (context, state) => const RegisterView(),
+          pageBuilder: (context, state) {
+            return _animatedPage(
+              state: state,
+              child: _ambientScreen(state: state, child: const RegisterView()),
+            );
+          },
         ),
 
         GoRoute(
           path: '/register/behavior',
           name: 'register-behavior',
-          builder: (context, state) {
+          pageBuilder: (context, state) {
             final anonymousId = trackingViewModel.activeAnonymousId;
 
-            if (anonymousId == null) {
-              return const RegisterView();
-            }
+            final child = anonymousId == null
+                ? const RegisterView()
+                : BehaviorFormView(
+                    repository: behaviorRepository,
+                    recordFactory: behaviorRecordFactory,
+                    anonymousId: anonymousId,
+                  );
 
-            return BehaviorFormView(
-              repository: behaviorRepository,
-              recordFactory: behaviorRecordFactory,
-              anonymousId: anonymousId,
+            return _animatedPage(
+              state: state,
+              child: _ambientScreen(state: state, child: child),
             );
           },
         ),
@@ -92,17 +117,20 @@ abstract final class AppRouter {
         GoRoute(
           path: '/register/atypical-situation',
           name: 'register-atypical-situation',
-          builder: (context, state) {
+          pageBuilder: (context, state) {
             final anonymousId = trackingViewModel.activeAnonymousId;
 
-            if (anonymousId == null) {
-              return const RegisterView();
-            }
+            final child = anonymousId == null
+                ? const RegisterView()
+                : AtypicalSituationFormView(
+                    repository: atypicalSituationRepository,
+                    recordFactory: atypicalSituationRecordFactory,
+                    anonymousId: anonymousId,
+                  );
 
-            return AtypicalSituationFormView(
-              repository: atypicalSituationRepository,
-              recordFactory: atypicalSituationRecordFactory,
-              anonymousId: anonymousId,
+            return _animatedPage(
+              state: state,
+              child: _ambientScreen(state: state, child: child),
             );
           },
         ),
@@ -110,16 +138,27 @@ abstract final class AppRouter {
         GoRoute(
           path: '/routines',
           name: 'routine-management',
-          builder: (context, state) {
+          pageBuilder: (context, state) {
             final anonymousId = trackingViewModel.activeAnonymousId;
 
             if (anonymousId == null) {
-              return HomePlaceholderView(trackingViewModel: trackingViewModel);
+              return _animatedPage(
+                state: state,
+                child: HomePlaceholderView(
+                  trackingViewModel: trackingViewModel,
+                ),
+              );
             }
 
-            return RoutineManagementView(
-              repository: routineRepository,
-              anonymousId: anonymousId,
+            return _animatedPage(
+              state: state,
+              child: _ambientScreen(
+                state: state,
+                child: RoutineManagementView(
+                  repository: routineRepository,
+                  anonymousId: anonymousId,
+                ),
+              ),
             );
           },
         ),
@@ -127,17 +166,28 @@ abstract final class AppRouter {
         GoRoute(
           path: '/routines/new',
           name: 'routine-new',
-          builder: (context, state) {
+          pageBuilder: (context, state) {
             final anonymousId = trackingViewModel.activeAnonymousId;
 
             if (anonymousId == null) {
-              return HomePlaceholderView(trackingViewModel: trackingViewModel);
+              return _animatedPage(
+                state: state,
+                child: HomePlaceholderView(
+                  trackingViewModel: trackingViewModel,
+                ),
+              );
             }
 
-            return RoutineFormView(
-              repository: routineRepository,
-              routineFactory: routineFactory,
-              anonymousId: anonymousId,
+            return _animatedPage(
+              state: state,
+              child: _ambientScreen(
+                state: state,
+                child: RoutineFormView(
+                  repository: routineRepository,
+                  routineFactory: routineFactory,
+                  anonymousId: anonymousId,
+                ),
+              ),
             );
           },
         ),
@@ -145,27 +195,35 @@ abstract final class AppRouter {
         GoRoute(
           path: '/routines/edit',
           name: 'routine-edit',
-          builder: (context, state) {
+          pageBuilder: (context, state) {
             final anonymousId = trackingViewModel.activeAnonymousId;
 
             if (anonymousId == null) {
-              return HomePlaceholderView(trackingViewModel: trackingViewModel);
+              return _animatedPage(
+                state: state,
+                child: HomePlaceholderView(
+                  trackingViewModel: trackingViewModel,
+                ),
+              );
             }
 
             final extra = state.extra;
 
-            if (extra is! Routine || extra.anonymousId != anonymousId) {
-              return RoutineManagementView(
-                repository: routineRepository,
-                anonymousId: anonymousId,
-              );
-            }
+            final child = extra is! Routine || extra.anonymousId != anonymousId
+                ? RoutineManagementView(
+                    repository: routineRepository,
+                    anonymousId: anonymousId,
+                  )
+                : RoutineFormView(
+                    repository: routineRepository,
+                    routineFactory: routineFactory,
+                    anonymousId: anonymousId,
+                    initialRoutine: extra,
+                  );
 
-            return RoutineFormView(
-              repository: routineRepository,
-              routineFactory: routineFactory,
-              anonymousId: anonymousId,
-              initialRoutine: extra,
+            return _animatedPage(
+              state: state,
+              child: _ambientScreen(state: state, child: child),
             );
           },
         ),
@@ -173,22 +231,85 @@ abstract final class AppRouter {
         GoRoute(
           path: '/routines/status/new',
           name: 'routine-status-new',
-          builder: (context, state) {
+          pageBuilder: (context, state) {
             final anonymousId = trackingViewModel.activeAnonymousId;
 
             if (anonymousId == null) {
-              return HomePlaceholderView(trackingViewModel: trackingViewModel);
+              return _animatedPage(
+                state: state,
+                child: HomePlaceholderView(
+                  trackingViewModel: trackingViewModel,
+                ),
+              );
             }
 
-            return RoutineStatusFormView(
-              routineRepository: routineRepository,
-              routineStatusRepository: routineStatusRepository,
-              recordFactory: routineStatusRecordFactory,
-              anonymousId: anonymousId,
+            return _animatedPage(
+              state: state,
+              child: _ambientScreen(
+                state: state,
+                child: RoutineStatusFormView(
+                  routineRepository: routineRepository,
+                  routineStatusRepository: routineStatusRepository,
+                  recordFactory: routineStatusRecordFactory,
+                  anonymousId: anonymousId,
+                ),
+              ),
             );
           },
         ),
       ],
+    );
+  }
+
+  static Widget _ambientScreen({
+    required GoRouterState state,
+    required Widget child,
+    bool compact = true,
+  }) {
+    return AmbientBackground(
+      key: ValueKey<String>('ambient-${state.uri}'),
+      compact: compact,
+      child: child,
+    );
+  }
+
+  static CustomTransitionPage<void> _animatedPage({
+    required GoRouterState state,
+    required Widget child,
+  }) {
+    return CustomTransitionPage<void>(
+      key: state.pageKey,
+      child: child,
+      transitionDuration: AppMotion.routeDuration,
+      reverseTransitionDuration: AppMotion.routeReverseDuration,
+
+      // La página sigue siendo una ruta opaca.
+      // AmbientBackground pinta el lienzo completo.
+      opaque: true,
+
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        final curvedAnimation = CurvedAnimation(
+          parent: animation,
+          curve: AppMotion.standardCurve,
+          reverseCurve: AppMotion.standardCurve,
+        );
+
+        final slideAnimation = Tween<Offset>(
+          begin: const Offset(0.035, 0),
+          end: Offset.zero,
+        ).animate(curvedAnimation);
+
+        // Importante:
+        // ya NO utilizamos FadeTransition.
+        //
+        // Con pantallas transparentes, el fade hacía
+        // visible la ruta anterior debajo y provocaba
+        // que títulos, labels y tarjetas parecieran
+        // mezclarse durante la navegación.
+        return ClipRect(
+          child: SlideTransition(position: slideAnimation, child: child),
+        );
+      },
     );
   }
 }
