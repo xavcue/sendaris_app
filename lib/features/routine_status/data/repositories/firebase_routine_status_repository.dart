@@ -40,20 +40,19 @@ class FirebaseRoutineStatusRepository implements RoutineStatusRepository {
     } on StateError {
       throw const RoutineStatusFailure(
         'Debes iniciar sesión antes de '
-        'recuperar los estados de rutinas.',
+        'cargar los estados de las rutinas.',
       );
     } on FirebaseException catch (error) {
       throw RoutineStatusFailure(_safeRecoveryMessage(error.code));
     } on FormatException {
       throw const RoutineStatusFailure(
-        'No fue posible interpretar los '
-        'estados de rutinas recuperados '
-        'de forma segura.',
+        'No fue posible cargar los estados '
+        'de las rutinas. Inténtalo nuevamente.',
       );
     } catch (_) {
       throw const RoutineStatusFailure(
-        'No fue posible recuperar los '
-        'estados de rutinas.',
+        'No fue posible cargar los estados '
+        'de las rutinas. Inténtalo nuevamente.',
       );
     }
   }
@@ -67,8 +66,8 @@ class FirebaseRoutineStatusRepository implements RoutineStatusRepository {
 
       case 'unavailable':
       case 'network-request-failed':
-        return 'No fue posible confirmar el '
-            'guardado remoto. Verifica tu conexión.';
+        return 'No fue posible guardar el estado '
+            'de la rutina. Verifica tu conexión.';
 
       default:
         return 'No fue posible guardar el estado '
@@ -81,17 +80,16 @@ class FirebaseRoutineStatusRepository implements RoutineStatusRepository {
       case 'permission-denied':
       case 'unauthenticated':
         return 'No tienes autorización para '
-            'recuperar estos estados de rutinas.';
+            'consultar estos estados de rutinas.';
 
       case 'unavailable':
       case 'network-request-failed':
-        return 'No fue posible recuperar los '
-            'estados de rutinas remotos. '
-            'Verifica tu conexión.';
+        return 'No fue posible cargar los estados '
+            'de las rutinas. Verifica tu conexión.';
 
       default:
-        return 'No fue posible recuperar los '
-            'estados de rutinas.';
+        return 'No fue posible cargar los estados '
+            'de las rutinas. Inténtalo nuevamente.';
     }
   }
 }

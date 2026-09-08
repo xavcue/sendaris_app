@@ -138,8 +138,7 @@ class _RoutineFormContentState extends State<_RoutineFormContent> {
             _SectionCard(
               title: 'Información de la rutina',
               subtitle:
-                  'Define una actividad repetitiva '
-                  'del seguimiento.',
+                  'Registra una actividad habitual para el perfil activo.',
               child: Column(
                 children: [
                   TextField(
@@ -167,9 +166,7 @@ class _RoutineFormContentState extends State<_RoutineFormContent> {
                     textCapitalization: TextCapitalization.sentences,
                     decoration: const InputDecoration(
                       labelText: 'Descripción (opcional)',
-                      hintText:
-                          'Añade una descripción '
-                          'breve si es necesaria.',
+                      hintText: 'Añade una descripción breve si es necesaria.',
                       alignLabelWithHint: true,
                       prefixIcon: Icon(Icons.description_outlined),
                     ),
@@ -182,9 +179,7 @@ class _RoutineFormContentState extends State<_RoutineFormContent> {
 
             _SectionCard(
               title: 'Programación',
-              subtitle:
-                  'La hora y la frecuencia '
-                  'son opcionales.',
+              subtitle: 'La hora y la frecuencia son opcionales.',
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -216,8 +211,7 @@ class _RoutineFormContentState extends State<_RoutineFormContent> {
                   const SizedBox(height: 4),
 
                   Text(
-                    'Selecciona una frecuencia '
-                    'solo cuando aplique.',
+                    'Selecciona una frecuencia solo cuando aplique.',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
@@ -232,6 +226,7 @@ class _RoutineFormContentState extends State<_RoutineFormContent> {
                       ChoiceChip(
                         key: const Key('routine-recurrence-none'),
                         selected: viewModel.selectedRecurrence == null,
+                        showCheckmark: false,
                         onSelected: viewModel.isSaving
                             ? null
                             : (_) {
@@ -242,6 +237,7 @@ class _RoutineFormContentState extends State<_RoutineFormContent> {
                       ChoiceChip(
                         key: const Key('routine-recurrence-daily'),
                         selected: viewModel.selectedRecurrence == 'diaria',
+                        showCheckmark: false,
                         onSelected: viewModel.isSaving
                             ? null
                             : (_) {
@@ -252,6 +248,7 @@ class _RoutineFormContentState extends State<_RoutineFormContent> {
                       ChoiceChip(
                         key: const Key('routine-recurrence-weekly'),
                         selected: viewModel.selectedRecurrence == 'semanal',
+                        showCheckmark: false,
                         onSelected: viewModel.isSaving
                             ? null
                             : (_) {
@@ -262,6 +259,7 @@ class _RoutineFormContentState extends State<_RoutineFormContent> {
                       ChoiceChip(
                         key: const Key('routine-recurrence-monthly'),
                         selected: viewModel.selectedRecurrence == 'mensual',
+                        showCheckmark: false,
                         onSelected: viewModel.isSaving
                             ? null
                             : (_) {
@@ -282,7 +280,7 @@ class _RoutineFormContentState extends State<_RoutineFormContent> {
 
             const SizedBox(height: 16),
 
-            _PrivacyCard(),
+            const _PrivacyCard(),
 
             if (viewModel.errorMessage != null) ...[
               const SizedBox(height: 16),
@@ -326,8 +324,7 @@ class _RoutineFormContentState extends State<_RoutineFormContent> {
             const SizedBox(height: 12),
 
             Text(
-              'Los campos marcados con * '
-              'son obligatorios.',
+              'Los campos marcados con * son obligatorios.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
@@ -395,7 +392,9 @@ class _IntroCard extends StatelessWidget {
                   color: colorScheme.onPrimary,
                 ),
               ),
+
               const SizedBox(width: 14),
+
               Expanded(
                 child: Text(
                   editing ? 'Actualizar rutina' : 'Crear rutina',
@@ -406,14 +405,15 @@ class _IntroCard extends StatelessWidget {
               ),
             ],
           ),
+
           const SizedBox(height: 14),
+
           Text(
             editing
-                ? 'Modifica únicamente los '
-                      'datos que necesites actualizar.'
+                ? 'Actualiza los datos de la rutina '
+                      'que necesites cambiar.'
                 : 'Define una actividad cotidiana '
-                      'que pueda repetirse dentro '
-                      'del seguimiento.',
+                      'para organizar la rutina del perfil activo.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: colorScheme.onSurfaceVariant,
               height: 1.4,
@@ -454,14 +454,18 @@ class _SectionCard extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
+
             const SizedBox(height: 4),
+
             Text(
               subtitle,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
+
             const SizedBox(height: 18),
+
             child,
           ],
         ),
@@ -497,13 +501,17 @@ class _TimePickerCard extends StatelessWidget {
       child: Row(
         children: [
           Icon(Icons.schedule_outlined, color: colorScheme.primary),
+
           const SizedBox(width: 12),
+
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Hora programada', style: theme.textTheme.labelLarge),
+
                 const SizedBox(height: 3),
+
                 Text(
                   value ?? 'Sin hora definida',
                   style: theme.textTheme.bodyMedium?.copyWith(
@@ -515,12 +523,14 @@ class _TimePickerCard extends StatelessWidget {
               ],
             ),
           ),
+
           if (onClear != null)
             IconButton(
               tooltip: 'Quitar hora',
               onPressed: enabled ? onClear : null,
               icon: const Icon(Icons.close_rounded),
             ),
+
           TextButton(
             key: const Key('routine-time-picker'),
             onPressed: enabled ? onPressed : null,
@@ -533,12 +543,15 @@ class _TimePickerCard extends StatelessWidget {
 }
 
 class _PrivacyCard extends StatelessWidget {
+  const _PrivacyCard();
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
     return Container(
+      key: const Key('routine-profile-message'),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colorScheme.secondaryContainer.withValues(alpha: 0.45),
@@ -548,12 +561,12 @@ class _PrivacyCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(Icons.shield_outlined, color: colorScheme.primary),
+
           const SizedBox(width: 10),
+
           Expanded(
             child: Text(
-              'La rutina se asociará únicamente '
-              'al identificador interno anónimo '
-              'del seguimiento activo.',
+              'La rutina se guardará en el perfil activo.',
               style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
             ),
           ),
@@ -576,7 +589,9 @@ class _FieldError extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(Icons.error_outline, size: 17, color: colorScheme.error),
+
         const SizedBox(width: 6),
+
         Expanded(
           child: Text(
             message,
@@ -608,7 +623,9 @@ class _GeneralErrorCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(Icons.error_outline, color: colorScheme.onErrorContainer),
+
           const SizedBox(width: 10),
+
           Expanded(
             child: Text(
               message,

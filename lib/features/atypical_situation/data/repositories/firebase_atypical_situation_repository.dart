@@ -39,19 +39,20 @@ class FirebaseAtypicalSituationRepository
       );
     } on StateError {
       throw const AtypicalSituationFailure(
-        'Debes iniciar sesión antes de consultar '
-        'las situaciones guardadas.',
+        'Debes iniciar sesión antes de '
+        'cargar las situaciones guardadas.',
       );
     } on FirebaseException catch (error) {
       throw AtypicalSituationFailure(_safeRecoveryMessage(error.code));
     } on FormatException {
       throw const AtypicalSituationFailure(
-        'No fue posible interpretar las situaciones '
-        'recuperadas de forma segura.',
+        'No fue posible cargar las situaciones guardadas. '
+        'Inténtalo nuevamente.',
       );
     } catch (_) {
       throw const AtypicalSituationFailure(
-        'No fue posible recuperar las situaciones guardadas.',
+        'No fue posible cargar las situaciones guardadas. '
+        'Inténtalo nuevamente.',
       );
     }
   }
@@ -60,12 +61,11 @@ class FirebaseAtypicalSituationRepository
     switch (code) {
       case 'permission-denied':
       case 'unauthenticated':
-        return 'No tienes autorización para guardar '
-            'esta situación.';
+        return 'No tienes autorización para guardar esta situación.';
 
       case 'unavailable':
       case 'network-request-failed':
-        return 'No fue posible confirmar el guardado remoto. '
+        return 'No fue posible guardar la situación. '
             'Verifica tu conexión.';
 
       default:
@@ -83,12 +83,12 @@ class FirebaseAtypicalSituationRepository
 
       case 'unavailable':
       case 'network-request-failed':
-        return 'No fue posible recuperar las situaciones. '
+        return 'No fue posible cargar las situaciones. '
             'Verifica tu conexión.';
 
       default:
-        return 'No fue posible recuperar '
-            'las situaciones guardadas.';
+        return 'No fue posible cargar las situaciones guardadas. '
+            'Inténtalo nuevamente.';
     }
   }
 }

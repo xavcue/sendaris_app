@@ -34,17 +34,20 @@ class FirebaseRoutineRepository implements RoutineRepository {
       return await _remoteService.recoverRoutines(anonymousId: anonymousId);
     } on StateError {
       throw const RoutineFailure(
-        'Debes iniciar sesión antes de recuperar rutinas.',
+        'Debes iniciar sesión antes de cargar las rutinas.',
       );
     } on FirebaseException catch (error) {
       throw RoutineFailure(_safeRecoveryMessage(error.code));
     } on FormatException {
       throw const RoutineFailure(
-        'No fue posible interpretar las rutinas '
-        'recuperadas de forma segura.',
+        'No fue posible cargar las rutinas. '
+        'Inténtalo nuevamente.',
       );
     } catch (_) {
-      throw const RoutineFailure('No fue posible recuperar las rutinas.');
+      throw const RoutineFailure(
+        'No fue posible cargar las rutinas. '
+        'Inténtalo nuevamente.',
+      );
     }
   }
 
@@ -94,18 +97,20 @@ class FirebaseRoutineRepository implements RoutineRepository {
     switch (code) {
       case 'permission-denied':
       case 'unauthenticated':
-        return 'No tienes autorización para modificar esta rutina.';
+        return 'No tienes autorización para realizar cambios '
+            'en las rutinas.';
 
       case 'not-found':
         return 'La rutina ya no se encuentra disponible.';
 
       case 'unavailable':
       case 'network-request-failed':
-        return 'No fue posible confirmar la operación remota. '
+        return 'No fue posible guardar los cambios. '
             'Verifica tu conexión.';
 
       default:
-        return 'No fue posible guardar los cambios de la rutina.';
+        return 'No fue posible guardar los cambios de la rutina. '
+            'Inténtalo nuevamente.';
     }
   }
 
@@ -113,15 +118,16 @@ class FirebaseRoutineRepository implements RoutineRepository {
     switch (code) {
       case 'permission-denied':
       case 'unauthenticated':
-        return 'No tienes autorización para recuperar estas rutinas.';
+        return 'No tienes autorización para consultar estas rutinas.';
 
       case 'unavailable':
       case 'network-request-failed':
-        return 'No fue posible recuperar las rutinas remotas. '
+        return 'No fue posible cargar las rutinas. '
             'Verifica tu conexión.';
 
       default:
-        return 'No fue posible recuperar las rutinas.';
+        return 'No fue posible cargar las rutinas. '
+            'Inténtalo nuevamente.';
     }
   }
 }

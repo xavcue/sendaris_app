@@ -190,10 +190,10 @@ class _AtypicalSituationFormContentState
                         for (final category in AtypicalSituationCategory.values)
                           ChoiceChip(
                             key: Key(
-                              'atypical-situation-category-'
-                              '${category.code}',
+                              'atypical-situation-category-${category.code}',
                             ),
                             selected: viewModel.selectedCategory == category,
+                            showCheckmark: false,
                             onSelected: viewModel.isSaving
                                 ? null
                                 : (_) {
@@ -281,7 +281,8 @@ class _AtypicalSituationFormContentState
             const SizedBox(height: 12),
 
             Text(
-              'Los campos marcados con * son obligatorios.',
+              'Los campos marcados con * '
+              'son obligatorios.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
@@ -383,7 +384,8 @@ class _IntroCard extends StatelessWidget {
 
               Expanded(
                 child: Text(
-                  'La información se guardará en el perfil seleccionado.',
+                  'La información se guardará '
+                  'en el perfil activo.',
                   style: theme.textTheme.bodySmall,
                 ),
               ),

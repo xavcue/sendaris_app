@@ -22,7 +22,8 @@ class FirebaseTrackingRepository implements TrackingRepository {
       throw TrackingFailure(_safePersistenceMessage(error.code));
     } catch (_) {
       throw const TrackingFailure(
-        'No fue posible guardar la información. Inténtalo nuevamente.',
+        'No fue posible guardar la información. '
+        'Inténtalo nuevamente.',
       );
     }
   }
@@ -33,13 +34,14 @@ class FirebaseTrackingRepository implements TrackingRepository {
       return await _remoteService.recoverProfiles();
     } on StateError {
       throw const TrackingFailure(
-        'Debes iniciar sesión antes de recuperar información.',
+        'Debes iniciar sesión antes de cargar la información.',
       );
     } on FirebaseException catch (error) {
       throw TrackingFailure(_safeRecoveryMessage(error.code));
     } catch (_) {
       throw const TrackingFailure(
-        'No fue posible recuperar la información de forma segura.',
+        'No fue posible cargar la información. '
+        'Inténtalo nuevamente.',
       );
     }
   }
@@ -48,11 +50,12 @@ class FirebaseTrackingRepository implements TrackingRepository {
     switch (code) {
       case 'permission-denied':
       case 'unauthenticated':
-        return 'No tienes autorización para guardar esta información.';
+        return 'No tienes autorización para guardar '
+            'esta información.';
 
       case 'unavailable':
       case 'network-request-failed':
-        return 'No fue posible confirmar el guardado remoto. '
+        return 'No fue posible guardar la información. '
             'Verifica tu conexión.';
 
       default:
@@ -65,15 +68,17 @@ class FirebaseTrackingRepository implements TrackingRepository {
     switch (code) {
       case 'permission-denied':
       case 'unauthenticated':
-        return 'No tienes autorización para recuperar esta información.';
+        return 'No tienes autorización para consultar '
+            'esta información.';
 
       case 'unavailable':
       case 'network-request-failed':
-        return 'No fue posible recuperar la información remota. '
+        return 'No fue posible cargar la información. '
             'Verifica tu conexión.';
 
       default:
-        return 'No fue posible recuperar la información de forma segura.';
+        return 'No fue posible cargar la información. '
+            'Inténtalo nuevamente.';
     }
   }
 }

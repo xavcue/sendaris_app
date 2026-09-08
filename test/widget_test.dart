@@ -78,9 +78,16 @@ void main() {
 
     expect(find.text('Sendaris'), findsOneWidget);
 
-    expect(find.text('Acceso seguro'), findsOneWidget);
+    expect(
+      find.text('Organiza registros y rutinas en un solo lugar.'),
+      findsOneWidget,
+    );
+
+    expect(find.text('Accede a tu cuenta'), findsOneWidget);
 
     expect(find.text('Iniciar sesión'), findsOneWidget);
+
+    expect(find.text('Acceso seguro'), findsNothing);
 
     expect(find.text('Resumen de hoy'), findsNothing);
 

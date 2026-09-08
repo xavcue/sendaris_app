@@ -72,8 +72,8 @@ class TrackingViewModel extends ChangeNotifier {
       return false;
     } catch (_) {
       _errorMessage =
-          'No fue posible preparar el seguimiento '
-          'de forma segura.';
+          'No fue posible preparar el perfil. '
+          'Inténtalo nuevamente.';
 
       return false;
     } finally {
@@ -98,9 +98,10 @@ class TrackingViewModel extends ChangeNotifier {
       ];
 
       _activeProfile = profile;
+
       _isInitialized = true;
 
-      _successMessage = 'Seguimiento anónimo preparado correctamente.';
+      _successMessage = 'Perfil preparado correctamente.';
 
       return true;
     } on TrackingFailure catch (error) {
@@ -109,8 +110,8 @@ class TrackingViewModel extends ChangeNotifier {
       return false;
     } catch (_) {
       _errorMessage =
-          'No fue posible guardar la información '
-          'de forma segura.';
+          'No fue posible guardar la información. '
+          'Inténtalo nuevamente.';
 
       return false;
     } finally {
@@ -132,8 +133,8 @@ class TrackingViewModel extends ChangeNotifier {
       _isInitialized = true;
 
       _successMessage = recoveredProfiles.isEmpty
-          ? 'No existen seguimientos anónimos almacenados.'
-          : 'Información recuperada correctamente.';
+          ? 'No hay perfiles disponibles.'
+          : 'Información cargada correctamente.';
 
       return true;
     } on TrackingFailure catch (error) {
@@ -142,8 +143,8 @@ class TrackingViewModel extends ChangeNotifier {
       return false;
     } catch (_) {
       _errorMessage =
-          'No fue posible recuperar la información '
-          'de forma segura.';
+          'No fue posible cargar la información. '
+          'Inténtalo nuevamente.';
 
       return false;
     } finally {

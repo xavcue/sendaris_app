@@ -7,55 +7,69 @@ import 'package:sendaris/features/behavior/domain/services/behavior_record_id_ge
 import 'package:sendaris/features/behavior/presentation/views/behavior_form_view.dart';
 
 void main() {
-  testWidgets('muestra la estructura principal del formulario', (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: BehaviorFormView(
-          repository: _FakeBehaviorRepository(),
-          recordFactory: const BehaviorRecordFactory(
-            _FakeBehaviorRecordIdGenerator(),
+  testWidgets(
+    'muestra la estructura principal con lenguaje orientado al usuario',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BehaviorFormView(
+            repository: _FakeBehaviorRepository(),
+            recordFactory: const BehaviorRecordFactory(
+              _FakeBehaviorRecordIdGenerator(),
+            ),
+            anonymousId: 'anonimo-1',
           ),
-          anonymousId: 'anonimo-1',
         ),
-      ),
-    );
+      );
 
-    final scrollable = find.byType(Scrollable).first;
+      final scrollable = find.byType(Scrollable).first;
 
-    expect(find.text('Registrar conducta'), findsOneWidget);
+      expect(find.text('Registrar conducta'), findsOneWidget);
 
-    await tester.scrollUntilVisible(
-      find.text('Cuándo ocurrió'),
-      250,
-      scrollable: scrollable,
-    );
+      expect(find.text('Conducta observada'), findsOneWidget);
 
-    expect(find.text('Cuándo ocurrió'), findsOneWidget);
+      expect(
+        find.text('La información se guardará en el perfil activo.'),
+        findsOneWidget,
+      );
 
-    await tester.scrollUntilVisible(
-      find.text('Qué observaste *'),
-      250,
-      scrollable: scrollable,
-    );
+      expect(find.textContaining('seguimiento anónimo'), findsNothing);
 
-    expect(find.text('Qué observaste *'), findsOneWidget);
+      expect(find.textContaining('identificador interno'), findsNothing);
 
-    await tester.scrollUntilVisible(
-      find.text('Detalles del registro'),
-      250,
-      scrollable: scrollable,
-    );
+      await tester.scrollUntilVisible(
+        find.text('Cuándo ocurrió'),
+        250,
+        scrollable: scrollable,
+      );
 
-    expect(find.text('Detalles del registro'), findsOneWidget);
+      expect(find.text('Cuándo ocurrió'), findsOneWidget);
 
-    await tester.scrollUntilVisible(
-      find.byKey(const Key('behavior-save-button')),
-      250,
-      scrollable: scrollable,
-    );
+      await tester.scrollUntilVisible(
+        find.text('Qué observaste *'),
+        250,
+        scrollable: scrollable,
+      );
 
-    expect(find.text('Guardar conducta'), findsOneWidget);
-  });
+      expect(find.text('Qué observaste *'), findsOneWidget);
+
+      await tester.scrollUntilVisible(
+        find.text('Detalles del registro'),
+        250,
+        scrollable: scrollable,
+      );
+
+      expect(find.text('Detalles del registro'), findsOneWidget);
+
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('behavior-save-button')),
+        250,
+        scrollable: scrollable,
+      );
+
+      expect(find.text('Guardar conducta'), findsOneWidget);
+    },
+  );
 
   testWidgets('informa que la categoría es obligatoria', (tester) async {
     await tester.pumpWidget(
