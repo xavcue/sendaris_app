@@ -19,6 +19,10 @@ import 'package:sendaris/features/routine_status/domain/models/routine_status_re
 import 'package:sendaris/features/routine_status/domain/repositories/routine_status_repository.dart';
 import 'package:sendaris/features/routine_status/domain/services/routine_status_record_factory.dart';
 import 'package:sendaris/features/routine_status/domain/services/routine_status_record_id_generator.dart';
+import 'package:sendaris/features/sleep/domain/models/sleep_record.dart';
+import 'package:sendaris/features/sleep/domain/repositories/sleep_repository.dart';
+import 'package:sendaris/features/sleep/domain/services/sleep_record_factory.dart';
+import 'package:sendaris/features/sleep/domain/services/sleep_record_id_generator.dart';
 import 'package:sendaris/features/tracking/domain/models/anonymous_tracking_profile.dart';
 import 'package:sendaris/features/tracking/domain/repositories/tracking_repository.dart';
 import 'package:sendaris/features/tracking/domain/services/anonymous_id_generator.dart';
@@ -41,6 +45,10 @@ void main() {
     const behaviorRecordFactory = BehaviorRecordFactory(
       FakeBehaviorRecordIdGenerator(),
     );
+
+    final sleepRepository = FakeSleepRepository();
+
+    const sleepRecordFactory = SleepRecordFactory(FakeSleepRecordIdGenerator());
 
     final routineRepository = FakeRoutineRepository();
 
@@ -65,6 +73,8 @@ void main() {
         trackingProfileFactory: profileFactory,
         behaviorRepository: behaviorRepository,
         behaviorRecordFactory: behaviorRecordFactory,
+        sleepRepository: sleepRepository,
+        sleepRecordFactory: sleepRecordFactory,
         routineRepository: routineRepository,
         routineFactory: routineFactory,
         routineStatusRepository: routineStatusRepository,
@@ -144,6 +154,18 @@ class FakeBehaviorRepository implements BehaviorRepository {
   }
 }
 
+class FakeSleepRepository implements SleepRepository {
+  @override
+  Future<void> saveSleep(SleepRecord record) async {}
+
+  @override
+  Future<List<SleepRecord>> recoverSleepRecords({
+    required String anonymousId,
+  }) async {
+    return [];
+  }
+}
+
 class FakeRoutineRepository implements RoutineRepository {
   @override
   Future<void> createRoutine(Routine routine) async {}
@@ -200,6 +222,15 @@ class FakeBehaviorRecordIdGenerator implements BehaviorRecordIdGenerator {
   @override
   String generate() {
     return 'registro-widget-test';
+  }
+}
+
+class FakeSleepRecordIdGenerator implements SleepRecordIdGenerator {
+  const FakeSleepRecordIdGenerator();
+
+  @override
+  String generate() {
+    return 'registro-sueno-widget-test';
   }
 }
 

@@ -24,6 +24,10 @@ import 'features/routine_status/data/repositories/firebase_routine_status_reposi
 import 'features/routine_status/data/services/firestore_routine_status_service.dart';
 import 'features/routine_status/data/services/uuid_routine_status_record_id_generator.dart';
 import 'features/routine_status/domain/services/routine_status_record_factory.dart';
+import 'features/sleep/data/repositories/firebase_sleep_repository.dart';
+import 'features/sleep/data/services/firestore_sleep_service.dart';
+import 'features/sleep/data/services/uuid_sleep_record_id_generator.dart';
+import 'features/sleep/domain/services/sleep_record_factory.dart';
 import 'features/tracking/data/repositories/firebase_tracking_repository.dart';
 import 'features/tracking/data/services/firestore_tracking_service.dart';
 import 'features/tracking/data/services/uuid_anonymous_id_generator.dart';
@@ -45,6 +49,7 @@ Future<void> main() async {
   );
 
   final firebaseAuth = FirebaseAuth.instance;
+
   final firestore = FirebaseFirestore.instance;
 
   firestore.settings = const Settings(persistenceEnabled: true);
@@ -68,6 +73,12 @@ Future<void> main() async {
   final behaviorRecordFactory = BehaviorRecordFactory(
     UuidBehaviorRecordIdGenerator(),
   );
+
+  final sleepService = FirestoreSleepService(firestore, firebaseAuth);
+
+  final sleepRepository = FirebaseSleepRepository(sleepService);
+
+  final sleepRecordFactory = SleepRecordFactory(UuidSleepRecordIdGenerator());
 
   final routineService = FirestoreRoutineService(firestore, firebaseAuth);
 
@@ -108,6 +119,8 @@ Future<void> main() async {
       trackingProfileFactory: trackingProfileFactory,
       behaviorRepository: behaviorRepository,
       behaviorRecordFactory: behaviorRecordFactory,
+      sleepRepository: sleepRepository,
+      sleepRecordFactory: sleepRecordFactory,
       routineRepository: routineRepository,
       routineFactory: routineFactory,
       routineStatusRepository: routineStatusRepository,

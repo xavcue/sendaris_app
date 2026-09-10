@@ -45,6 +45,20 @@ void main() {
 
     expect(find.text('Registrar seguimiento'), findsNothing);
 
+    final sleepOption = find.byKey(const Key('register-sleep-option'));
+
+    await tester.scrollUntilVisible(
+      sleepOption,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(sleepOption, findsOneWidget);
+
+    expect(find.text('Sueño'), findsOneWidget);
+
+    expect(find.text('Registrar periodo de sueño'), findsOneWidget);
+
     final atypicalOption = find.byKey(
       const Key('register-atypical-situation-option'),
     );

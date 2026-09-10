@@ -167,6 +167,100 @@ service cloud.firestore {
         && hasValidOptionalBehaviorObservation();
     }
 
+    function hasValidSleepTopLevelFields(uid) {
+      return request.resource.data.keys().hasAll([
+          'tipoRegistro',
+          'fechaEvento',
+          'fechaCreacion',
+          'fechaActualizacion',
+          'uidOperacion',
+          'datos'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'tipoRegistro',
+          'fechaEvento',
+          'fechaCreacion',
+          'fechaActualizacion',
+          'uidOperacion',
+          'datos'
+        ])
+        && request.resource.data.tipoRegistro == 'sueno'
+        && request.resource.data.fechaEvento is timestamp
+        && request.resource.data.fechaCreacion is timestamp
+        && request.resource.data.fechaActualizacion is timestamp
+        && request.resource.data.fechaCreacion
+          == request.resource.data.fechaActualizacion
+        && request.resource.data.uidOperacion is string
+        && request.resource.data.uidOperacion == uid
+        && request.resource.data.uidOperacion
+          == request.auth.uid
+        && request.resource.data.datos is map;
+    }
+
+    function hasValidSleepDataFields() {
+      return request.resource.data.datos.keys().hasAll([
+          'fecha',
+          'horaInicio',
+          'horaFin',
+          'duracionMin'
+        ])
+        && request.resource.data.datos.keys().hasOnly([
+          'fecha',
+          'horaInicio',
+          'horaFin',
+          'duracionMin',
+          'observacion'
+        ]);
+    }
+
+    function hasValidSleepDate() {
+      return request.resource.data.datos.fecha is timestamp;
+    }
+
+    function hasValidSleepStartTime() {
+      return request.resource.data.datos.horaInicio is string
+        && request.resource.data.datos.horaInicio.matches(
+          '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+        );
+    }
+
+    function hasValidSleepEndTime() {
+      return request.resource.data.datos.horaFin is string
+        && request.resource.data.datos.horaFin.matches(
+          '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+        );
+    }
+
+    function hasDistinctSleepTimes() {
+      return request.resource.data.datos.horaInicio
+        != request.resource.data.datos.horaFin;
+    }
+
+    function hasValidSleepDuration() {
+      return request.resource.data.datos.duracionMin is int
+        && request.resource.data.datos.duracionMin > 0
+        && request.resource.data.datos.duracionMin < 1440;
+    }
+
+    function hasValidOptionalSleepObservation() {
+      return !('observacion' in request.resource.data.datos)
+        || (
+          request.resource.data.datos.observacion is string
+          && request.resource.data.datos.observacion.size() > 0
+        );
+    }
+
+    function isValidSleepCreate(uid) {
+      return hasValidSleepTopLevelFields(uid)
+        && hasValidSleepDataFields()
+        && hasValidSleepDate()
+        && hasValidSleepStartTime()
+        && hasValidSleepEndTime()
+        && hasDistinctSleepTimes()
+        && hasValidSleepDuration()
+        && hasValidOptionalSleepObservation();
+    }
+
     function hasValidRoutineStatusTopLevelFields(uid) {
       return request.resource.data.keys().hasAll([
           'tipoRegistro',
@@ -408,8 +502,6 @@ service cloud.firestore {
     }
 
     match /usuarios/{uid} {
-      // El documento raíz del usuario no almacena
-      // actualmente datos funcionales.
       allow read, write: if false;
 
       match /seguimientos/{idAnonimo} {
@@ -421,17 +513,15 @@ service cloud.firestore {
         allow update: if isOwner(uid)
           && isValidTrackingProfileUpdate();
 
-        // Se conserva historial mediante activo=false.
         allow delete: if false;
 
         match /registros/{idRegistro} {
-          // El usuario solo puede consultar registros
-          // pertenecientes a su propio ámbito.
           allow read: if isOwner(uid);
 
-          // HU-02 permite registros de conducta.
-          // HU-04 incorpora estados válidos de rutinas.
-          // HU-09 incorpora situaciones generales.
+          // HU-02: conducta.
+          // HU-04: estado de rutina.
+          // HU-05: sueño.
+          // HU-09: otra situación.
           allow create: if isOwner(uid)
             && trackingProfileExistsAndIsActive(
               uid,
@@ -439,6 +529,7 @@ service cloud.firestore {
             )
             && (
               isValidBehaviorCreate(uid)
+              || isValidSleepCreate(uid)
               || isValidRoutineStatusCreate(
                 uid,
                 idAnonimo
@@ -446,18 +537,12 @@ service cloud.firestore {
               || isValidAtypicalSituationCreate(uid)
             );
 
-          // Edición y eliminación se habilitarán únicamente
-          // cuando exista una historia que las defina.
           allow update, delete: if false;
         }
 
         match /rutinas/{idRutina} {
-          // Las rutinas permanecen asociadas al ámbito
-          // anónimo y únicamente son visibles por su propietario.
           allow read: if isOwner(uid);
 
-          // Una rutina nueva requiere un seguimiento activo
-          // y siempre inicia con activa=true.
           allow create: if isOwner(uid)
             && trackingProfileExistsAndIsActive(
               uid,
@@ -465,8 +550,6 @@ service cloud.firestore {
             )
             && isValidRoutineCreate();
 
-          // HU-03 permite modificar y desactivar rutinas.
-          // Una rutina ya desactivada no puede reactivarse.
           allow update: if isOwner(uid)
             && trackingProfileExistsAndIsActive(
               uid,
@@ -474,7 +557,6 @@ service cloud.firestore {
             )
             && isValidRoutineUpdate();
 
-          // El historial se conserva mediante activa=false.
           allow delete: if false;
         }
 
@@ -484,7 +566,6 @@ service cloud.firestore {
       }
     }
 
-    // Deny by default.
     match /{document=**} {
       allow read, write: if false;
     }
