@@ -19,6 +19,9 @@ import '../../features/routine/presentation/views/routine_management_view.dart';
 import '../../features/routine_status/domain/repositories/routine_status_repository.dart';
 import '../../features/routine_status/domain/services/routine_status_record_factory.dart';
 import '../../features/routine_status/presentation/views/routine_status_form_view.dart';
+import '../../features/sleep/domain/repositories/sleep_repository.dart';
+import '../../features/sleep/domain/services/sleep_record_factory.dart';
+import '../../features/sleep/presentation/views/sleep_form_view.dart';
 import '../../features/tracking/presentation/viewmodels/tracking_view_model.dart';
 import '../animation/app_motion.dart';
 import '../theme/ambient_background.dart';
@@ -29,6 +32,8 @@ abstract final class AppRouter {
     required TrackingViewModel trackingViewModel,
     required BehaviorRepository behaviorRepository,
     required BehaviorRecordFactory behaviorRecordFactory,
+    required SleepRepository sleepRepository,
+    required SleepRecordFactory sleepRecordFactory,
     required RoutineRepository routineRepository,
     required RoutineFactory routineFactory,
     required RoutineStatusRepository routineStatusRepository,
@@ -104,6 +109,27 @@ abstract final class AppRouter {
                 : BehaviorFormView(
                     repository: behaviorRepository,
                     recordFactory: behaviorRecordFactory,
+                    anonymousId: anonymousId,
+                  );
+
+            return _animatedPage(
+              state: state,
+              child: _ambientScreen(state: state, child: child),
+            );
+          },
+        ),
+
+        GoRoute(
+          path: '/register/sleep',
+          name: 'register-sleep',
+          pageBuilder: (context, state) {
+            final anonymousId = trackingViewModel.activeAnonymousId;
+
+            final child = anonymousId == null
+                ? const RegisterView()
+                : SleepFormView(
+                    repository: sleepRepository,
+                    recordFactory: sleepRecordFactory,
                     anonymousId: anonymousId,
                   );
 
@@ -299,13 +325,8 @@ abstract final class AppRouter {
           end: Offset.zero,
         ).animate(curvedAnimation);
 
-        // Importante:
-        // ya NO utilizamos FadeTransition.
-        //
-        // Con pantallas transparentes, el fade hacía
-        // visible la ruta anterior debajo y provocaba
-        // que títulos, labels y tarjetas parecieran
-        // mezclarse durante la navegación.
+        // No usamos FadeTransition porque las pantallas
+        // transparentes mostrarían la ruta anterior debajo.
         return ClipRect(
           child: SlideTransition(position: slideAnimation, child: child),
         );

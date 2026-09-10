@@ -12,6 +12,8 @@ import '../features/routine/domain/repositories/routine_repository.dart';
 import '../features/routine/domain/services/routine_factory.dart';
 import '../features/routine_status/domain/repositories/routine_status_repository.dart';
 import '../features/routine_status/domain/services/routine_status_record_factory.dart';
+import '../features/sleep/domain/repositories/sleep_repository.dart';
+import '../features/sleep/domain/services/sleep_record_factory.dart';
 import '../features/tracking/domain/repositories/tracking_repository.dart';
 import '../features/tracking/domain/services/anonymous_tracking_profile_factory.dart';
 import '../features/tracking/presentation/viewmodels/tracking_view_model.dart';
@@ -26,6 +28,8 @@ class SendarisApp extends StatefulWidget {
     required this.trackingProfileFactory,
     required this.behaviorRepository,
     required this.behaviorRecordFactory,
+    required this.sleepRepository,
+    required this.sleepRecordFactory,
     required this.routineRepository,
     required this.routineFactory,
     required this.routineStatusRepository,
@@ -38,12 +42,19 @@ class SendarisApp extends StatefulWidget {
   final AuthRepository authRepository;
   final TrackingRepository trackingRepository;
   final AnonymousTrackingProfileFactory trackingProfileFactory;
+
   final BehaviorRepository behaviorRepository;
   final BehaviorRecordFactory behaviorRecordFactory;
+
+  final SleepRepository sleepRepository;
+  final SleepRecordFactory sleepRecordFactory;
+
   final RoutineRepository routineRepository;
   final RoutineFactory routineFactory;
+
   final RoutineStatusRepository routineStatusRepository;
   final RoutineStatusRecordFactory routineStatusRecordFactory;
+
   final AtypicalSituationRepository atypicalSituationRepository;
   final AtypicalSituationRecordFactory atypicalSituationRecordFactory;
 
@@ -75,6 +86,8 @@ class _SendarisAppState extends State<SendarisApp> {
       trackingViewModel: _trackingViewModel,
       behaviorRepository: widget.behaviorRepository,
       behaviorRecordFactory: widget.behaviorRecordFactory,
+      sleepRepository: widget.sleepRepository,
+      sleepRecordFactory: widget.sleepRecordFactory,
       routineRepository: widget.routineRepository,
       routineFactory: widget.routineFactory,
       routineStatusRepository: widget.routineStatusRepository,

@@ -35,9 +35,7 @@ class RegisterView extends StatelessWidget {
                     '¿Qué quieres registrar?',
                     style: theme.textTheme.headlineMedium,
                   ),
-
                   const SizedBox(height: 7),
-
                   Text(
                     'Selecciona el tipo de información '
                     'que deseas añadir.',
@@ -48,16 +46,12 @@ class RegisterView extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 28),
-
             const AnimatedEntrance(
               delay: Duration(milliseconds: 90),
               child: SendarisSectionLabel(label: 'Registros'),
             ),
-
             const SizedBox(height: 14),
-
             AnimatedEntrance(
               delay: const Duration(milliseconds: 150),
               duration: const Duration(milliseconds: 450),
@@ -77,9 +71,7 @@ class RegisterView extends StatelessWidget {
                 ),
               ),
             ),
-
             const SizedBox(height: 14),
-
             AnimatedEntrance(
               delay: const Duration(milliseconds: 220),
               duration: const Duration(milliseconds: 450),
@@ -87,17 +79,21 @@ class RegisterView extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: _RegisterOptionCard(
-                      title: 'Sueño',
-                      subtitle: 'Próximamente',
-                      icon: Icons.bedtime_outlined,
-                      accentColor: const Color(0xFF78AFC1),
-                      enabled: false,
+                    child: AnimatedPressableScale(
+                      child: _RegisterOptionCard(
+                        key: const Key('register-sleep-option'),
+                        title: 'Sueño',
+                        subtitle: 'Registrar periodo de sueño',
+                        icon: Icons.bedtime_outlined,
+                        accentColor: const Color(0xFF78AFC1),
+                        enabled: trackingViewModel.hasActiveProfile,
+                        onTap: () {
+                          context.push('/register/sleep');
+                        },
+                      ),
                     ),
                   ),
-
                   const SizedBox(width: 12),
-
                   Expanded(
                     child: _RegisterOptionCard(
                       title: 'Alimentación',
@@ -110,9 +106,7 @@ class RegisterView extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 12),
-
             AnimatedEntrance(
               delay: const Duration(milliseconds: 290),
               duration: const Duration(milliseconds: 450),
@@ -128,9 +122,7 @@ class RegisterView extends StatelessWidget {
                       enabled: false,
                     ),
                   ),
-
                   const SizedBox(width: 12),
-
                   Expanded(
                     child: _RegisterOptionCard(
                       title: 'Desregulación',
@@ -143,16 +135,12 @@ class RegisterView extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 28),
-
             const AnimatedEntrance(
               delay: Duration(milliseconds: 350),
               child: SendarisSectionLabel(label: 'Otras acciones'),
             ),
-
             const SizedBox(height: 14),
-
             AnimatedEntrance(
               delay: const Duration(milliseconds: 410),
               duration: const Duration(milliseconds: 450),
@@ -174,9 +162,7 @@ class RegisterView extends StatelessWidget {
                       ),
                     ),
                   ),
-
                   const SizedBox(width: 12),
-
                   Expanded(
                     child: AnimatedPressableScale(
                       child: _RegisterOptionCard(
@@ -195,9 +181,7 @@ class RegisterView extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 12),
-
             AnimatedEntrance(
               delay: const Duration(milliseconds: 480),
               duration: const Duration(milliseconds: 460),
@@ -217,10 +201,8 @@ class RegisterView extends StatelessWidget {
                 ),
               ),
             ),
-
             if (!trackingViewModel.hasActiveProfile) ...[
               const SizedBox(height: 24),
-
               AnimatedEntrance(
                 delay: const Duration(milliseconds: 520),
                 child: Container(
@@ -241,9 +223,7 @@ class RegisterView extends StatelessWidget {
                         Icons.info_outline_rounded,
                         color: colorScheme.onErrorContainer,
                       ),
-
                       const SizedBox(width: 10),
-
                       Expanded(
                         child: Text(
                           'No hay un perfil activo disponible '
@@ -336,25 +316,19 @@ class _RegisterOptionCard extends StatelessWidget {
               accentColor: accentColor,
               isDark: isDark,
             ),
-
             const SizedBox(width: 15),
-
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(title, style: theme.textTheme.titleMedium),
-
                   const SizedBox(height: 5),
-
                   Text(subtitle, style: theme.textTheme.bodySmall),
                 ],
               ),
             ),
-
             if (enabled) ...[
               const SizedBox(width: 10),
-
               Container(
                 width: 34,
                 height: 34,
@@ -397,9 +371,7 @@ class _RegisterOptionCard extends StatelessWidget {
                   accentColor: accentColor,
                   isDark: isDark,
                 ),
-
                 const Spacer(),
-
                 if (enabled)
                   Icon(
                     Icons.north_east_rounded,
@@ -408,18 +380,14 @@ class _RegisterOptionCard extends StatelessWidget {
                   ),
               ],
             ),
-
             const SizedBox(height: 18),
-
             Text(
               title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.titleMedium,
             ),
-
             const SizedBox(height: 6),
-
             Text(subtitle, style: theme.textTheme.bodySmall),
           ],
         ),
