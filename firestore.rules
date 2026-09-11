@@ -261,6 +261,81 @@ service cloud.firestore {
         && hasValidOptionalSleepObservation();
     }
 
+    function hasValidFeedingTopLevelFields(uid) {
+      return request.resource.data.keys().hasAll([
+          'tipoRegistro',
+          'fechaEvento',
+          'fechaCreacion',
+          'fechaActualizacion',
+          'uidOperacion',
+          'datos'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'tipoRegistro',
+          'fechaEvento',
+          'fechaCreacion',
+          'fechaActualizacion',
+          'uidOperacion',
+          'datos'
+        ])
+        && request.resource.data.tipoRegistro == 'alimentacion'
+        && request.resource.data.fechaEvento is timestamp
+        && request.resource.data.fechaCreacion is timestamp
+        && request.resource.data.fechaActualizacion is timestamp
+        && request.resource.data.fechaCreacion
+          == request.resource.data.fechaActualizacion
+        && request.resource.data.uidOperacion is string
+        && request.resource.data.uidOperacion == uid
+        && request.resource.data.uidOperacion
+          == request.auth.uid
+        && request.resource.data.datos is map;
+    }
+
+    function hasValidFeedingDataFields() {
+      return request.resource.data.datos.keys().hasAll([
+          'fecha',
+          'categoria'
+        ])
+        && request.resource.data.datos.keys().hasOnly([
+          'fecha',
+          'categoria',
+          'observacion'
+        ]);
+    }
+
+    function hasValidFeedingDate() {
+      return request.resource.data.datos.fecha is timestamp
+        && request.resource.data.fechaEvento
+          == request.resource.data.datos.fecha;
+    }
+
+    function hasValidFeedingCategory() {
+      return request.resource.data.datos.categoria is string
+        && request.resource.data.datos.categoria in [
+          'desayuno',
+          'refrigerio',
+          'almuerzo',
+          'merienda_cena',
+          'otro'
+        ];
+    }
+
+    function hasValidOptionalFeedingObservation() {
+      return !('observacion' in request.resource.data.datos)
+        || (
+          request.resource.data.datos.observacion is string
+          && request.resource.data.datos.observacion.size() > 0
+        );
+    }
+
+    function isValidFeedingCreate(uid) {
+      return hasValidFeedingTopLevelFields(uid)
+        && hasValidFeedingDataFields()
+        && hasValidFeedingDate()
+        && hasValidFeedingCategory()
+        && hasValidOptionalFeedingObservation();
+    }
+
     function hasValidRoutineStatusTopLevelFields(uid) {
       return request.resource.data.keys().hasAll([
           'tipoRegistro',
@@ -521,6 +596,7 @@ service cloud.firestore {
           // HU-02: conducta.
           // HU-04: estado de rutina.
           // HU-05: sueño.
+          // HU-06: alimentación.
           // HU-09: otra situación.
           allow create: if isOwner(uid)
             && trackingProfileExistsAndIsActive(
@@ -530,6 +606,7 @@ service cloud.firestore {
             && (
               isValidBehaviorCreate(uid)
               || isValidSleepCreate(uid)
+              || isValidFeedingCreate(uid)
               || isValidRoutineStatusCreate(
                 uid,
                 idAnonimo

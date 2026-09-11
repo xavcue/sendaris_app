@@ -95,12 +95,18 @@ class RegisterView extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _RegisterOptionCard(
-                      title: 'Alimentación',
-                      subtitle: 'Próximamente',
-                      icon: Icons.restaurant_outlined,
-                      accentColor: const Color(0xFFC9A353),
-                      enabled: false,
+                    child: AnimatedPressableScale(
+                      child: _RegisterOptionCard(
+                        key: const Key('register-feeding-option'),
+                        title: 'Alimentación',
+                        subtitle: 'Registrar información de alimentación',
+                        icon: Icons.restaurant_outlined,
+                        accentColor: const Color(0xFFC9A353),
+                        enabled: trackingViewModel.hasActiveProfile,
+                        onTap: () {
+                          context.push('/register/feeding');
+                        },
+                      ),
                     ),
                   ),
                 ],
