@@ -8,6 +8,8 @@ import '../features/auth/domain/repositories/auth_repository.dart';
 import '../features/auth/presentation/viewmodels/auth_view_model.dart';
 import '../features/behavior/domain/repositories/behavior_repository.dart';
 import '../features/behavior/domain/services/behavior_record_factory.dart';
+import '../features/feeding/domain/repositories/feeding_repository.dart';
+import '../features/feeding/domain/services/feeding_record_factory.dart';
 import '../features/routine/domain/repositories/routine_repository.dart';
 import '../features/routine/domain/services/routine_factory.dart';
 import '../features/routine_status/domain/repositories/routine_status_repository.dart';
@@ -30,6 +32,8 @@ class SendarisApp extends StatefulWidget {
     required this.behaviorRecordFactory,
     required this.sleepRepository,
     required this.sleepRecordFactory,
+    required this.feedingRepository,
+    required this.feedingRecordFactory,
     required this.routineRepository,
     required this.routineFactory,
     required this.routineStatusRepository,
@@ -49,6 +53,9 @@ class SendarisApp extends StatefulWidget {
   final SleepRepository sleepRepository;
   final SleepRecordFactory sleepRecordFactory;
 
+  final FeedingRepository feedingRepository;
+  final FeedingRecordFactory feedingRecordFactory;
+
   final RoutineRepository routineRepository;
   final RoutineFactory routineFactory;
 
@@ -64,8 +71,11 @@ class SendarisApp extends StatefulWidget {
 
 class _SendarisAppState extends State<SendarisApp> {
   late final AuthViewModel _authViewModel;
+
   late final TrackingViewModel _trackingViewModel;
+
   late final ThemeModeController _themeModeController;
+
   late final GoRouter _router;
 
   @override
@@ -88,6 +98,8 @@ class _SendarisAppState extends State<SendarisApp> {
       behaviorRecordFactory: widget.behaviorRecordFactory,
       sleepRepository: widget.sleepRepository,
       sleepRecordFactory: widget.sleepRecordFactory,
+      feedingRepository: widget.feedingRepository,
+      feedingRecordFactory: widget.feedingRecordFactory,
       routineRepository: widget.routineRepository,
       routineFactory: widget.routineFactory,
       routineStatusRepository: widget.routineStatusRepository,

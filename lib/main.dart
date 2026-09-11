@@ -16,6 +16,10 @@ import 'features/behavior/data/repositories/firebase_behavior_repository.dart';
 import 'features/behavior/data/services/firestore_behavior_service.dart';
 import 'features/behavior/data/services/uuid_behavior_record_id_generator.dart';
 import 'features/behavior/domain/services/behavior_record_factory.dart';
+import 'features/feeding/data/repositories/firebase_feeding_repository.dart';
+import 'features/feeding/data/services/firestore_feeding_service.dart';
+import 'features/feeding/data/services/uuid_feeding_record_id_generator.dart';
+import 'features/feeding/domain/services/feeding_record_factory.dart';
 import 'features/routine/data/repositories/firebase_routine_repository.dart';
 import 'features/routine/data/services/firestore_routine_service.dart';
 import 'features/routine/data/services/uuid_routine_id_generator.dart';
@@ -80,6 +84,14 @@ Future<void> main() async {
 
   final sleepRecordFactory = SleepRecordFactory(UuidSleepRecordIdGenerator());
 
+  final feedingService = FirestoreFeedingService(firestore, firebaseAuth);
+
+  final feedingRepository = FirebaseFeedingRepository(feedingService);
+
+  final feedingRecordFactory = FeedingRecordFactory(
+    UuidFeedingRecordIdGenerator(),
+  );
+
   final routineService = FirestoreRoutineService(firestore, firebaseAuth);
 
   final routineRepository = FirebaseRoutineRepository(routineService);
@@ -121,6 +133,8 @@ Future<void> main() async {
       behaviorRecordFactory: behaviorRecordFactory,
       sleepRepository: sleepRepository,
       sleepRecordFactory: sleepRecordFactory,
+      feedingRepository: feedingRepository,
+      feedingRecordFactory: feedingRecordFactory,
       routineRepository: routineRepository,
       routineFactory: routineFactory,
       routineStatusRepository: routineStatusRepository,

@@ -11,6 +11,10 @@ import 'package:sendaris/features/behavior/domain/models/behavior_record.dart';
 import 'package:sendaris/features/behavior/domain/repositories/behavior_repository.dart';
 import 'package:sendaris/features/behavior/domain/services/behavior_record_factory.dart';
 import 'package:sendaris/features/behavior/domain/services/behavior_record_id_generator.dart';
+import 'package:sendaris/features/feeding/domain/models/feeding_record.dart';
+import 'package:sendaris/features/feeding/domain/repositories/feeding_repository.dart';
+import 'package:sendaris/features/feeding/domain/services/feeding_record_factory.dart';
+import 'package:sendaris/features/feeding/domain/services/feeding_record_id_generator.dart';
 import 'package:sendaris/features/routine/domain/models/routine.dart';
 import 'package:sendaris/features/routine/domain/repositories/routine_repository.dart';
 import 'package:sendaris/features/routine/domain/services/routine_factory.dart';
@@ -50,6 +54,12 @@ void main() {
 
     const sleepRecordFactory = SleepRecordFactory(FakeSleepRecordIdGenerator());
 
+    final feedingRepository = FakeFeedingRepository();
+
+    const feedingRecordFactory = FeedingRecordFactory(
+      FakeFeedingRecordIdGenerator(),
+    );
+
     final routineRepository = FakeRoutineRepository();
 
     const routineFactory = RoutineFactory(FakeRoutineIdGenerator());
@@ -75,6 +85,8 @@ void main() {
         behaviorRecordFactory: behaviorRecordFactory,
         sleepRepository: sleepRepository,
         sleepRecordFactory: sleepRecordFactory,
+        feedingRepository: feedingRepository,
+        feedingRecordFactory: feedingRecordFactory,
         routineRepository: routineRepository,
         routineFactory: routineFactory,
         routineStatusRepository: routineStatusRepository,
@@ -166,6 +178,18 @@ class FakeSleepRepository implements SleepRepository {
   }
 }
 
+class FakeFeedingRepository implements FeedingRepository {
+  @override
+  Future<void> saveFeeding(FeedingRecord record) async {}
+
+  @override
+  Future<List<FeedingRecord>> recoverFeedingRecords({
+    required String anonymousId,
+  }) async {
+    return [];
+  }
+}
+
 class FakeRoutineRepository implements RoutineRepository {
   @override
   Future<void> createRoutine(Routine routine) async {}
@@ -231,6 +255,15 @@ class FakeSleepRecordIdGenerator implements SleepRecordIdGenerator {
   @override
   String generate() {
     return 'registro-sueno-widget-test';
+  }
+}
+
+class FakeFeedingRecordIdGenerator implements FeedingRecordIdGenerator {
+  const FakeFeedingRecordIdGenerator();
+
+  @override
+  String generate() {
+    return 'registro-alimentacion-widget-test';
   }
 }
 

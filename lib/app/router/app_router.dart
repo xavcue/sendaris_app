@@ -9,6 +9,9 @@ import '../../features/auth/presentation/views/login_view.dart';
 import '../../features/behavior/domain/repositories/behavior_repository.dart';
 import '../../features/behavior/domain/services/behavior_record_factory.dart';
 import '../../features/behavior/presentation/views/behavior_form_view.dart';
+import '../../features/feeding/domain/repositories/feeding_repository.dart';
+import '../../features/feeding/domain/services/feeding_record_factory.dart';
+import '../../features/feeding/presentation/views/feeding_form_view.dart';
 import '../../features/home/presentation/views/home_placeholder_view.dart';
 import '../../features/register/presentation/views/register_view.dart';
 import '../../features/routine/domain/models/routine.dart';
@@ -34,6 +37,8 @@ abstract final class AppRouter {
     required BehaviorRecordFactory behaviorRecordFactory,
     required SleepRepository sleepRepository,
     required SleepRecordFactory sleepRecordFactory,
+    required FeedingRepository feedingRepository,
+    required FeedingRecordFactory feedingRecordFactory,
     required RoutineRepository routineRepository,
     required RoutineFactory routineFactory,
     required RoutineStatusRepository routineStatusRepository,
@@ -130,6 +135,27 @@ abstract final class AppRouter {
                 : SleepFormView(
                     repository: sleepRepository,
                     recordFactory: sleepRecordFactory,
+                    anonymousId: anonymousId,
+                  );
+
+            return _animatedPage(
+              state: state,
+              child: _ambientScreen(state: state, child: child),
+            );
+          },
+        ),
+
+        GoRoute(
+          path: '/register/feeding',
+          name: 'register-feeding',
+          pageBuilder: (context, state) {
+            final anonymousId = trackingViewModel.activeAnonymousId;
+
+            final child = anonymousId == null
+                ? const RegisterView()
+                : FeedingFormView(
+                    repository: feedingRepository,
+                    recordFactory: feedingRecordFactory,
                     anonymousId: anonymousId,
                   );
 

@@ -59,6 +59,25 @@ void main() {
 
     expect(find.text('Registrar periodo de sueño'), findsOneWidget);
 
+    final feedingOption = find.byKey(const Key('register-feeding-option'));
+
+    await tester.scrollUntilVisible(
+      feedingOption,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(feedingOption, findsOneWidget);
+
+    expect(find.text('Alimentación'), findsOneWidget);
+
+    expect(find.text('Registrar información de alimentación'), findsOneWidget);
+
+    expect(
+      find.descendant(of: feedingOption, matching: find.text('Próximamente')),
+      findsNothing,
+    );
+
     final atypicalOption = find.byKey(
       const Key('register-atypical-situation-option'),
     );
