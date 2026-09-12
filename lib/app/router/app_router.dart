@@ -25,6 +25,9 @@ import '../../features/routine_status/presentation/views/routine_status_form_vie
 import '../../features/sleep/domain/repositories/sleep_repository.dart';
 import '../../features/sleep/domain/services/sleep_record_factory.dart';
 import '../../features/sleep/presentation/views/sleep_form_view.dart';
+import '../../features/social_interaction/domain/repositories/social_interaction_repository.dart';
+import '../../features/social_interaction/domain/services/social_interaction_record_factory.dart';
+import '../../features/social_interaction/presentation/views/social_interaction_form_view.dart';
 import '../../features/tracking/presentation/viewmodels/tracking_view_model.dart';
 import '../animation/app_motion.dart';
 import '../theme/ambient_background.dart';
@@ -39,6 +42,8 @@ abstract final class AppRouter {
     required SleepRecordFactory sleepRecordFactory,
     required FeedingRepository feedingRepository,
     required FeedingRecordFactory feedingRecordFactory,
+    required SocialInteractionRepository socialInteractionRepository,
+    required SocialInteractionRecordFactory socialInteractionRecordFactory,
     required RoutineRepository routineRepository,
     required RoutineFactory routineFactory,
     required RoutineStatusRepository routineStatusRepository,
@@ -156,6 +161,27 @@ abstract final class AppRouter {
                 : FeedingFormView(
                     repository: feedingRepository,
                     recordFactory: feedingRecordFactory,
+                    anonymousId: anonymousId,
+                  );
+
+            return _animatedPage(
+              state: state,
+              child: _ambientScreen(state: state, child: child),
+            );
+          },
+        ),
+
+        GoRoute(
+          path: '/register/social-interaction',
+          name: 'register-social-interaction',
+          pageBuilder: (context, state) {
+            final anonymousId = trackingViewModel.activeAnonymousId;
+
+            final child = anonymousId == null
+                ? const RegisterView()
+                : SocialInteractionFormView(
+                    repository: socialInteractionRepository,
+                    recordFactory: socialInteractionRecordFactory,
                     anonymousId: anonymousId,
                   );
 

@@ -32,6 +32,10 @@ import 'features/sleep/data/repositories/firebase_sleep_repository.dart';
 import 'features/sleep/data/services/firestore_sleep_service.dart';
 import 'features/sleep/data/services/uuid_sleep_record_id_generator.dart';
 import 'features/sleep/domain/services/sleep_record_factory.dart';
+import 'features/social_interaction/data/repositories/firebase_social_interaction_repository.dart';
+import 'features/social_interaction/data/services/firestore_social_interaction_service.dart';
+import 'features/social_interaction/data/services/uuid_social_interaction_record_id_generator.dart';
+import 'features/social_interaction/domain/services/social_interaction_record_factory.dart';
 import 'features/tracking/data/repositories/firebase_tracking_repository.dart';
 import 'features/tracking/data/services/firestore_tracking_service.dart';
 import 'features/tracking/data/services/uuid_anonymous_id_generator.dart';
@@ -92,6 +96,19 @@ Future<void> main() async {
     UuidFeedingRecordIdGenerator(),
   );
 
+  final socialInteractionService = FirestoreSocialInteractionService(
+    firestore,
+    firebaseAuth,
+  );
+
+  final socialInteractionRepository = FirebaseSocialInteractionRepository(
+    socialInteractionService,
+  );
+
+  final socialInteractionRecordFactory = SocialInteractionRecordFactory(
+    UuidSocialInteractionRecordIdGenerator(),
+  );
+
   final routineService = FirestoreRoutineService(firestore, firebaseAuth);
 
   final routineRepository = FirebaseRoutineRepository(routineService);
@@ -135,6 +152,8 @@ Future<void> main() async {
       sleepRecordFactory: sleepRecordFactory,
       feedingRepository: feedingRepository,
       feedingRecordFactory: feedingRecordFactory,
+      socialInteractionRepository: socialInteractionRepository,
+      socialInteractionRecordFactory: socialInteractionRecordFactory,
       routineRepository: routineRepository,
       routineFactory: routineFactory,
       routineStatusRepository: routineStatusRepository,
