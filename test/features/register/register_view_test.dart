@@ -78,6 +78,30 @@ void main() {
       findsNothing,
     );
 
+    final socialInteractionOption = find.byKey(
+      const Key('register-social-interaction-option'),
+    );
+
+    await tester.scrollUntilVisible(
+      socialInteractionOption,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(socialInteractionOption, findsOneWidget);
+
+    expect(find.text('Interacción social'), findsOneWidget);
+
+    expect(find.text('Registrar una interacción social'), findsOneWidget);
+
+    expect(
+      find.descendant(
+        of: socialInteractionOption,
+        matching: find.text('Próximamente'),
+      ),
+      findsNothing,
+    );
+
     final atypicalOption = find.byKey(
       const Key('register-atypical-situation-option'),
     );

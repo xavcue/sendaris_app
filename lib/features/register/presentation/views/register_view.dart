@@ -120,12 +120,18 @@ class RegisterView extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: _RegisterOptionCard(
-                      title: 'Interacción social',
-                      subtitle: 'Próximamente',
-                      icon: Icons.groups_outlined,
-                      accentColor: const Color(0xFF69AA98),
-                      enabled: false,
+                    child: AnimatedPressableScale(
+                      child: _RegisterOptionCard(
+                        key: const Key('register-social-interaction-option'),
+                        title: 'Interacción social',
+                        subtitle: 'Registrar una interacción social',
+                        icon: Icons.groups_outlined,
+                        accentColor: const Color(0xFF69AA98),
+                        enabled: trackingViewModel.hasActiveProfile,
+                        onTap: () {
+                          context.push('/register/social-interaction');
+                        },
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),

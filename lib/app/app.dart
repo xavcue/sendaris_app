@@ -16,6 +16,8 @@ import '../features/routine_status/domain/repositories/routine_status_repository
 import '../features/routine_status/domain/services/routine_status_record_factory.dart';
 import '../features/sleep/domain/repositories/sleep_repository.dart';
 import '../features/sleep/domain/services/sleep_record_factory.dart';
+import '../features/social_interaction/domain/repositories/social_interaction_repository.dart';
+import '../features/social_interaction/domain/services/social_interaction_record_factory.dart';
 import '../features/tracking/domain/repositories/tracking_repository.dart';
 import '../features/tracking/domain/services/anonymous_tracking_profile_factory.dart';
 import '../features/tracking/presentation/viewmodels/tracking_view_model.dart';
@@ -34,6 +36,8 @@ class SendarisApp extends StatefulWidget {
     required this.sleepRecordFactory,
     required this.feedingRepository,
     required this.feedingRecordFactory,
+    required this.socialInteractionRepository,
+    required this.socialInteractionRecordFactory,
     required this.routineRepository,
     required this.routineFactory,
     required this.routineStatusRepository,
@@ -55,6 +59,9 @@ class SendarisApp extends StatefulWidget {
 
   final FeedingRepository feedingRepository;
   final FeedingRecordFactory feedingRecordFactory;
+
+  final SocialInteractionRepository socialInteractionRepository;
+  final SocialInteractionRecordFactory socialInteractionRecordFactory;
 
   final RoutineRepository routineRepository;
   final RoutineFactory routineFactory;
@@ -100,6 +107,8 @@ class _SendarisAppState extends State<SendarisApp> {
       sleepRecordFactory: widget.sleepRecordFactory,
       feedingRepository: widget.feedingRepository,
       feedingRecordFactory: widget.feedingRecordFactory,
+      socialInteractionRepository: widget.socialInteractionRepository,
+      socialInteractionRecordFactory: widget.socialInteractionRecordFactory,
       routineRepository: widget.routineRepository,
       routineFactory: widget.routineFactory,
       routineStatusRepository: widget.routineStatusRepository,

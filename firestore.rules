@@ -336,6 +336,92 @@ service cloud.firestore {
         && hasValidOptionalFeedingObservation();
     }
 
+    function hasValidSocialInteractionTopLevelFields(uid) {
+      return request.resource.data.keys().hasAll([
+          'tipoRegistro',
+          'fechaEvento',
+          'fechaCreacion',
+          'fechaActualizacion',
+          'uidOperacion',
+          'datos'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'tipoRegistro',
+          'fechaEvento',
+          'fechaCreacion',
+          'fechaActualizacion',
+          'uidOperacion',
+          'datos'
+        ])
+        && request.resource.data.tipoRegistro
+          == 'interaccionSocial'
+        && request.resource.data.fechaEvento is timestamp
+        && request.resource.data.fechaCreacion is timestamp
+        && request.resource.data.fechaActualizacion is timestamp
+        && request.resource.data.fechaCreacion
+          == request.resource.data.fechaActualizacion
+        && request.resource.data.uidOperacion is string
+        && request.resource.data.uidOperacion == uid
+        && request.resource.data.uidOperacion
+          == request.auth.uid
+        && request.resource.data.datos is map;
+    }
+
+    function hasValidSocialInteractionDataFields() {
+      return request.resource.data.datos.keys().hasAll([
+          'fecha',
+          'categoria'
+        ])
+        && request.resource.data.datos.keys().hasOnly([
+          'fecha',
+          'categoria',
+          'contexto',
+          'observacion'
+        ]);
+    }
+
+    function hasValidSocialInteractionDate() {
+      return request.resource.data.datos.fecha is timestamp
+        && request.resource.data.fechaEvento
+          == request.resource.data.datos.fecha;
+    }
+
+    function hasValidSocialInteractionCategory() {
+      return request.resource.data.datos.categoria is string
+        && request.resource.data.datos.categoria in [
+          'inicio_interaccion',
+          'respuesta_interaccion',
+          'intercambio_social',
+          'actividad_compartida',
+          'otro'
+        ];
+    }
+
+    function hasValidOptionalSocialInteractionContext() {
+      return !('contexto' in request.resource.data.datos)
+        || (
+          request.resource.data.datos.contexto is string
+          && request.resource.data.datos.contexto.size() > 0
+        );
+    }
+
+    function hasValidOptionalSocialInteractionObservation() {
+      return !('observacion' in request.resource.data.datos)
+        || (
+          request.resource.data.datos.observacion is string
+          && request.resource.data.datos.observacion.size() > 0
+        );
+    }
+
+    function isValidSocialInteractionCreate(uid) {
+      return hasValidSocialInteractionTopLevelFields(uid)
+        && hasValidSocialInteractionDataFields()
+        && hasValidSocialInteractionDate()
+        && hasValidSocialInteractionCategory()
+        && hasValidOptionalSocialInteractionContext()
+        && hasValidOptionalSocialInteractionObservation();
+    }
+
     function hasValidRoutineStatusTopLevelFields(uid) {
       return request.resource.data.keys().hasAll([
           'tipoRegistro',
@@ -597,6 +683,7 @@ service cloud.firestore {
           // HU-04: estado de rutina.
           // HU-05: sueño.
           // HU-06: alimentación.
+          // HU-07: interacción social.
           // HU-09: otra situación.
           allow create: if isOwner(uid)
             && trackingProfileExistsAndIsActive(
@@ -607,6 +694,7 @@ service cloud.firestore {
               isValidBehaviorCreate(uid)
               || isValidSleepCreate(uid)
               || isValidFeedingCreate(uid)
+              || isValidSocialInteractionCreate(uid)
               || isValidRoutineStatusCreate(
                 uid,
                 idAnonimo

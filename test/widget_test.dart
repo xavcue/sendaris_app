@@ -27,6 +27,10 @@ import 'package:sendaris/features/sleep/domain/models/sleep_record.dart';
 import 'package:sendaris/features/sleep/domain/repositories/sleep_repository.dart';
 import 'package:sendaris/features/sleep/domain/services/sleep_record_factory.dart';
 import 'package:sendaris/features/sleep/domain/services/sleep_record_id_generator.dart';
+import 'package:sendaris/features/social_interaction/domain/models/social_interaction_record.dart';
+import 'package:sendaris/features/social_interaction/domain/repositories/social_interaction_repository.dart';
+import 'package:sendaris/features/social_interaction/domain/services/social_interaction_record_factory.dart';
+import 'package:sendaris/features/social_interaction/domain/services/social_interaction_record_id_generator.dart';
 import 'package:sendaris/features/tracking/domain/models/anonymous_tracking_profile.dart';
 import 'package:sendaris/features/tracking/domain/repositories/tracking_repository.dart';
 import 'package:sendaris/features/tracking/domain/services/anonymous_id_generator.dart';
@@ -60,6 +64,12 @@ void main() {
       FakeFeedingRecordIdGenerator(),
     );
 
+    final socialInteractionRepository = FakeSocialInteractionRepository();
+
+    const socialInteractionRecordFactory = SocialInteractionRecordFactory(
+      FakeSocialInteractionRecordIdGenerator(),
+    );
+
     final routineRepository = FakeRoutineRepository();
 
     const routineFactory = RoutineFactory(FakeRoutineIdGenerator());
@@ -87,6 +97,8 @@ void main() {
         sleepRecordFactory: sleepRecordFactory,
         feedingRepository: feedingRepository,
         feedingRecordFactory: feedingRecordFactory,
+        socialInteractionRepository: socialInteractionRepository,
+        socialInteractionRecordFactory: socialInteractionRecordFactory,
         routineRepository: routineRepository,
         routineFactory: routineFactory,
         routineStatusRepository: routineStatusRepository,
@@ -190,6 +202,18 @@ class FakeFeedingRepository implements FeedingRepository {
   }
 }
 
+class FakeSocialInteractionRepository implements SocialInteractionRepository {
+  @override
+  Future<void> saveSocialInteraction(SocialInteractionRecord record) async {}
+
+  @override
+  Future<List<SocialInteractionRecord>> recoverSocialInteractions({
+    required String anonymousId,
+  }) async {
+    return [];
+  }
+}
+
 class FakeRoutineRepository implements RoutineRepository {
   @override
   Future<void> createRoutine(Routine routine) async {}
@@ -264,6 +288,16 @@ class FakeFeedingRecordIdGenerator implements FeedingRecordIdGenerator {
   @override
   String generate() {
     return 'registro-alimentacion-widget-test';
+  }
+}
+
+class FakeSocialInteractionRecordIdGenerator
+    implements SocialInteractionRecordIdGenerator {
+  const FakeSocialInteractionRecordIdGenerator();
+
+  @override
+  String generate() {
+    return 'registro-interaccion-social-widget-test';
   }
 }
 
