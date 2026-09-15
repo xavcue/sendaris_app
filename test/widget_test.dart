@@ -11,6 +11,10 @@ import 'package:sendaris/features/behavior/domain/models/behavior_record.dart';
 import 'package:sendaris/features/behavior/domain/repositories/behavior_repository.dart';
 import 'package:sendaris/features/behavior/domain/services/behavior_record_factory.dart';
 import 'package:sendaris/features/behavior/domain/services/behavior_record_id_generator.dart';
+import 'package:sendaris/features/dysregulation/domain/models/dysregulation_record.dart';
+import 'package:sendaris/features/dysregulation/domain/repositories/dysregulation_repository.dart';
+import 'package:sendaris/features/dysregulation/domain/services/dysregulation_record_factory.dart';
+import 'package:sendaris/features/dysregulation/domain/services/dysregulation_record_id_generator.dart';
 import 'package:sendaris/features/feeding/domain/models/feeding_record.dart';
 import 'package:sendaris/features/feeding/domain/repositories/feeding_repository.dart';
 import 'package:sendaris/features/feeding/domain/services/feeding_record_factory.dart';
@@ -70,6 +74,12 @@ void main() {
       FakeSocialInteractionRecordIdGenerator(),
     );
 
+    final dysregulationRepository = FakeDysregulationRepository();
+
+    const dysregulationRecordFactory = DysregulationRecordFactory(
+      FakeDysregulationRecordIdGenerator(),
+    );
+
     final routineRepository = FakeRoutineRepository();
 
     const routineFactory = RoutineFactory(FakeRoutineIdGenerator());
@@ -99,6 +109,8 @@ void main() {
         feedingRecordFactory: feedingRecordFactory,
         socialInteractionRepository: socialInteractionRepository,
         socialInteractionRecordFactory: socialInteractionRecordFactory,
+        dysregulationRepository: dysregulationRepository,
+        dysregulationRecordFactory: dysregulationRecordFactory,
         routineRepository: routineRepository,
         routineFactory: routineFactory,
         routineStatusRepository: routineStatusRepository,
@@ -214,6 +226,18 @@ class FakeSocialInteractionRepository implements SocialInteractionRepository {
   }
 }
 
+class FakeDysregulationRepository implements DysregulationRepository {
+  @override
+  Future<void> saveDysregulation(DysregulationRecord record) async {}
+
+  @override
+  Future<List<DysregulationRecord>> recoverDysregulations({
+    required String anonymousId,
+  }) async {
+    return [];
+  }
+}
+
 class FakeRoutineRepository implements RoutineRepository {
   @override
   Future<void> createRoutine(Routine routine) async {}
@@ -298,6 +322,16 @@ class FakeSocialInteractionRecordIdGenerator
   @override
   String generate() {
     return 'registro-interaccion-social-widget-test';
+  }
+}
+
+class FakeDysregulationRecordIdGenerator
+    implements DysregulationRecordIdGenerator {
+  const FakeDysregulationRecordIdGenerator();
+
+  @override
+  String generate() {
+    return 'registro-desregulacion-widget-test';
   }
 }
 

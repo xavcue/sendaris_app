@@ -102,6 +102,30 @@ void main() {
       findsNothing,
     );
 
+    final dysregulationOption = find.byKey(
+      const Key('register-dysregulation-option'),
+    );
+
+    await tester.scrollUntilVisible(
+      dysregulationOption,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(dysregulationOption, findsOneWidget);
+
+    expect(find.text('Desregulación'), findsOneWidget);
+
+    expect(find.text('Registrar un episodio de desregulación'), findsOneWidget);
+
+    expect(
+      find.descendant(
+        of: dysregulationOption,
+        matching: find.text('Próximamente'),
+      ),
+      findsNothing,
+    );
+
     final atypicalOption = find.byKey(
       const Key('register-atypical-situation-option'),
     );
