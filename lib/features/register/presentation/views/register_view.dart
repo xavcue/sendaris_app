@@ -136,12 +136,18 @@ class RegisterView extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _RegisterOptionCard(
-                      title: 'Desregulación',
-                      subtitle: 'Próximamente',
-                      icon: Icons.sentiment_dissatisfied_outlined,
-                      accentColor: const Color(0xFF8173AE),
-                      enabled: false,
+                    child: AnimatedPressableScale(
+                      child: _RegisterOptionCard(
+                        key: const Key('register-dysregulation-option'),
+                        title: 'Desregulación',
+                        subtitle: 'Registrar un episodio de desregulación',
+                        icon: Icons.sentiment_dissatisfied_outlined,
+                        accentColor: const Color(0xFF8173AE),
+                        enabled: trackingViewModel.hasActiveProfile,
+                        onTap: () {
+                          context.push('/register/dysregulation');
+                        },
+                      ),
                     ),
                   ),
                 ],

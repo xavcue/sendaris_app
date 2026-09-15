@@ -9,6 +9,9 @@ import '../../features/auth/presentation/views/login_view.dart';
 import '../../features/behavior/domain/repositories/behavior_repository.dart';
 import '../../features/behavior/domain/services/behavior_record_factory.dart';
 import '../../features/behavior/presentation/views/behavior_form_view.dart';
+import '../../features/dysregulation/domain/repositories/dysregulation_repository.dart';
+import '../../features/dysregulation/domain/services/dysregulation_record_factory.dart';
+import '../../features/dysregulation/presentation/views/dysregulation_form_view.dart';
 import '../../features/feeding/domain/repositories/feeding_repository.dart';
 import '../../features/feeding/domain/services/feeding_record_factory.dart';
 import '../../features/feeding/presentation/views/feeding_form_view.dart';
@@ -44,6 +47,8 @@ abstract final class AppRouter {
     required FeedingRecordFactory feedingRecordFactory,
     required SocialInteractionRepository socialInteractionRepository,
     required SocialInteractionRecordFactory socialInteractionRecordFactory,
+    required DysregulationRepository dysregulationRepository,
+    required DysregulationRecordFactory dysregulationRecordFactory,
     required RoutineRepository routineRepository,
     required RoutineFactory routineFactory,
     required RoutineStatusRepository routineStatusRepository,
@@ -182,6 +187,27 @@ abstract final class AppRouter {
                 : SocialInteractionFormView(
                     repository: socialInteractionRepository,
                     recordFactory: socialInteractionRecordFactory,
+                    anonymousId: anonymousId,
+                  );
+
+            return _animatedPage(
+              state: state,
+              child: _ambientScreen(state: state, child: child),
+            );
+          },
+        ),
+
+        GoRoute(
+          path: '/register/dysregulation',
+          name: 'register-dysregulation',
+          pageBuilder: (context, state) {
+            final anonymousId = trackingViewModel.activeAnonymousId;
+
+            final child = anonymousId == null
+                ? const RegisterView()
+                : DysregulationFormView(
+                    repository: dysregulationRepository,
+                    recordFactory: dysregulationRecordFactory,
                     anonymousId: anonymousId,
                   );
 

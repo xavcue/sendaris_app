@@ -16,6 +16,10 @@ import 'features/behavior/data/repositories/firebase_behavior_repository.dart';
 import 'features/behavior/data/services/firestore_behavior_service.dart';
 import 'features/behavior/data/services/uuid_behavior_record_id_generator.dart';
 import 'features/behavior/domain/services/behavior_record_factory.dart';
+import 'features/dysregulation/data/repositories/firebase_dysregulation_repository.dart';
+import 'features/dysregulation/data/services/firestore_dysregulation_service.dart';
+import 'features/dysregulation/data/services/uuid_dysregulation_record_id_generator.dart';
+import 'features/dysregulation/domain/services/dysregulation_record_factory.dart';
 import 'features/feeding/data/repositories/firebase_feeding_repository.dart';
 import 'features/feeding/data/services/firestore_feeding_service.dart';
 import 'features/feeding/data/services/uuid_feeding_record_id_generator.dart';
@@ -109,6 +113,19 @@ Future<void> main() async {
     UuidSocialInteractionRecordIdGenerator(),
   );
 
+  final dysregulationService = FirestoreDysregulationService(
+    firestore,
+    firebaseAuth,
+  );
+
+  final dysregulationRepository = FirebaseDysregulationRepository(
+    dysregulationService,
+  );
+
+  final dysregulationRecordFactory = DysregulationRecordFactory(
+    UuidDysregulationRecordIdGenerator(),
+  );
+
   final routineService = FirestoreRoutineService(firestore, firebaseAuth);
 
   final routineRepository = FirebaseRoutineRepository(routineService);
@@ -154,6 +171,8 @@ Future<void> main() async {
       feedingRecordFactory: feedingRecordFactory,
       socialInteractionRepository: socialInteractionRepository,
       socialInteractionRecordFactory: socialInteractionRecordFactory,
+      dysregulationRepository: dysregulationRepository,
+      dysregulationRecordFactory: dysregulationRecordFactory,
       routineRepository: routineRepository,
       routineFactory: routineFactory,
       routineStatusRepository: routineStatusRepository,
