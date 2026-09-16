@@ -19,6 +19,8 @@ void main() {
   test('inicia sin registros y sin error', () {
     expect(viewModel.records, isEmpty);
 
+    expect(viewModel.filteredRecords, isEmpty);
+
     expect(viewModel.isLoading, isFalse);
 
     expect(viewModel.hasLoaded, isFalse);
@@ -28,6 +30,10 @@ void main() {
     expect(viewModel.hasRecords, isFalse);
 
     expect(viewModel.isEmpty, isFalse);
+
+    expect(viewModel.hasActiveFilters, isFalse);
+
+    expect(viewModel.hasFilterErrors, isFalse);
   });
 
   test('initialize recupera el historial del perfil seleccionado', () async {
@@ -212,6 +218,273 @@ void main() {
       HistoryRecordType.dysregulation,
     });
   });
+
+  test('seleccionar fechas pendientes no modifica los registros visibles antes de aplicar', () async {
+    repository.records = _filterRecords();
+
+    await viewModel.initialize();
+
+    viewModel.setPendingStartDate(DateTime(2026, 9, 10));
+
+    viewModel.setPendingEndDate(DateTime(2026, 9, 15));
+
+    expect(viewModel.hasActiveFilters, isFalse);
+
+    expect(viewModel.filteredRecords, hasLength(5));
+  });
+
+  test('aplica un periodo válido de forma inclusiva', () async {
+    repository.records = _filterRecords();
+
+    await viewModel.initialize();
+
+    viewModel.setPendingStartDate(DateTime(2026, 9, 10));
+
+    viewModel.setPendingEndDate(DateTime(2026, 9, 15));
+
+    final success = viewModel.applyFilters();
+
+    expect(success, isTrue);
+
+    expect(viewModel.hasPeriodFilter, isTrue);
+
+    expect(
+      viewModel.filteredRecords.map((record) => record.recordId).toList(),
+      ['desregulacion-15', 'sueno-15', 'conducta-10', 'alimentacion-10'],
+    );
+  });
+
+  test('aplica un único tipo de registro', () async {
+    repository.records = _filterRecords();
+
+    await viewModel.initialize();
+
+    viewModel.togglePendingType(HistoryRecordType.sleep);
+
+    final success = viewModel.applyFilters();
+
+    expect(success, isTrue);
+
+    expect(viewModel.hasTypeFilter, isTrue);
+
+    expect(
+      viewModel.filteredRecords.map((record) => record.recordId).toList(),
+      ['sueno-15'],
+    );
+  });
+
+  test('permite seleccionar más de un tipo de registro', () async {
+    repository.records = _filterRecords();
+
+    await viewModel.initialize();
+
+    viewModel.togglePendingType(HistoryRecordType.behavior);
+
+    viewModel.togglePendingType(HistoryRecordType.sleep);
+
+    expect(viewModel.isPendingTypeSelected(HistoryRecordType.behavior), isTrue);
+
+    expect(viewModel.isPendingTypeSelected(HistoryRecordType.sleep), isTrue);
+
+    final success = viewModel.applyFilters();
+
+    expect(success, isTrue);
+
+    expect(viewModel.filteredRecords.map((record) => record.type).toSet(), {
+      HistoryRecordType.behavior,
+      HistoryRecordType.sleep,
+    });
+  });
+
+  test('combina periodo y tipo utilizando ambos criterios', () async {
+    repository.records = _filterRecords();
+
+    await viewModel.initialize();
+
+    viewModel.setPendingStartDate(DateTime(2026, 9, 10));
+
+    viewModel.setPendingEndDate(DateTime(2026, 9, 15));
+
+    viewModel.togglePendingType(HistoryRecordType.behavior);
+
+    viewModel.togglePendingType(HistoryRecordType.dysregulation);
+
+    final success = viewModel.applyFilters();
+
+    expect(success, isTrue);
+
+    expect(
+      viewModel.filteredRecords.map((record) => record.recordId).toList(),
+      ['desregulacion-15', 'conducta-10'],
+    );
+  });
+
+  test(
+    'periodo inválido muestra error y no sustituye un filtro válido existente',
+    () async {
+      repository.records = _filterRecords();
+
+      await viewModel.initialize();
+
+      viewModel.togglePendingType(HistoryRecordType.sleep);
+
+      expect(viewModel.applyFilters(), isTrue);
+
+      expect(viewModel.filteredRecords.single.recordId, 'sueno-15');
+
+      viewModel.setPendingStartDate(DateTime(2026, 9, 16));
+
+      viewModel.setPendingEndDate(DateTime(2026, 9, 15));
+
+      final success = viewModel.applyFilters();
+
+      expect(success, isFalse);
+
+      expect(
+        viewModel.filterErrorFor('period'),
+        'La fecha inicial no puede ser posterior a la fecha final.',
+      );
+
+      expect(viewModel.filteredRecords.single.recordId, 'sueno-15');
+    },
+  );
+
+  test('cambiar una selección elimina el error de filtro anterior', () async {
+    viewModel.setPendingStartDate(DateTime(2026, 9, 16));
+
+    viewModel.setPendingEndDate(DateTime(2026, 9, 15));
+
+    expect(viewModel.applyFilters(), isFalse);
+
+    expect(viewModel.hasFilterErrors, isTrue);
+
+    viewModel.setPendingStartDate(DateTime(2026, 9, 10));
+
+    expect(viewModel.hasFilterErrors, isFalse);
+  });
+
+  test('expone estado sin coincidencias cuando los filtros no encuentran registros', () async {
+    repository.records = _filterRecords();
+
+    await viewModel.initialize();
+
+    viewModel.togglePendingType(HistoryRecordType.socialInteraction);
+
+    expect(viewModel.applyFilters(), isTrue);
+
+    expect(viewModel.records, isNotEmpty);
+
+    expect(viewModel.filteredRecords, isEmpty);
+
+    expect(viewModel.hasNoFilterResults, isTrue);
+
+    expect(viewModel.isEmpty, isFalse);
+  });
+
+  test('clearFilters restaura la vista completa', () async {
+    repository.records = _filterRecords();
+
+    await viewModel.initialize();
+
+    viewModel.togglePendingType(HistoryRecordType.sleep);
+
+    viewModel.applyFilters();
+
+    expect(viewModel.filteredRecords, hasLength(1));
+
+    viewModel.clearFilters();
+
+    expect(viewModel.hasActiveFilters, isFalse);
+
+    expect(viewModel.pendingStartDate, isNull);
+
+    expect(viewModel.pendingEndDate, isNull);
+
+    expect(viewModel.pendingSelectedTypes, isEmpty);
+
+    expect(viewModel.filteredRecords, hasLength(5));
+  });
+
+  test(
+    'reload conserva el filtro aplicado sobre los nuevos registros recuperados',
+    () async {
+      repository.records = [
+        _record(
+          recordId: 'sueno-1',
+          type: HistoryRecordType.sleep,
+          eventDate: DateTime.utc(2026, 9, 15),
+        ),
+        _record(
+          recordId: 'conducta-1',
+          type: HistoryRecordType.behavior,
+          eventDate: DateTime.utc(2026, 9, 14),
+        ),
+      ];
+
+      await viewModel.initialize();
+
+      viewModel.togglePendingType(HistoryRecordType.sleep);
+
+      viewModel.applyFilters();
+
+      repository.records = [
+        _record(
+          recordId: 'sueno-2',
+          type: HistoryRecordType.sleep,
+          eventDate: DateTime.utc(2026, 9, 16),
+        ),
+        _record(
+          recordId: 'conducta-2',
+          type: HistoryRecordType.behavior,
+          eventDate: DateTime.utc(2026, 9, 16),
+        ),
+        _record(
+          recordId: 'sueno-1',
+          type: HistoryRecordType.sleep,
+          eventDate: DateTime.utc(2026, 9, 15),
+        ),
+      ];
+
+      await viewModel.reload();
+
+      expect(viewModel.hasActiveFilters, isTrue);
+
+      expect(
+        viewModel.filteredRecords.map((record) => record.recordId).toList(),
+        ['sueno-2', 'sueno-1'],
+      );
+    },
+  );
+}
+
+List<HistoryRecord> _filterRecords() {
+  return [
+    _record(
+      recordId: 'registro-antiguo',
+      type: HistoryRecordType.behavior,
+      eventDate: DateTime.utc(2026, 9, 5, 12),
+    ),
+    _record(
+      recordId: 'alimentacion-10',
+      type: HistoryRecordType.feeding,
+      eventDate: DateTime.utc(2026, 9, 10, 8),
+    ),
+    _record(
+      recordId: 'conducta-10',
+      type: HistoryRecordType.behavior,
+      eventDate: DateTime.utc(2026, 9, 10, 18),
+    ),
+    _record(
+      recordId: 'sueno-15',
+      type: HistoryRecordType.sleep,
+      eventDate: DateTime.utc(2026, 9, 15, 7),
+    ),
+    _record(
+      recordId: 'desregulacion-15',
+      type: HistoryRecordType.dysregulation,
+      eventDate: DateTime.utc(2026, 9, 15, 19),
+    ),
+  ];
 }
 
 HistoryRecord _record({
