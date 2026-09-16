@@ -12,6 +12,7 @@ import '../features/dysregulation/domain/repositories/dysregulation_repository.d
 import '../features/dysregulation/domain/services/dysregulation_record_factory.dart';
 import '../features/feeding/domain/repositories/feeding_repository.dart';
 import '../features/feeding/domain/services/feeding_record_factory.dart';
+import '../features/history/domain/repositories/history_repository.dart';
 import '../features/routine/domain/repositories/routine_repository.dart';
 import '../features/routine/domain/services/routine_factory.dart';
 import '../features/routine_status/domain/repositories/routine_status_repository.dart';
@@ -42,6 +43,7 @@ class SendarisApp extends StatefulWidget {
     required this.socialInteractionRecordFactory,
     required this.dysregulationRepository,
     required this.dysregulationRecordFactory,
+    required this.historyRepository,
     required this.routineRepository,
     required this.routineFactory,
     required this.routineStatusRepository,
@@ -69,6 +71,8 @@ class SendarisApp extends StatefulWidget {
 
   final DysregulationRepository dysregulationRepository;
   final DysregulationRecordFactory dysregulationRecordFactory;
+
+  final HistoryRepository historyRepository;
 
   final RoutineRepository routineRepository;
   final RoutineFactory routineFactory;
@@ -118,6 +122,7 @@ class _SendarisAppState extends State<SendarisApp> {
       socialInteractionRecordFactory: widget.socialInteractionRecordFactory,
       dysregulationRepository: widget.dysregulationRepository,
       dysregulationRecordFactory: widget.dysregulationRecordFactory,
+      historyRepository: widget.historyRepository,
       routineRepository: widget.routineRepository,
       routineFactory: widget.routineFactory,
       routineStatusRepository: widget.routineStatusRepository,

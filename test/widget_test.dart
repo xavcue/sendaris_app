@@ -19,6 +19,8 @@ import 'package:sendaris/features/feeding/domain/models/feeding_record.dart';
 import 'package:sendaris/features/feeding/domain/repositories/feeding_repository.dart';
 import 'package:sendaris/features/feeding/domain/services/feeding_record_factory.dart';
 import 'package:sendaris/features/feeding/domain/services/feeding_record_id_generator.dart';
+import 'package:sendaris/features/history/domain/models/history_record.dart';
+import 'package:sendaris/features/history/domain/repositories/history_repository.dart';
 import 'package:sendaris/features/routine/domain/models/routine.dart';
 import 'package:sendaris/features/routine/domain/repositories/routine_repository.dart';
 import 'package:sendaris/features/routine/domain/services/routine_factory.dart';
@@ -80,6 +82,8 @@ void main() {
       FakeDysregulationRecordIdGenerator(),
     );
 
+    final historyRepository = FakeHistoryRepository();
+
     final routineRepository = FakeRoutineRepository();
 
     const routineFactory = RoutineFactory(FakeRoutineIdGenerator());
@@ -111,6 +115,7 @@ void main() {
         socialInteractionRecordFactory: socialInteractionRecordFactory,
         dysregulationRepository: dysregulationRepository,
         dysregulationRecordFactory: dysregulationRecordFactory,
+        historyRepository: historyRepository,
         routineRepository: routineRepository,
         routineFactory: routineFactory,
         routineStatusRepository: routineStatusRepository,
@@ -232,6 +237,15 @@ class FakeDysregulationRepository implements DysregulationRepository {
 
   @override
   Future<List<DysregulationRecord>> recoverDysregulations({
+    required String anonymousId,
+  }) async {
+    return [];
+  }
+}
+
+class FakeHistoryRepository implements HistoryRepository {
+  @override
+  Future<List<HistoryRecord>> recoverHistory({
     required String anonymousId,
   }) async {
     return [];
