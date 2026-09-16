@@ -15,6 +15,8 @@ import '../../features/dysregulation/presentation/views/dysregulation_form_view.
 import '../../features/feeding/domain/repositories/feeding_repository.dart';
 import '../../features/feeding/domain/services/feeding_record_factory.dart';
 import '../../features/feeding/presentation/views/feeding_form_view.dart';
+import '../../features/history/domain/repositories/history_repository.dart';
+import '../../features/history/presentation/views/history_view.dart';
 import '../../features/home/presentation/views/home_placeholder_view.dart';
 import '../../features/register/presentation/views/register_view.dart';
 import '../../features/routine/domain/models/routine.dart';
@@ -49,6 +51,7 @@ abstract final class AppRouter {
     required SocialInteractionRecordFactory socialInteractionRecordFactory,
     required DysregulationRepository dysregulationRepository,
     required DysregulationRecordFactory dysregulationRecordFactory,
+    required HistoryRepository historyRepository,
     required RoutineRepository routineRepository,
     required RoutineFactory routineFactory,
     required RoutineStatusRepository routineStatusRepository,
@@ -235,6 +238,34 @@ abstract final class AppRouter {
             return _animatedPage(
               state: state,
               child: _ambientScreen(state: state, child: child),
+            );
+          },
+        ),
+
+        GoRoute(
+          path: '/history',
+          name: 'history',
+          pageBuilder: (context, state) {
+            final anonymousId = trackingViewModel.activeAnonymousId;
+
+            if (anonymousId == null) {
+              return _animatedPage(
+                state: state,
+                child: HomePlaceholderView(
+                  trackingViewModel: trackingViewModel,
+                ),
+              );
+            }
+
+            return _animatedPage(
+              state: state,
+              child: _ambientScreen(
+                state: state,
+                child: HistoryView(
+                  repository: historyRepository,
+                  anonymousId: anonymousId,
+                ),
+              ),
             );
           },
         ),

@@ -60,6 +60,16 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
     _ambientBackgroundController.replay();
   }
 
+  Future<void> _openHistory() async {
+    await context.push<void>('/history');
+
+    if (!mounted) {
+      return;
+    }
+
+    _ambientBackgroundController.replay();
+  }
+
   void _toggleTheme(Brightness brightness) {
     final controller = context.read<ThemeModeController?>();
 
@@ -554,48 +564,70 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
         AnimatedEntrance(
           delay: const Duration(milliseconds: 450),
           duration: const Duration(milliseconds: 470),
-          child: Card(
-            key: const Key('home-period-summary'),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerLow,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(
-                      Icons.insights_outlined,
-                      color: colorScheme.onSurfaceVariant,
-                      size: 22,
-                    ),
-                  ),
-
-                  const SizedBox(width: 14),
-
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Resumen del periodo',
-                          style: theme.textTheme.titleMedium,
+          beginScale: 0.99,
+          child: AnimatedPressableScale(
+            child: Card(
+              key: const Key('home-history-action'),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(22),
+                onTap: _openHistory,
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: colorScheme.primaryContainer.withValues(
+                            alpha: isDark ? 0.36 : 0.62,
+                          ),
+                          borderRadius: BorderRadius.circular(17),
                         ),
-
-                        const SizedBox(height: 6),
-
-                        Text(
-                          'Aún no hay información suficiente para mostrar un resumen.',
-                          style: theme.textTheme.bodySmall,
+                        child: Icon(
+                          Icons.history_rounded,
+                          color: colorScheme.primary,
+                          size: 27,
                         ),
-                      ],
-                    ),
+                      ),
+
+                      const SizedBox(width: 15),
+
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Historial',
+                              style: theme.textTheme.titleMedium,
+                            ),
+
+                            const SizedBox(height: 5),
+
+                            Text(
+                              'Consulta los registros del perfil activo.',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerLow,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 18,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
