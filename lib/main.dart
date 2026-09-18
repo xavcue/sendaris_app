@@ -24,6 +24,7 @@ import 'features/feeding/data/repositories/firebase_feeding_repository.dart';
 import 'features/feeding/data/services/firestore_feeding_service.dart';
 import 'features/feeding/data/services/uuid_feeding_record_id_generator.dart';
 import 'features/feeding/domain/services/feeding_record_factory.dart';
+import 'features/frequency/data/repositories/composite_frequency_repository.dart';
 import 'features/history/data/repositories/firebase_history_repository.dart';
 import 'features/history/data/services/firestore_history_service.dart';
 import 'features/routine/data/repositories/firebase_routine_repository.dart';
@@ -164,6 +165,14 @@ Future<void> main() async {
     UuidAtypicalSituationRecordIdGenerator(),
   );
 
+  final frequencyRepository = CompositeFrequencyRepository(
+    behaviorRepository: behaviorRepository,
+    dysregulationRepository: dysregulationRepository,
+    socialInteractionRepository: socialInteractionRepository,
+    feedingRepository: feedingRepository,
+    atypicalSituationRepository: atypicalSituationRepository,
+  );
+
   runApp(
     SendarisApp(
       authRepository: authRepository,
@@ -180,6 +189,7 @@ Future<void> main() async {
       dysregulationRepository: dysregulationRepository,
       dysregulationRecordFactory: dysregulationRecordFactory,
       historyRepository: historyRepository,
+      frequencyRepository: frequencyRepository,
       routineRepository: routineRepository,
       routineFactory: routineFactory,
       routineStatusRepository: routineStatusRepository,

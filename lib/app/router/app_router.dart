@@ -15,6 +15,8 @@ import '../../features/dysregulation/presentation/views/dysregulation_form_view.
 import '../../features/feeding/domain/repositories/feeding_repository.dart';
 import '../../features/feeding/domain/services/feeding_record_factory.dart';
 import '../../features/feeding/presentation/views/feeding_form_view.dart';
+import '../../features/frequency/domain/repositories/frequency_repository.dart';
+import '../../features/frequency/presentation/views/frequency_view.dart';
 import '../../features/history/domain/repositories/history_repository.dart';
 import '../../features/history/presentation/views/history_view.dart';
 import '../../features/home/presentation/views/home_placeholder_view.dart';
@@ -52,6 +54,7 @@ abstract final class AppRouter {
     required DysregulationRepository dysregulationRepository,
     required DysregulationRecordFactory dysregulationRecordFactory,
     required HistoryRepository historyRepository,
+    required FrequencyRepository frequencyRepository,
     required RoutineRepository routineRepository,
     required RoutineFactory routineFactory,
     required RoutineStatusRepository routineStatusRepository,
@@ -263,6 +266,34 @@ abstract final class AppRouter {
                 state: state,
                 child: HistoryView(
                   repository: historyRepository,
+                  anonymousId: anonymousId,
+                ),
+              ),
+            );
+          },
+        ),
+
+        GoRoute(
+          path: '/frequencies',
+          name: 'frequencies',
+          pageBuilder: (context, state) {
+            final anonymousId = trackingViewModel.activeAnonymousId;
+
+            if (anonymousId == null) {
+              return _animatedPage(
+                state: state,
+                child: HomePlaceholderView(
+                  trackingViewModel: trackingViewModel,
+                ),
+              );
+            }
+
+            return _animatedPage(
+              state: state,
+              child: _ambientScreen(
+                state: state,
+                child: FrequencyView(
+                  repository: frequencyRepository,
                   anonymousId: anonymousId,
                 ),
               ),

@@ -61,6 +61,69 @@ void main() {
       expect(find.text('Todo listo para registrar'), findsNothing);
     },
   );
+
+  testWidgets(
+    'home muestra acceso a frecuencias descriptivas para el perfil activo',
+    (tester) async {
+      tester.view.physicalSize = const Size(1000, 1800);
+
+      tester.view.devicePixelRatio = 1;
+
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final repository = _FakeTrackingRepository(
+        recoveredProfiles: [
+          AnonymousTrackingProfile(
+            anonymousId: 'perfil-activo',
+            createdAt: DateTime.utc(2026, 9, 7),
+          ),
+        ],
+      );
+
+      final viewModel = TrackingViewModel(
+        repository,
+        const AnonymousTrackingProfileFactory(_FakeAnonymousIdGenerator()),
+      );
+
+      addTearDown(viewModel.dispose);
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<TrackingViewModel>.value(
+          value: viewModel,
+          child: MaterialApp(
+            home: HomePlaceholderView(trackingViewModel: viewModel),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      final frequencyAction = find.byKey(const Key('home-frequency-action'));
+
+      await tester.scrollUntilVisible(frequencyAction, 250);
+
+      expect(frequencyAction, findsOneWidget);
+
+      expect(find.text('Frecuencias descriptivas'), findsOneWidget);
+
+      expect(
+        find.text('Cuenta registros por periodo y categoría.'),
+        findsOneWidget,
+      );
+
+      expect(find.byIcon(Icons.bar_chart_rounded), findsOneWidget);
+
+      expect(find.textContaining('diagnóstico'), findsNothing);
+
+      expect(find.textContaining('severidad'), findsNothing);
+
+      expect(find.textContaining('riesgo'), findsNothing);
+    },
+  );
 }
 
 class _FakeTrackingRepository implements TrackingRepository {
