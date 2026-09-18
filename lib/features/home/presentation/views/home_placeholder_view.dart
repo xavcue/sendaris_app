@@ -70,6 +70,16 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
     _ambientBackgroundController.replay();
   }
 
+  Future<void> _openFrequencies() async {
+    await context.push<void>('/frequencies');
+
+    if (!mounted) {
+      return;
+    }
+
+    _ambientBackgroundController.replay();
+  }
+
   void _toggleTheme(Brightness brightness) {
     final controller = context.read<ThemeModeController?>();
 
@@ -109,9 +119,7 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                   fit: BoxFit.cover,
                 ),
               ),
-
               const SizedBox(width: 12),
-
               Text(
                 'Sendaris',
                 style: theme.textTheme.titleLarge?.copyWith(
@@ -158,7 +166,6 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                   ),
                 ),
               ),
-
             Padding(
               padding: const EdgeInsets.only(right: 12),
               child: IconButton(
@@ -234,17 +241,13 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                     color: colorScheme.onErrorContainer,
                   ),
                 ),
-
                 const SizedBox(height: 20),
-
                 Text(
                   'No pudimos preparar el perfil',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.headlineSmall,
                 ),
-
                 const SizedBox(height: 8),
-
                 Text(
                   viewModel.errorMessage ?? 'Inténtalo nuevamente.',
                   textAlign: TextAlign.center,
@@ -252,9 +255,7 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ),
-
                 const SizedBox(height: 24),
-
                 FilledButton.icon(
                   onPressed: viewModel.isLoading ? null : viewModel.initialize,
                   icon: const Icon(Icons.refresh_rounded),
@@ -303,9 +304,7 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                         shape: BoxShape.circle,
                       ),
                     ),
-
                     const SizedBox(width: 7),
-
                     Text(
                       'Perfil activo',
                       style: theme.textTheme.labelMedium?.copyWith(
@@ -317,13 +316,9 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                   ],
                 ),
               ),
-
               const SizedBox(height: 14),
-
               Text('Resumen de hoy', style: theme.textTheme.headlineMedium),
-
               const SizedBox(height: 7),
-
               Text(
                 'Organiza y consulta la información registrada.',
                 style: theme.textTheme.bodyMedium?.copyWith(
@@ -333,9 +328,7 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
             ],
           ),
         ),
-
         const SizedBox(height: 26),
-
         AnimatedEntrance(
           delay: const Duration(milliseconds: 90),
           duration: const Duration(milliseconds: 470),
@@ -369,17 +362,13 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                     size: 26,
                   ),
                 ),
-
                 const SizedBox(width: 15),
-
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('Perfil listo', style: theme.textTheme.titleMedium),
-
                       const SizedBox(height: 4),
-
                       Text(
                         'Puedes comenzar a registrar información.',
                         style: theme.textTheme.bodySmall,
@@ -387,7 +376,6 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                     ],
                   ),
                 ),
-
                 Icon(
                   Icons.verified_rounded,
                   size: 20,
@@ -397,16 +385,12 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
             ),
           ),
         ),
-
         const SizedBox(height: 30),
-
         const AnimatedEntrance(
           delay: Duration(milliseconds: 170),
           child: SendarisSectionLabel(label: 'Acciones rápidas'),
         ),
-
         const SizedBox(height: 14),
-
         AnimatedEntrance(
           delay: const Duration(milliseconds: 240),
           duration: const Duration(milliseconds: 460),
@@ -436,9 +420,7 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                           size: 28,
                         ),
                       ),
-
                       const SizedBox(width: 15),
-
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -447,9 +429,7 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                               'Nuevo registro',
                               style: theme.textTheme.titleMedium,
                             ),
-
                             const SizedBox(height: 5),
-
                             Text(
                               'Añade información del perfil activo.',
                               style: theme.textTheme.bodySmall,
@@ -457,7 +437,6 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                           ],
                         ),
                       ),
-
                       Container(
                         width: 34,
                         height: 34,
@@ -478,9 +457,7 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
             ),
           ),
         ),
-
         const SizedBox(height: 12),
-
         AnimatedEntrance(
           delay: const Duration(milliseconds: 320),
           duration: const Duration(milliseconds: 460),
@@ -512,17 +489,13 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                           size: 26,
                         ),
                       ),
-
                       const SizedBox(width: 15),
-
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('Rutinas', style: theme.textTheme.titleMedium),
-
                             const SizedBox(height: 5),
-
                             Text(
                               'Crea y organiza actividades habituales.',
                               style: theme.textTheme.bodySmall,
@@ -530,7 +503,6 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                           ],
                         ),
                       ),
-
                       Container(
                         width: 34,
                         height: 34,
@@ -551,16 +523,12 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
             ),
           ),
         ),
-
         const SizedBox(height: 30),
-
         const AnimatedEntrance(
           delay: Duration(milliseconds: 390),
           child: SendarisSectionLabel(label: 'Seguimiento'),
         ),
-
         const SizedBox(height: 14),
-
         AnimatedEntrance(
           delay: const Duration(milliseconds: 450),
           duration: const Duration(milliseconds: 470),
@@ -590,9 +558,7 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                           size: 27,
                         ),
                       ),
-
                       const SizedBox(width: 15),
-
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -601,9 +567,7 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                               'Historial',
                               style: theme.textTheme.titleMedium,
                             ),
-
                             const SizedBox(height: 5),
-
                             Text(
                               'Consulta los registros del perfil activo.',
                               style: theme.textTheme.bodySmall,
@@ -611,7 +575,75 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                           ],
                         ),
                       ),
-
+                      Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerLow,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 18,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        AnimatedEntrance(
+          delay: const Duration(milliseconds: 520),
+          duration: const Duration(milliseconds: 470),
+          beginScale: 0.99,
+          child: AnimatedPressableScale(
+            child: Card(
+              key: const Key('home-frequency-action'),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(22),
+                onTap: _openFrequencies,
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFF27283A)
+                              : const Color(0xFFEEEAF8),
+                          borderRadius: BorderRadius.circular(17),
+                        ),
+                        child: Icon(
+                          Icons.bar_chart_rounded,
+                          color: isDark
+                              ? const Color(0xFFB4A8E0)
+                              : const Color(0xFF6F5E9C),
+                          size: 27,
+                        ),
+                      ),
+                      const SizedBox(width: 15),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Frecuencias descriptivas',
+                              style: theme.textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              'Cuenta registros por periodo y categoría.',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
                       Container(
                         width: 34,
                         height: 34,

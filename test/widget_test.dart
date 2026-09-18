@@ -19,6 +19,7 @@ import 'package:sendaris/features/feeding/domain/models/feeding_record.dart';
 import 'package:sendaris/features/feeding/domain/repositories/feeding_repository.dart';
 import 'package:sendaris/features/feeding/domain/services/feeding_record_factory.dart';
 import 'package:sendaris/features/feeding/domain/services/feeding_record_id_generator.dart';
+import 'package:sendaris/features/frequency/data/repositories/composite_frequency_repository.dart';
 import 'package:sendaris/features/history/domain/models/history_record.dart';
 import 'package:sendaris/features/history/domain/repositories/history_repository.dart';
 import 'package:sendaris/features/routine/domain/models/routine.dart';
@@ -100,6 +101,14 @@ void main() {
       FakeAtypicalSituationRecordIdGenerator(),
     );
 
+    final frequencyRepository = CompositeFrequencyRepository(
+      behaviorRepository: behaviorRepository,
+      dysregulationRepository: dysregulationRepository,
+      socialInteractionRepository: socialInteractionRepository,
+      feedingRepository: feedingRepository,
+      atypicalSituationRepository: atypicalSituationRepository,
+    );
+
     await tester.pumpWidget(
       SendarisApp(
         authRepository: authRepository,
@@ -116,6 +125,7 @@ void main() {
         dysregulationRepository: dysregulationRepository,
         dysregulationRecordFactory: dysregulationRecordFactory,
         historyRepository: historyRepository,
+        frequencyRepository: frequencyRepository,
         routineRepository: routineRepository,
         routineFactory: routineFactory,
         routineStatusRepository: routineStatusRepository,

@@ -12,6 +12,7 @@ import '../features/dysregulation/domain/repositories/dysregulation_repository.d
 import '../features/dysregulation/domain/services/dysregulation_record_factory.dart';
 import '../features/feeding/domain/repositories/feeding_repository.dart';
 import '../features/feeding/domain/services/feeding_record_factory.dart';
+import '../features/frequency/domain/repositories/frequency_repository.dart';
 import '../features/history/domain/repositories/history_repository.dart';
 import '../features/routine/domain/repositories/routine_repository.dart';
 import '../features/routine/domain/services/routine_factory.dart';
@@ -44,6 +45,7 @@ class SendarisApp extends StatefulWidget {
     required this.dysregulationRepository,
     required this.dysregulationRecordFactory,
     required this.historyRepository,
+    required this.frequencyRepository,
     required this.routineRepository,
     required this.routineFactory,
     required this.routineStatusRepository,
@@ -73,6 +75,8 @@ class SendarisApp extends StatefulWidget {
   final DysregulationRecordFactory dysregulationRecordFactory;
 
   final HistoryRepository historyRepository;
+
+  final FrequencyRepository frequencyRepository;
 
   final RoutineRepository routineRepository;
   final RoutineFactory routineFactory;
@@ -123,6 +127,7 @@ class _SendarisAppState extends State<SendarisApp> {
       dysregulationRepository: widget.dysregulationRepository,
       dysregulationRecordFactory: widget.dysregulationRecordFactory,
       historyRepository: widget.historyRepository,
+      frequencyRepository: widget.frequencyRepository,
       routineRepository: widget.routineRepository,
       routineFactory: widget.routineFactory,
       routineStatusRepository: widget.routineStatusRepository,
@@ -135,8 +140,11 @@ class _SendarisAppState extends State<SendarisApp> {
   @override
   void dispose() {
     _router.dispose();
+
     _authViewModel.dispose();
+
     _trackingViewModel.dispose();
+
     _themeModeController.dispose();
 
     super.dispose();
@@ -147,9 +155,11 @@ class _SendarisAppState extends State<SendarisApp> {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<AuthViewModel>.value(value: _authViewModel),
+
         ChangeNotifierProvider<TrackingViewModel>.value(
           value: _trackingViewModel,
         ),
+
         ChangeNotifierProvider<ThemeModeController>.value(
           value: _themeModeController,
         ),
