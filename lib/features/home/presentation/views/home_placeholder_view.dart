@@ -80,6 +80,16 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
     _ambientBackgroundController.replay();
   }
 
+  Future<void> _openDurations() async {
+    await context.push<void>('/durations');
+
+    if (!mounted) {
+      return;
+    }
+
+    _ambientBackgroundController.replay();
+  }
+
   void _toggleTheme(Brightness brightness) {
     final controller = context.read<ThemeModeController?>();
 
@@ -639,6 +649,75 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                             const SizedBox(height: 5),
                             Text(
                               'Cuenta registros por periodo y categoría.',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerLow,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 18,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        AnimatedEntrance(
+          delay: const Duration(milliseconds: 590),
+          duration: const Duration(milliseconds: 470),
+          beginScale: 0.99,
+          child: AnimatedPressableScale(
+            child: Card(
+              key: const Key('home-duration-action'),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(22),
+                onTap: _openDurations,
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFF203234)
+                              : const Color(0xFFE7F1F0),
+                          borderRadius: BorderRadius.circular(17),
+                        ),
+                        child: Icon(
+                          Icons.timer_outlined,
+                          color: isDark
+                              ? const Color(0xFF8FC5C2)
+                              : const Color(0xFF4E817F),
+                          size: 27,
+                        ),
+                      ),
+                      const SizedBox(width: 15),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Duraciones y promedios',
+                              style: theme.textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              'Consulta duraciones válidas y promedios por periodo.',
                               style: theme.textTheme.bodySmall,
                             ),
                           ],

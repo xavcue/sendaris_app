@@ -9,6 +9,8 @@ import '../../features/auth/presentation/views/login_view.dart';
 import '../../features/behavior/domain/repositories/behavior_repository.dart';
 import '../../features/behavior/domain/services/behavior_record_factory.dart';
 import '../../features/behavior/presentation/views/behavior_form_view.dart';
+import '../../features/duration/domain/repositories/duration_repository.dart';
+import '../../features/duration/presentation/views/duration_view.dart';
 import '../../features/dysregulation/domain/repositories/dysregulation_repository.dart';
 import '../../features/dysregulation/domain/services/dysregulation_record_factory.dart';
 import '../../features/dysregulation/presentation/views/dysregulation_form_view.dart';
@@ -55,6 +57,7 @@ abstract final class AppRouter {
     required DysregulationRecordFactory dysregulationRecordFactory,
     required HistoryRepository historyRepository,
     required FrequencyRepository frequencyRepository,
+    required DurationRepository durationRepository,
     required RoutineRepository routineRepository,
     required RoutineFactory routineFactory,
     required RoutineStatusRepository routineStatusRepository,
@@ -294,6 +297,34 @@ abstract final class AppRouter {
                 state: state,
                 child: FrequencyView(
                   repository: frequencyRepository,
+                  anonymousId: anonymousId,
+                ),
+              ),
+            );
+          },
+        ),
+
+        GoRoute(
+          path: '/durations',
+          name: 'durations',
+          pageBuilder: (context, state) {
+            final anonymousId = trackingViewModel.activeAnonymousId;
+
+            if (anonymousId == null) {
+              return _animatedPage(
+                state: state,
+                child: HomePlaceholderView(
+                  trackingViewModel: trackingViewModel,
+                ),
+              );
+            }
+
+            return _animatedPage(
+              state: state,
+              child: _ambientScreen(
+                state: state,
+                child: DurationView(
+                  repository: durationRepository,
                   anonymousId: anonymousId,
                 ),
               ),

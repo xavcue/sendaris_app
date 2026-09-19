@@ -8,6 +8,7 @@ import '../features/auth/domain/repositories/auth_repository.dart';
 import '../features/auth/presentation/viewmodels/auth_view_model.dart';
 import '../features/behavior/domain/repositories/behavior_repository.dart';
 import '../features/behavior/domain/services/behavior_record_factory.dart';
+import '../features/duration/domain/repositories/duration_repository.dart';
 import '../features/dysregulation/domain/repositories/dysregulation_repository.dart';
 import '../features/dysregulation/domain/services/dysregulation_record_factory.dart';
 import '../features/feeding/domain/repositories/feeding_repository.dart';
@@ -46,6 +47,7 @@ class SendarisApp extends StatefulWidget {
     required this.dysregulationRecordFactory,
     required this.historyRepository,
     required this.frequencyRepository,
+    required this.durationRepository,
     required this.routineRepository,
     required this.routineFactory,
     required this.routineStatusRepository,
@@ -77,6 +79,8 @@ class SendarisApp extends StatefulWidget {
   final HistoryRepository historyRepository;
 
   final FrequencyRepository frequencyRepository;
+
+  final DurationRepository durationRepository;
 
   final RoutineRepository routineRepository;
   final RoutineFactory routineFactory;
@@ -128,6 +132,7 @@ class _SendarisAppState extends State<SendarisApp> {
       dysregulationRecordFactory: widget.dysregulationRecordFactory,
       historyRepository: widget.historyRepository,
       frequencyRepository: widget.frequencyRepository,
+      durationRepository: widget.durationRepository,
       routineRepository: widget.routineRepository,
       routineFactory: widget.routineFactory,
       routineStatusRepository: widget.routineStatusRepository,
