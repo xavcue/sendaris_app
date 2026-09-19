@@ -11,6 +11,7 @@ import 'package:sendaris/features/behavior/domain/models/behavior_record.dart';
 import 'package:sendaris/features/behavior/domain/repositories/behavior_repository.dart';
 import 'package:sendaris/features/behavior/domain/services/behavior_record_factory.dart';
 import 'package:sendaris/features/behavior/domain/services/behavior_record_id_generator.dart';
+import 'package:sendaris/features/duration/data/repositories/composite_duration_repository.dart';
 import 'package:sendaris/features/dysregulation/domain/models/dysregulation_record.dart';
 import 'package:sendaris/features/dysregulation/domain/repositories/dysregulation_repository.dart';
 import 'package:sendaris/features/dysregulation/domain/services/dysregulation_record_factory.dart';
@@ -109,6 +110,12 @@ void main() {
       atypicalSituationRepository: atypicalSituationRepository,
     );
 
+    final durationRepository = CompositeDurationRepository(
+      sleepRepository: sleepRepository,
+      behaviorRepository: behaviorRepository,
+      dysregulationRepository: dysregulationRepository,
+    );
+
     await tester.pumpWidget(
       SendarisApp(
         authRepository: authRepository,
@@ -126,6 +133,7 @@ void main() {
         dysregulationRecordFactory: dysregulationRecordFactory,
         historyRepository: historyRepository,
         frequencyRepository: frequencyRepository,
+        durationRepository: durationRepository,
         routineRepository: routineRepository,
         routineFactory: routineFactory,
         routineStatusRepository: routineStatusRepository,

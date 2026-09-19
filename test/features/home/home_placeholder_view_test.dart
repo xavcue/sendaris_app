@@ -124,6 +124,73 @@ void main() {
       expect(find.textContaining('riesgo'), findsNothing);
     },
   );
+
+  testWidgets(
+    'home muestra acceso a duraciones y promedios para el perfil activo',
+    (tester) async {
+      tester.view.physicalSize = const Size(1000, 1800);
+
+      tester.view.devicePixelRatio = 1;
+
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final repository = _FakeTrackingRepository(
+        recoveredProfiles: [
+          AnonymousTrackingProfile(
+            anonymousId: 'perfil-activo',
+            createdAt: DateTime.utc(2026, 9, 7),
+          ),
+        ],
+      );
+
+      final viewModel = TrackingViewModel(
+        repository,
+        const AnonymousTrackingProfileFactory(_FakeAnonymousIdGenerator()),
+      );
+
+      addTearDown(viewModel.dispose);
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<TrackingViewModel>.value(
+          value: viewModel,
+          child: MaterialApp(
+            home: HomePlaceholderView(trackingViewModel: viewModel),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      final durationAction = find.byKey(const Key('home-duration-action'));
+
+      await tester.scrollUntilVisible(durationAction, 250);
+
+      expect(durationAction, findsOneWidget);
+
+      expect(find.text('Duraciones y promedios'), findsOneWidget);
+
+      expect(
+        find.text('Consulta duraciones válidas y promedios por periodo.'),
+        findsOneWidget,
+      );
+
+      expect(find.byIcon(Icons.timer_outlined), findsOneWidget);
+
+      expect(find.textContaining('diagnóstico'), findsNothing);
+
+      expect(find.textContaining('severidad'), findsNothing);
+
+      expect(find.textContaining('riesgo clínico'), findsNothing);
+
+      expect(find.textContaining('tratamiento'), findsNothing);
+
+      expect(find.textContaining('ID-INTERNO'), findsNothing);
+    },
+  );
 }
 
 class _FakeTrackingRepository implements TrackingRepository {
