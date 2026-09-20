@@ -17,6 +17,7 @@ import '../features/frequency/domain/repositories/frequency_repository.dart';
 import '../features/history/domain/repositories/history_repository.dart';
 import '../features/routine/domain/repositories/routine_repository.dart';
 import '../features/routine/domain/services/routine_factory.dart';
+import '../features/routine_compliance/domain/repositories/routine_compliance_repository.dart';
 import '../features/routine_status/domain/repositories/routine_status_repository.dart';
 import '../features/routine_status/domain/services/routine_status_record_factory.dart';
 import '../features/sleep/domain/repositories/sleep_repository.dart';
@@ -52,6 +53,7 @@ class SendarisApp extends StatefulWidget {
     required this.routineFactory,
     required this.routineStatusRepository,
     required this.routineStatusRecordFactory,
+    required this.routineComplianceRepository,
     required this.atypicalSituationRepository,
     required this.atypicalSituationRecordFactory,
     super.key,
@@ -87,6 +89,8 @@ class SendarisApp extends StatefulWidget {
 
   final RoutineStatusRepository routineStatusRepository;
   final RoutineStatusRecordFactory routineStatusRecordFactory;
+
+  final RoutineComplianceRepository routineComplianceRepository;
 
   final AtypicalSituationRepository atypicalSituationRepository;
   final AtypicalSituationRecordFactory atypicalSituationRecordFactory;
@@ -137,6 +141,7 @@ class _SendarisAppState extends State<SendarisApp> {
       routineFactory: widget.routineFactory,
       routineStatusRepository: widget.routineStatusRepository,
       routineStatusRecordFactory: widget.routineStatusRecordFactory,
+      routineComplianceRepository: widget.routineComplianceRepository,
       atypicalSituationRepository: widget.atypicalSituationRepository,
       atypicalSituationRecordFactory: widget.atypicalSituationRecordFactory,
     );

@@ -32,6 +32,7 @@ import 'features/routine/data/repositories/firebase_routine_repository.dart';
 import 'features/routine/data/services/firestore_routine_service.dart';
 import 'features/routine/data/services/uuid_routine_id_generator.dart';
 import 'features/routine/domain/services/routine_factory.dart';
+import 'features/routine_compliance/data/repositories/composite_routine_compliance_repository.dart';
 import 'features/routine_status/data/repositories/firebase_routine_status_repository.dart';
 import 'features/routine_status/data/services/firestore_routine_status_service.dart';
 import 'features/routine_status/data/services/uuid_routine_status_record_id_generator.dart';
@@ -180,6 +181,11 @@ Future<void> main() async {
     dysregulationRepository: dysregulationRepository,
   );
 
+  final routineComplianceRepository = CompositeRoutineComplianceRepository(
+    routineRepository: routineRepository,
+    routineStatusRepository: routineStatusRepository,
+  );
+
   runApp(
     SendarisApp(
       authRepository: authRepository,
@@ -202,6 +208,7 @@ Future<void> main() async {
       routineFactory: routineFactory,
       routineStatusRepository: routineStatusRepository,
       routineStatusRecordFactory: routineStatusRecordFactory,
+      routineComplianceRepository: routineComplianceRepository,
       atypicalSituationRepository: atypicalSituationRepository,
       atypicalSituationRecordFactory: atypicalSituationRecordFactory,
     ),

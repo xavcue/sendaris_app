@@ -28,6 +28,8 @@ import '../../features/routine/domain/repositories/routine_repository.dart';
 import '../../features/routine/domain/services/routine_factory.dart';
 import '../../features/routine/presentation/views/routine_form_view.dart';
 import '../../features/routine/presentation/views/routine_management_view.dart';
+import '../../features/routine_compliance/domain/repositories/routine_compliance_repository.dart';
+import '../../features/routine_compliance/presentation/views/routine_compliance_view.dart';
 import '../../features/routine_status/domain/repositories/routine_status_repository.dart';
 import '../../features/routine_status/domain/services/routine_status_record_factory.dart';
 import '../../features/routine_status/presentation/views/routine_status_form_view.dart';
@@ -62,6 +64,7 @@ abstract final class AppRouter {
     required RoutineFactory routineFactory,
     required RoutineStatusRepository routineStatusRepository,
     required RoutineStatusRecordFactory routineStatusRecordFactory,
+    required RoutineComplianceRepository routineComplianceRepository,
     required AtypicalSituationRepository atypicalSituationRepository,
     required AtypicalSituationRecordFactory atypicalSituationRecordFactory,
   }) {
@@ -325,6 +328,34 @@ abstract final class AppRouter {
                 state: state,
                 child: DurationView(
                   repository: durationRepository,
+                  anonymousId: anonymousId,
+                ),
+              ),
+            );
+          },
+        ),
+
+        GoRoute(
+          path: '/routine-compliance',
+          name: 'routine-compliance',
+          pageBuilder: (context, state) {
+            final anonymousId = trackingViewModel.activeAnonymousId;
+
+            if (anonymousId == null) {
+              return _animatedPage(
+                state: state,
+                child: HomePlaceholderView(
+                  trackingViewModel: trackingViewModel,
+                ),
+              );
+            }
+
+            return _animatedPage(
+              state: state,
+              child: _ambientScreen(
+                state: state,
+                child: RoutineComplianceView(
+                  repository: routineComplianceRepository,
                   anonymousId: anonymousId,
                 ),
               ),
