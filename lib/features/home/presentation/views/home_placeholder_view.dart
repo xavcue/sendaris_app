@@ -90,6 +90,16 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
     _ambientBackgroundController.replay();
   }
 
+  Future<void> _openRoutineCompliance() async {
+    await context.push<void>('/routine-compliance');
+
+    if (!mounted) {
+      return;
+    }
+
+    _ambientBackgroundController.replay();
+  }
+
   void _toggleTheme(Brightness brightness) {
     final controller = context.read<ThemeModeController?>();
 
@@ -101,7 +111,9 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
     final trackingViewModel = context.watch<TrackingViewModel>();
 
     final theme = Theme.of(context);
+
     final colorScheme = theme.colorScheme;
+
     final isDark = theme.brightness == Brightness.dark;
 
     final themeModeController = context.read<ThemeModeController?>();
@@ -222,7 +234,9 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
 
   Widget _buildBody(BuildContext context, TrackingViewModel viewModel) {
     final theme = Theme.of(context);
+
     final colorScheme = theme.colorScheme;
+
     final isDark = theme.brightness == Brightness.dark;
 
     if (viewModel.isLoading && !viewModel.isInitialized) {
@@ -401,6 +415,8 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
           child: SendarisSectionLabel(label: 'Acciones rápidas'),
         ),
         const SizedBox(height: 14),
+
+        // Nuevo registro.
         AnimatedEntrance(
           delay: const Duration(milliseconds: 240),
           duration: const Duration(milliseconds: 460),
@@ -447,19 +463,7 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                           ],
                         ),
                       ),
-                      Container(
-                        width: 34,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerLow,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 18,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
+                      _ArrowCircle(colorScheme: colorScheme),
                     ],
                   ),
                 ),
@@ -467,7 +471,10 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
             ),
           ),
         ),
+
         const SizedBox(height: 12),
+
+        // Rutinas.
         AnimatedEntrance(
           delay: const Duration(milliseconds: 320),
           duration: const Duration(milliseconds: 460),
@@ -513,19 +520,7 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                           ],
                         ),
                       ),
-                      Container(
-                        width: 34,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerLow,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 18,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
+                      _ArrowCircle(colorScheme: colorScheme),
                     ],
                   ),
                 ),
@@ -533,12 +528,17 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
             ),
           ),
         ),
+
         const SizedBox(height: 30),
+
         const AnimatedEntrance(
           delay: Duration(milliseconds: 390),
           child: SendarisSectionLabel(label: 'Seguimiento'),
         ),
+
         const SizedBox(height: 14),
+
+        // Historial.
         AnimatedEntrance(
           delay: const Duration(milliseconds: 450),
           duration: const Duration(milliseconds: 470),
@@ -585,19 +585,7 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                           ],
                         ),
                       ),
-                      Container(
-                        width: 34,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerLow,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 18,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
+                      _ArrowCircle(colorScheme: colorScheme),
                     ],
                   ),
                 ),
@@ -605,7 +593,10 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
             ),
           ),
         ),
+
         const SizedBox(height: 12),
+
+        // Frecuencias.
         AnimatedEntrance(
           delay: const Duration(milliseconds: 520),
           duration: const Duration(milliseconds: 470),
@@ -654,19 +645,7 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                           ],
                         ),
                       ),
-                      Container(
-                        width: 34,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerLow,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 18,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
+                      _ArrowCircle(colorScheme: colorScheme),
                     ],
                   ),
                 ),
@@ -674,7 +653,10 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
             ),
           ),
         ),
+
         const SizedBox(height: 12),
+
+        // Duraciones.
         AnimatedEntrance(
           delay: const Duration(milliseconds: 590),
           duration: const Duration(milliseconds: 470),
@@ -723,19 +705,68 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                           ],
                         ),
                       ),
+                      _ArrowCircle(colorScheme: colorScheme),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        // Cumplimiento de rutinas.
+        AnimatedEntrance(
+          delay: const Duration(milliseconds: 660),
+          duration: const Duration(milliseconds: 470),
+          beginScale: 0.99,
+          child: AnimatedPressableScale(
+            child: Card(
+              key: const Key('home-routine-compliance-action'),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(22),
+                onTap: _openRoutineCompliance,
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Row(
+                    children: [
                       Container(
-                        width: 34,
-                        height: 34,
+                        width: 52,
+                        height: 52,
                         decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerLow,
-                          shape: BoxShape.circle,
+                          color: isDark
+                              ? const Color(0xFF302C23)
+                              : const Color(0xFFF4EFE2),
+                          borderRadius: BorderRadius.circular(17),
                         ),
                         child: Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 18,
-                          color: colorScheme.onSurfaceVariant,
+                          Icons.task_alt_rounded,
+                          color: isDark
+                              ? const Color(0xFFD7BE83)
+                              : const Color(0xFF806B39),
+                          size: 27,
                         ),
                       ),
+                      const SizedBox(width: 15),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Cumplimiento de rutinas',
+                              style: theme.textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              'Revisa cuántos registros de rutina '
+                              'se completaron en un periodo.',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                      _ArrowCircle(colorScheme: colorScheme),
                     ],
                   ),
                 ),
@@ -744,6 +775,29 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ArrowCircle extends StatelessWidget {
+  const _ArrowCircle({required this.colorScheme});
+
+  final ColorScheme colorScheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 34,
+      height: 34,
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerLow,
+        shape: BoxShape.circle,
+      ),
+      child: Icon(
+        Icons.arrow_forward_rounded,
+        size: 18,
+        color: colorScheme.onSurfaceVariant,
+      ),
     );
   }
 }

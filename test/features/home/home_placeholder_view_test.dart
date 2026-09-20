@@ -191,6 +191,84 @@ void main() {
       expect(find.textContaining('ID-INTERNO'), findsNothing);
     },
   );
+
+  testWidgets(
+    'home muestra acceso a cumplimiento de rutinas con lenguaje sencillo',
+    (tester) async {
+      tester.view.physicalSize = const Size(1000, 1800);
+
+      tester.view.devicePixelRatio = 1;
+
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final repository = _FakeTrackingRepository(
+        recoveredProfiles: [
+          AnonymousTrackingProfile(
+            anonymousId: 'perfil-activo',
+            createdAt: DateTime.utc(2026, 9, 7),
+          ),
+        ],
+      );
+
+      final viewModel = TrackingViewModel(
+        repository,
+        const AnonymousTrackingProfileFactory(_FakeAnonymousIdGenerator()),
+      );
+
+      addTearDown(viewModel.dispose);
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<TrackingViewModel>.value(
+          value: viewModel,
+          child: MaterialApp(
+            home: HomePlaceholderView(trackingViewModel: viewModel),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      final complianceAction = find.byKey(
+        const Key('home-routine-compliance-action'),
+      );
+
+      await tester.scrollUntilVisible(complianceAction, 250);
+
+      expect(complianceAction, findsOneWidget);
+
+      expect(find.text('Cumplimiento de rutinas'), findsOneWidget);
+
+      expect(
+        find.text(
+          'Revisa cuántos registros de rutina '
+          'se completaron en un periodo.',
+        ),
+        findsOneWidget,
+      );
+
+      expect(find.byIcon(Icons.task_alt_rounded), findsOneWidget);
+
+      expect(find.textContaining('ocurrencias'), findsNothing);
+
+      expect(find.textContaining('programadas, completadas'), findsNothing);
+
+      expect(find.textContaining('adaptación'), findsNothing);
+
+      expect(find.textContaining('bienestar'), findsNothing);
+
+      expect(find.textContaining('adherencia'), findsNothing);
+
+      expect(find.textContaining('calidad del cuidado'), findsNothing);
+
+      expect(find.textContaining('evaluación clínica'), findsNothing);
+
+      expect(find.textContaining('ID-INTERNO'), findsNothing);
+    },
+  );
 }
 
 class _FakeTrackingRepository implements TrackingRepository {

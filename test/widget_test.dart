@@ -27,6 +27,7 @@ import 'package:sendaris/features/routine/domain/models/routine.dart';
 import 'package:sendaris/features/routine/domain/repositories/routine_repository.dart';
 import 'package:sendaris/features/routine/domain/services/routine_factory.dart';
 import 'package:sendaris/features/routine/domain/services/routine_id_generator.dart';
+import 'package:sendaris/features/routine_compliance/data/repositories/composite_routine_compliance_repository.dart';
 import 'package:sendaris/features/routine_status/domain/models/routine_status_record.dart';
 import 'package:sendaris/features/routine_status/domain/repositories/routine_status_repository.dart';
 import 'package:sendaris/features/routine_status/domain/services/routine_status_record_factory.dart';
@@ -116,6 +117,11 @@ void main() {
       dysregulationRepository: dysregulationRepository,
     );
 
+    final routineComplianceRepository = CompositeRoutineComplianceRepository(
+      routineRepository: routineRepository,
+      routineStatusRepository: routineStatusRepository,
+    );
+
     await tester.pumpWidget(
       SendarisApp(
         authRepository: authRepository,
@@ -138,6 +144,7 @@ void main() {
         routineFactory: routineFactory,
         routineStatusRepository: routineStatusRepository,
         routineStatusRecordFactory: routineStatusRecordFactory,
+        routineComplianceRepository: routineComplianceRepository,
         atypicalSituationRepository: atypicalSituationRepository,
         atypicalSituationRecordFactory: atypicalSituationRecordFactory,
       ),
