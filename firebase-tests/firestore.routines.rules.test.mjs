@@ -481,7 +481,7 @@ test(
 );
 
 test(
-  'una rutina no puede eliminarse físicamente',
+  'el propietario puede eliminar físicamente una de sus rutinas',
   async () => {
     const db = testEnv
       .authenticatedContext('usuario-a')
@@ -506,7 +506,7 @@ test(
       validRoutineData(),
     );
 
-    await assertFails(
+    await assertSucceeds(
       deleteDoc(reference),
     );
   },

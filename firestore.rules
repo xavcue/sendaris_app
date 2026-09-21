@@ -19,10 +19,18 @@ service cloud.firestore {
         ])
         && request.resource.data.keys().hasOnly([
           'fechaCreacion',
-          'activo'
+          'activo',
+          'numeroSeguimiento'
         ])
         && request.resource.data.fechaCreacion is timestamp
-        && request.resource.data.activo is bool;
+        && request.resource.data.activo is bool
+        && (
+          !('numeroSeguimiento' in request.resource.data)
+          || (
+            request.resource.data.numeroSeguimiento is int
+            && request.resource.data.numeroSeguimiento > 0
+          )
+        );
     }
 
     function isValidTrackingProfileCreate() {
@@ -32,7 +40,15 @@ service cloud.firestore {
     function isValidTrackingProfileUpdate() {
       return hasValidTrackingProfileFields()
         && request.resource.data.fechaCreacion
-          == resource.data.fechaCreacion;
+          == resource.data.fechaCreacion
+        && (
+          !('numeroSeguimiento' in resource.data)
+          || (
+            'numeroSeguimiento' in request.resource.data
+            && request.resource.data.numeroSeguimiento
+              == resource.data.numeroSeguimiento
+          )
+        );
     }
 
     function trackingProfileExistsAndIsActive(
@@ -785,7 +801,7 @@ service cloud.firestore {
         allow update: if isOwner(uid)
           && isValidTrackingProfileUpdate();
 
-        allow delete: if false;
+        allow delete: if isOwner(uid);
 
         match /registros/{idRegistro} {
           allow read: if isOwner(uid);
@@ -815,7 +831,9 @@ service cloud.firestore {
               || isValidAtypicalSituationCreate(uid)
             );
 
-          allow update, delete: if false;
+          allow update: if false;
+
+          allow delete: if isOwner(uid);
         }
 
         match /rutinas/{idRutina} {
@@ -835,7 +853,7 @@ service cloud.firestore {
             )
             && isValidRoutineUpdate();
 
-          allow delete: if false;
+          allow delete: if isOwner(uid);
         }
 
         match /reportes/{idReporte} {

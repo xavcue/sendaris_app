@@ -518,7 +518,7 @@ test(
 );
 
 test(
-  'un registro de sueño no puede modificarse ni eliminarse',
+  'un registro de sueño no puede modificarse, pero el propietario puede eliminarlo',
   async () => {
     const { db, anonymousId } =
       await prepareActiveContext();
@@ -542,7 +542,7 @@ test(
       ),
     );
 
-    await assertFails(
+    await assertSucceeds(
       deleteDoc(reference),
     );
   },
