@@ -7,10 +7,11 @@ import 'package:sendaris/features/tracking/domain/services/anonymous_tracking_pr
 import 'package:sendaris/features/tracking/presentation/viewmodels/tracking_view_model.dart';
 
 void main() {
-  test('recupera y selecciona un seguimiento activo existente', () async {
+  test('recupera y selecciona un seguimiento existente numerado', () async {
     final existing = AnonymousTrackingProfile(
       anonymousId: 'anonimo-existente',
       createdAt: DateTime.utc(2026, 9, 5),
+      trackingNumber: 1,
     );
 
     final repository = _FakeTrackingRepository(recoveredProfiles: [existing]);
@@ -26,11 +27,50 @@ void main() {
 
     expect(viewModel.activeAnonymousId, 'anonimo-existente');
 
+    expect(viewModel.activeTrackingLabel, 'Seguimiento 1');
+
     expect(repository.persistedProfiles, isEmpty);
   });
 
-  test('crea un seguimiento si la recuperación válida está vacía', () async {
-    final repository = _FakeTrackingRepository();
+  test(
+    'no crea automáticamente un seguimiento cuando no existe ninguno',
+    () async {
+      final repository = _FakeTrackingRepository();
+
+      final viewModel = TrackingViewModel(
+        repository,
+        const AnonymousTrackingProfileFactory(_FakeAnonymousIdGenerator()),
+      );
+
+      final success = await viewModel.initialize();
+
+      expect(success, true);
+
+      expect(viewModel.isInitialized, true);
+
+      expect(viewModel.profiles, isEmpty);
+
+      expect(viewModel.activeProfile, isNull);
+
+      expect(viewModel.activeAnonymousId, isNull);
+
+      expect(repository.persistedProfiles, isEmpty);
+    },
+  );
+
+  test('migra seguimientos anteriores asignando numeración estable', () async {
+    final repository = _FakeTrackingRepository(
+      recoveredProfiles: [
+        AnonymousTrackingProfile(
+          anonymousId: 'anonimo-dos',
+          createdAt: DateTime.utc(2026, 9, 10),
+        ),
+        AnonymousTrackingProfile(
+          anonymousId: 'anonimo-uno',
+          createdAt: DateTime.utc(2026, 9, 5),
+        ),
+      ],
+    );
 
     final viewModel = TrackingViewModel(
       repository,
@@ -41,9 +81,23 @@ void main() {
 
     expect(success, true);
 
-    expect(viewModel.activeAnonymousId, 'anonimo-generado');
+    expect(viewModel.profiles.length, 2);
 
-    expect(repository.persistedProfiles.length, 1);
+    expect(
+      viewModel.trackingLabelFor(viewModel.orderedProfiles[0]),
+      'Seguimiento 1',
+    );
+
+    expect(
+      viewModel.trackingLabelFor(viewModel.orderedProfiles[1]),
+      'Seguimiento 2',
+    );
+
+    expect(repository.persistedProfiles.length, 2);
+
+    expect(repository.persistedProfiles[0].trackingNumber, 1);
+
+    expect(repository.persistedProfiles[1].trackingNumber, 2);
   });
 
   test('no crea un seguimiento nuevo si falla la recuperación', () async {
@@ -65,17 +119,19 @@ void main() {
     expect(viewModel.activeProfile, isNull);
   });
 
-  test('ignora seguimientos inactivos y selecciona uno activo', () async {
+  test('ignora internamente seguimientos inactivos heredados y selecciona uno activo', () async {
     final repository = _FakeTrackingRepository(
       recoveredProfiles: [
         AnonymousTrackingProfile(
           anonymousId: 'anonimo-inactivo',
           createdAt: DateTime.utc(2026, 9, 4),
+          trackingNumber: 1,
           isActive: false,
         ),
         AnonymousTrackingProfile(
           anonymousId: 'anonimo-activo',
           createdAt: DateTime.utc(2026, 9, 5),
+          trackingNumber: 2,
         ),
       ],
     );
@@ -88,6 +144,8 @@ void main() {
     await viewModel.initialize();
 
     expect(viewModel.activeAnonymousId, 'anonimo-activo');
+
+    expect(viewModel.activeTrackingLabel, 'Seguimiento 2');
   });
 }
 

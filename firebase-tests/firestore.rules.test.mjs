@@ -181,7 +181,7 @@ test('la fecha de creación del perfil no puede modificarse', async () => {
   );
 });
 
-test('un perfil no puede eliminarse físicamente', async () => {
+test('el propietario puede eliminar físicamente su seguimiento', async () => {
   const db = testEnv
     .authenticatedContext('usuario-a')
     .firestore();
@@ -196,7 +196,7 @@ test('un perfil no puede eliminarse físicamente', async () => {
     activo: true,
   });
 
-  await assertFails(
+  await assertSucceeds(
     deleteDoc(reference),
   );
 });
@@ -772,7 +772,7 @@ test(
 );
 
 test(
-  'una conducta no puede eliminarse físicamente',
+  'el propietario puede eliminar físicamente uno de sus registros',
   async () => {
     const db = testEnv
       .authenticatedContext('usuario-a')
@@ -797,7 +797,7 @@ test(
       validBehaviorData(),
     );
 
-    await assertFails(
+    await assertSucceeds(
       deleteDoc(reference),
     );
   },

@@ -9,6 +9,7 @@ void main() {
       final profile = AnonymousTrackingProfile(
         anonymousId: '550e8400-e29b-41d4-a716-446655440000',
         createdAt: DateTime.utc(2026, 9, 2, 20),
+        trackingNumber: 1,
       );
 
       final data = AnonymousTrackingProfileMapper.toFirestore(profile);
@@ -19,19 +20,61 @@ void main() {
       );
 
       expect(data.containsKey('idAnonimo'), isFalse);
+
       expect(data.containsKey('nombre'), isFalse);
+
       expect(data.containsKey('apellido'), isFalse);
+
       expect(data.containsKey('cedula'), isFalse);
+
       expect(data.containsKey('fotografia'), isFalse);
+
       expect(data.containsKey('direccion'), isFalse);
+
       expect(data.containsKey('fechaNacimiento'), isFalse);
+
       expect(data.containsKey('historiaClinica'), isFalse);
 
       expect(data['activo'], isTrue);
+
+      expect(data['numeroSeguimiento'], 1);
+
       expect(data['fechaCreacion'], isA<Timestamp>());
     });
 
-    test('reconstruye un perfil anónimo válido desde Firestore', () {
+    test('mantiene compatibilidad con seguimientos anteriores sin número', () {
+      final profile = AnonymousTrackingProfile(
+        anonymousId: '550e8400-e29b-41d4-a716-446655440000',
+        createdAt: DateTime.utc(2026, 9, 2, 20),
+      );
+
+      final data = AnonymousTrackingProfileMapper.toFirestore(profile);
+
+      expect(data.containsKey('numeroSeguimiento'), isFalse);
+    });
+
+    test('reconstruye un seguimiento anónimo válido desde Firestore', () {
+      final data = <String, dynamic>{
+        'fechaCreacion': Timestamp.fromDate(DateTime.utc(2026, 9, 2, 20)),
+        'activo': true,
+        'numeroSeguimiento': 2,
+      };
+
+      final profile = AnonymousTrackingProfileMapper.fromFirestore(
+        anonymousId: '550e8400-e29b-41d4-a716-446655440000',
+        data: data,
+      );
+
+      expect(profile.anonymousId, '550e8400-e29b-41d4-a716-446655440000');
+
+      expect(profile.createdAt, DateTime.utc(2026, 9, 2, 20));
+
+      expect(profile.trackingNumber, 2);
+
+      expect(profile.isActive, isTrue);
+    });
+
+    test('recupera un seguimiento antiguo aunque todavía no tenga número', () {
       final data = <String, dynamic>{
         'fechaCreacion': Timestamp.fromDate(DateTime.utc(2026, 9, 2, 20)),
         'activo': true,
@@ -42,15 +85,29 @@ void main() {
         data: data,
       );
 
-      expect(profile.anonymousId, '550e8400-e29b-41d4-a716-446655440000');
-      expect(profile.createdAt, DateTime.utc(2026, 9, 2, 20));
-      expect(profile.isActive, isTrue);
+      expect(profile.trackingNumber, isNull);
     });
 
     test('rechaza una fecha de creación inválida', () {
       final data = <String, dynamic>{
         'fechaCreacion': '2026-09-02',
         'activo': true,
+      };
+
+      expect(
+        () => AnonymousTrackingProfileMapper.fromFirestore(
+          anonymousId: '550e8400-e29b-41d4-a716-446655440000',
+          data: data,
+        ),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('rechaza un número de seguimiento inválido', () {
+      final data = <String, dynamic>{
+        'fechaCreacion': Timestamp.fromDate(DateTime.utc(2026, 9, 2, 20)),
+        'activo': true,
+        'numeroSeguimiento': 0,
       };
 
       expect(

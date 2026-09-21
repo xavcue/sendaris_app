@@ -472,7 +472,7 @@ test(
 );
 
 test(
-  'una situación no puede modificarse ni eliminarse',
+  'una situación no puede modificarse, pero el propietario puede eliminarla',
   async () => {
     const { db, anonymousId } =
       await prepareActiveContext();
@@ -497,7 +497,7 @@ test(
       ),
     );
 
-    await assertFails(
+    await assertSucceeds(
       deleteDoc(reference),
     );
   },
