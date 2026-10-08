@@ -17,12 +17,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: sendaris-auth-account-cleanup-dry-run
+  group: sendaris-auth-account-cleanup
   cancel-in-progress: false
 
 jobs:
-  dry-run:
-    name: Analizar cuentas no verificadas
+  maintenance:
+    name: Mantener cuentas de autenticación
     runs-on: ubuntu-latest
 
     timeout-minutes: 10
@@ -71,8 +71,16 @@ jobs:
           echo "FIREBASE_PROJECT_ID=sendaris-app-xavcue" >> "$GITHUB_ENV"
 
       - name: Analizar cuentas no verificadas
+        if: github.event_name != 'schedule'
         working-directory: firebase-maintenance
         run: npm run cleanup:dry-run
+
+      - name: Eliminar cuentas no verificadas vencidas
+        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main'
+        working-directory: firebase-maintenance
+        env:
+          SENDARIS_ALLOW_ACCOUNT_DELETION: DELETE_UNVERIFIED_AFTER_24H
+        run: npm run cleanup:apply
 
       - name: Eliminar credencial temporal
         if: always()
