@@ -57,7 +57,7 @@ async function createActiveTrackingProfile({
   return reference;
 }
 
-async function createActiveRoutine({
+async function createRoutine({
   db,
   uid,
   anonymousId,
@@ -106,10 +106,8 @@ function validRoutineStatusData({
   };
 }
 
-async function prepareActiveContext() {
-  const db = testEnv
-    .authenticatedContext('usuario-a')
-    .firestore();
+async function prepareContext() {
+  const db = testEnv.authenticatedContext('usuario-a').firestore();
 
   const anonymousId =
     '550e8400-e29b-41d4-a716-446655440000';
@@ -120,7 +118,7 @@ async function prepareActiveContext() {
     anonymousId,
   });
 
-  await createActiveRoutine({
+  await createRoutine({
     db,
     uid: 'usuario-a',
     anonymousId,
@@ -136,7 +134,7 @@ test(
   'el propietario puede registrar un estado válido para una rutina existente',
   async () => {
     const { db, anonymousId } =
-      await prepareActiveContext();
+      await prepareContext();
 
     const reference = doc(
       db,
@@ -156,7 +154,7 @@ test(
   'se permiten exclusivamente los cuatro estados funcionales definidos',
   async () => {
     const { db, anonymousId } =
-      await prepareActiveContext();
+      await prepareContext();
 
     const statuses = [
       'completada',
@@ -187,7 +185,7 @@ test(
   'la observación es opcional',
   async () => {
     const { db, anonymousId } =
-      await prepareActiveContext();
+      await prepareContext();
 
     const reference = doc(
       db,
@@ -209,7 +207,7 @@ test(
   'se rechaza un estado fuera del catálogo',
   async () => {
     const { db, anonymousId } =
-      await prepareActiveContext();
+      await prepareContext();
 
     const reference = doc(
       db,
@@ -231,7 +229,7 @@ test(
   'se rechaza un estado asociado a una rutina inexistente',
   async () => {
     const { db, anonymousId } =
-      await prepareActiveContext();
+      await prepareContext();
 
     const reference = doc(
       db,
@@ -250,11 +248,38 @@ test(
 );
 
 test(
+  'se rechaza un estado cuando la rutina fue eliminada',
+  async () => {
+    const { db, anonymousId } =
+      await prepareContext();
+
+    const routineReference = doc(
+      db,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/rutinas/rutina-test`,
+    );
+
+    await assertSucceeds(
+      deleteDoc(routineReference),
+    );
+
+    const reference = doc(
+      db,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/rutina-eliminada`,
+    );
+
+    await assertFails(
+      setDoc(
+        reference,
+        validRoutineStatusData(),
+      ),
+    );
+  },
+);
+
+test(
   'otro usuario no puede registrar estados en un seguimiento ajeno',
   async () => {
-    const ownerDb = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const ownerDb = testEnv.authenticatedContext('usuario-a').firestore();
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -265,15 +290,13 @@ test(
       anonymousId,
     });
 
-    await createActiveRoutine({
+    await createRoutine({
       db: ownerDb,
       uid: 'usuario-a',
       anonymousId,
     });
 
-    const otherDb = testEnv
-      .authenticatedContext('usuario-b')
-      .firestore();
+    const otherDb = testEnv.authenticatedContext('usuario-b').firestore();
 
     const reference = doc(
       otherDb,
@@ -294,10 +317,53 @@ test(
 );
 
 test(
+  'otro usuario no puede eliminar un estado de rutina ajeno',
+  async () => {
+    const ownerDb = testEnv.authenticatedContext('usuario-a').firestore();
+
+    const anonymousId =
+      '550e8400-e29b-41d4-a716-446655440000';
+
+    await createActiveTrackingProfile({
+      db: ownerDb,
+      uid: 'usuario-a',
+      anonymousId,
+    });
+
+    await createRoutine({
+      db: ownerDb,
+      uid: 'usuario-a',
+      anonymousId,
+    });
+
+    const ownerReference = doc(
+      ownerDb,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/estado-protegido`,
+    );
+
+    await setDoc(
+      ownerReference,
+      validRoutineStatusData(),
+    );
+
+    const otherDb = testEnv.authenticatedContext('usuario-b').firestore();
+
+    const otherReference = doc(
+      otherDb,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/estado-protegido`,
+    );
+
+    await assertFails(
+      deleteDoc(otherReference),
+    );
+  },
+);
+
+test(
   'no se puede registrar un estado cuando el seguimiento está inactivo',
   async () => {
     const { db, anonymousId } =
-      await prepareActiveContext();
+      await prepareContext();
 
     const profileReference = doc(
       db,
@@ -329,7 +395,7 @@ test(
   'se rechazan campos adicionales dentro de los datos del estado',
   async () => {
     const { db, anonymousId } =
-      await prepareActiveContext();
+      await prepareContext();
 
     const reference = doc(
       db,
@@ -353,7 +419,7 @@ test(
   'se rechaza cuando fechaEvento no coincide con datos.fecha',
   async () => {
     const { db, anonymousId } =
-      await prepareActiveContext();
+      await prepareContext();
 
     const reference = doc(
       db,
@@ -380,7 +446,7 @@ test(
   'el propietario puede consultar un estado de rutina persistido',
   async () => {
     const { db, anonymousId } =
-      await prepareActiveContext();
+      await prepareContext();
 
     const reference = doc(
       db,
@@ -392,8 +458,7 @@ test(
       validRoutineStatusData(),
     );
 
-    const snapshot =
-        await assertSucceeds(
+    const snapshot = await assertSucceeds(
       getDoc(reference),
     );
 
@@ -415,14 +480,283 @@ test(
 );
 
 test(
-  'un estado de rutina no puede modificarse, pero el propietario puede eliminarlo',
+  'el propietario puede eliminar los estados asociados y después la rutina',
   async () => {
     const { db, anonymousId } =
-      await prepareActiveContext();
+      await prepareContext();
+
+    const firstStatusReference = doc(
+      db,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/estado-cascada-1`,
+    );
+
+    const secondStatusReference = doc(
+      db,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/estado-cascada-2`,
+    );
+
+    const routineReference = doc(
+      db,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/rutinas/rutina-test`,
+    );
+
+    await setDoc(
+      firstStatusReference,
+      validRoutineStatusData(),
+    );
+
+    await setDoc(
+      secondStatusReference,
+      validRoutineStatusData({
+        status: 'modificada',
+      }),
+    );
+
+    await assertSucceeds(
+      deleteDoc(firstStatusReference),
+    );
+
+    await assertSucceeds(
+      deleteDoc(secondStatusReference),
+    );
+
+    await assertSucceeds(
+      deleteDoc(routineReference),
+    );
+
+    const firstSnapshot = await getDoc(
+      firstStatusReference,
+    );
+
+    const secondSnapshot = await getDoc(
+      secondStatusReference,
+    );
+
+    const routineSnapshot = await getDoc(
+      routineReference,
+    );
+
+    assert.equal(
+      firstSnapshot.exists(),
+      false,
+    );
+
+    assert.equal(
+      secondSnapshot.exists(),
+      false,
+    );
+
+    assert.equal(
+      routineSnapshot.exists(),
+      false,
+    );
+  },
+);
+
+test(
+  'el propietario puede actualizar el estado y la observación',
+  async () => {
+    const { db, anonymousId } =
+      await prepareContext();
 
     const reference = doc(
       db,
-      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/estado-inmutable`,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/estado-editable`,
+    );
+
+    await setDoc(
+      reference,
+      validRoutineStatusData(),
+    );
+
+    await assertSucceeds(
+      updateDoc(
+        reference,
+        {
+          'datos.estado': 'modificada',
+          'datos.observacion':
+            'Actividad ajustada durante la edición.',
+          fechaActualizacion:
+            new Date('2026-09-06T19:00:00Z'),
+        },
+      ),
+    );
+
+    const snapshot = await getDoc(reference);
+
+    assert.equal(
+      snapshot.data().datos.estado,
+      'modificada',
+    );
+
+    assert.equal(
+      snapshot.data().datos.observacion,
+      'Actividad ajustada durante la edición.',
+    );
+
+    assert.deepEqual(
+      snapshot.data().fechaCreacion.toDate(),
+      new Date('2026-09-06T18:00:00Z'),
+    );
+  },
+);
+
+test(
+  'el propietario puede cambiar la fecha de un estado existente',
+  async () => {
+    const { db, anonymousId } =
+      await prepareContext();
+
+    const reference = doc(
+      db,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/estado-fecha-editable`,
+    );
+
+    await setDoc(
+      reference,
+      validRoutineStatusData(),
+    );
+
+    const newDate =
+      new Date('2026-09-07T00:00:00Z');
+
+    await assertSucceeds(
+      updateDoc(
+        reference,
+        {
+          fechaEvento: newDate,
+          'datos.fecha': newDate,
+          fechaActualizacion:
+            new Date('2026-09-06T19:00:00Z'),
+        },
+      ),
+    );
+
+    const snapshot = await getDoc(reference);
+
+    assert.deepEqual(
+      snapshot.data().fechaEvento.toDate(),
+      newDate,
+    );
+
+    assert.deepEqual(
+      snapshot.data().datos.fecha.toDate(),
+      newDate,
+    );
+  },
+);
+
+test(
+  'el propietario puede asociar el estado a otra rutina existente',
+  async () => {
+    const { db, anonymousId } =
+      await prepareContext();
+
+    await createRoutine({
+      db,
+      uid: 'usuario-a',
+      anonymousId,
+      routineId: 'rutina-secundaria',
+    });
+
+    const reference = doc(
+      db,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/estado-rutina-editable`,
+    );
+
+    await setDoc(
+      reference,
+      validRoutineStatusData(),
+    );
+
+    await assertSucceeds(
+      updateDoc(
+        reference,
+        {
+          'datos.idRutina': 'rutina-secundaria',
+          fechaActualizacion:
+            new Date('2026-09-06T19:00:00Z'),
+        },
+      ),
+    );
+
+    const snapshot = await getDoc(reference);
+
+    assert.equal(
+      snapshot.data().datos.idRutina,
+      'rutina-secundaria',
+    );
+  },
+);
+
+test(
+  'se rechaza actualizar un estado hacia una rutina inexistente',
+  async () => {
+    const { db, anonymousId } =
+      await prepareContext();
+
+    const reference = doc(
+      db,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/estado-rutina-inexistente-update`,
+    );
+
+    await setDoc(
+      reference,
+      validRoutineStatusData(),
+    );
+
+    await assertFails(
+      updateDoc(
+        reference,
+        {
+          'datos.idRutina': 'rutina-que-no-existe',
+          fechaActualizacion:
+            new Date('2026-09-06T19:00:00Z'),
+        },
+      ),
+    );
+  },
+);
+
+test(
+  'se rechaza modificar la fecha de creación al actualizar',
+  async () => {
+    const { db, anonymousId } =
+      await prepareContext();
+
+    const reference = doc(
+      db,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/estado-creacion-protegida`,
+    );
+
+    await setDoc(
+      reference,
+      validRoutineStatusData(),
+    );
+
+    await assertFails(
+      updateDoc(
+        reference,
+        {
+          fechaCreacion:
+            new Date('2026-09-06T18:30:00Z'),
+          fechaActualizacion:
+            new Date('2026-09-06T19:00:00Z'),
+        },
+      ),
+    );
+  },
+);
+
+test(
+  'se rechaza actualizar sin avanzar fechaActualizacion',
+  async () => {
+    const { db, anonymousId } =
+      await prepareContext();
+
+    const reference = doc(
+      db,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/estado-sin-nueva-actualizacion`,
     );
 
     await setDoc(
@@ -438,9 +772,195 @@ test(
         },
       ),
     );
+  },
+);
+
+test(
+  'se rechaza un estado fuera del catálogo al actualizar',
+  async () => {
+    const { db, anonymousId } =
+      await prepareContext();
+
+    const reference = doc(
+      db,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/estado-catalogo-update`,
+    );
+
+    await setDoc(
+      reference,
+      validRoutineStatusData(),
+    );
+
+    await assertFails(
+      updateDoc(
+        reference,
+        {
+          'datos.estado': 'parcialmente_realizada',
+          fechaActualizacion:
+            new Date('2026-09-06T19:00:00Z'),
+        },
+      ),
+    );
+  },
+);
+
+test(
+  'se rechaza una fecha inconsistente al actualizar',
+  async () => {
+    const { db, anonymousId } =
+      await prepareContext();
+
+    const reference = doc(
+      db,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/estado-fecha-inconsistente-update`,
+    );
+
+    await setDoc(
+      reference,
+      validRoutineStatusData(),
+    );
+
+    await assertFails(
+      updateDoc(
+        reference,
+        {
+          fechaEvento:
+            new Date('2026-09-07T00:00:00Z'),
+          fechaActualizacion:
+            new Date('2026-09-06T19:00:00Z'),
+        },
+      ),
+    );
+  },
+);
+
+test(
+  'no se puede actualizar un estado cuando el seguimiento está inactivo',
+  async () => {
+    const { db, anonymousId } =
+      await prepareContext();
+
+    const reference = doc(
+      db,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/estado-seguimiento-inactivo-update`,
+    );
+
+    await setDoc(
+      reference,
+      validRoutineStatusData(),
+    );
+
+    const profileReference = doc(
+      db,
+      `usuarios/usuario-a/seguimientos/${anonymousId}`,
+    );
+
+    await updateDoc(
+      profileReference,
+      {
+        activo: false,
+      },
+    );
+
+    await assertFails(
+      updateDoc(
+        reference,
+        {
+          'datos.estado': 'modificada',
+          fechaActualizacion:
+            new Date('2026-09-06T19:00:00Z'),
+        },
+      ),
+    );
+  },
+);
+
+test(
+  'otro usuario no puede actualizar un estado de rutina ajeno',
+  async () => {
+    const ownerDb = testEnv.authenticatedContext('usuario-a').firestore();
+
+    const anonymousId =
+      '550e8400-e29b-41d4-a716-446655440000';
+
+    await createActiveTrackingProfile({
+      db: ownerDb,
+      uid: 'usuario-a',
+      anonymousId,
+    });
+
+    await createRoutine({
+      db: ownerDb,
+      uid: 'usuario-a',
+      anonymousId,
+    });
+
+    const ownerReference = doc(
+      ownerDb,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/estado-update-protegido`,
+    );
+
+    await setDoc(
+      ownerReference,
+      validRoutineStatusData(),
+    );
+
+    const otherDb = testEnv.authenticatedContext('usuario-b').firestore();
+
+    const otherReference = doc(
+      otherDb,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/estado-update-protegido`,
+    );
+
+    await assertFails(
+      updateDoc(
+        otherReference,
+        {
+          'datos.estado': 'modificada',
+          fechaActualizacion:
+            new Date('2026-09-06T19:00:00Z'),
+        },
+      ),
+    );
+  },
+);
+
+test(
+  'el propietario puede eliminar un estado de rutina después de editarlo',
+  async () => {
+    const { db, anonymousId } =
+      await prepareContext();
+
+    const reference = doc(
+      db,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/estado-editado-eliminable`,
+    );
+
+    await setDoc(
+      reference,
+      validRoutineStatusData(),
+    );
+
+    await assertSucceeds(
+      updateDoc(
+        reference,
+        {
+          'datos.estado': 'modificada',
+          fechaActualizacion:
+            new Date('2026-09-06T19:00:00Z'),
+        },
+      ),
+    );
 
     await assertSucceeds(
       deleteDoc(reference),
+    );
+
+    const snapshot = await getDoc(reference);
+
+    assert.equal(
+      snapshot.exists(),
+      false,
     );
   },
 );

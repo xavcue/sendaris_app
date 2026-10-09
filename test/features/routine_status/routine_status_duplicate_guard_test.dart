@@ -11,7 +11,6 @@ import 'package:sendaris/features/routine_status/presentation/viewmodels/routine
 void main() {
   test('rechaza un segundo estado para la misma rutina y fecha', () async {
     const anonymousId = 'anonimo-test';
-
     const routineId = 'rutina-test';
 
     final existingRecord = RoutineStatusRecord(
@@ -42,12 +41,15 @@ void main() {
       statusRepository,
       const RoutineStatusRecordFactory(_FakeRoutineStatusRecordIdGenerator()),
       anonymousId: anonymousId,
-      initialDate: DateTime(2026, 9, 6),
     );
+
+    addTearDown(viewModel.dispose);
 
     await viewModel.initialize();
 
     viewModel.selectRoutine(routineId);
+
+    viewModel.selectDate(DateTime(2026, 9, 6));
 
     viewModel.selectStatus(RoutineStatus.completed);
 

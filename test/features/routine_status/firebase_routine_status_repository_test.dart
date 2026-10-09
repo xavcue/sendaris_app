@@ -17,7 +17,7 @@ void main() {
     );
 
     test('delega el guardado al servicio remoto', () async {
-      final service = _FakeRoutineStatusRemoteService();
+      final service = _FakeRoutineStatusManagementRemoteService();
 
       final repository = FirebaseRoutineStatusRepository(service);
 
@@ -27,7 +27,7 @@ void main() {
     });
 
     test('recupera los estados del servicio remoto', () async {
-      final service = _FakeRoutineStatusRemoteService(
+      final service = _FakeRoutineStatusManagementRemoteService(
         recoveredRecords: [record],
       );
 
@@ -43,7 +43,7 @@ void main() {
     });
 
     test('envía el identificador anónimo en la recuperación', () async {
-      final service = _FakeRoutineStatusRemoteService();
+      final service = _FakeRoutineStatusManagementRemoteService();
 
       final repository = FirebaseRoutineStatusRepository(service);
 
@@ -51,17 +51,49 @@ void main() {
 
       expect(service.recoveredAnonymousId, 'anonimo-test');
     });
+
+    test('delega la actualización al servicio remoto', () async {
+      final service = _FakeRoutineStatusManagementRemoteService();
+
+      final repository = FirebaseRoutineStatusRepository(service);
+
+      await repository.updateRoutineStatus(record);
+
+      expect(service.updatedRecord, same(record));
+    });
+
+    test('delega la eliminación con seguimiento y registro', () async {
+      final service = _FakeRoutineStatusManagementRemoteService();
+
+      final repository = FirebaseRoutineStatusRepository(service);
+
+      await repository.deleteRoutineStatus(
+        anonymousId: 'anonimo-test',
+        recordId: 'registro-test',
+      );
+
+      expect(service.deletedAnonymousId, 'anonimo-test');
+
+      expect(service.deletedRecordId, 'registro-test');
+    });
   });
 }
 
-class _FakeRoutineStatusRemoteService implements RoutineStatusRemoteService {
-  _FakeRoutineStatusRemoteService({this.recoveredRecords = const []});
+class _FakeRoutineStatusManagementRemoteService
+    implements RoutineStatusManagementRemoteService {
+  _FakeRoutineStatusManagementRemoteService({this.recoveredRecords = const []});
 
   final List<RoutineStatusRecord> recoveredRecords;
 
   RoutineStatusRecord? savedRecord;
 
+  RoutineStatusRecord? updatedRecord;
+
   String? recoveredAnonymousId;
+
+  String? deletedAnonymousId;
+
+  String? deletedRecordId;
 
   @override
   Future<void> saveRoutineStatus(RoutineStatusRecord record) async {
@@ -75,5 +107,20 @@ class _FakeRoutineStatusRemoteService implements RoutineStatusRemoteService {
     recoveredAnonymousId = anonymousId;
 
     return recoveredRecords;
+  }
+
+  @override
+  Future<void> updateRoutineStatus(RoutineStatusRecord record) async {
+    updatedRecord = record;
+  }
+
+  @override
+  Future<void> deleteRoutineStatus({
+    required String anonymousId,
+    required String recordId,
+  }) async {
+    deletedAnonymousId = anonymousId;
+
+    deletedRecordId = recordId;
   }
 }
