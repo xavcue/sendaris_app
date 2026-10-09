@@ -54,6 +54,7 @@ import '../../features/routine_status/domain/services/routine_status_record_fact
 import '../../features/routine_status/presentation/views/routine_status_detail_view.dart';
 import '../../features/routine_status/presentation/views/routine_status_form_view.dart';
 import '../../features/routine_status/presentation/views/routine_status_management_view.dart';
+import '../../features/settings/presentation/views/settings_view.dart';
 import '../../features/sleep/domain/models/sleep_record.dart';
 import '../../features/sleep/domain/repositories/sleep_management_repository.dart';
 import '../../features/sleep/domain/repositories/sleep_repository.dart';
@@ -315,6 +316,16 @@ abstract final class AppRouter {
               ],
             ),
           ],
+        ),
+        GoRoute(
+          path: AppRoutes.settings,
+          name: 'settings',
+          pageBuilder: (context, state) {
+            return _animatedPage(
+              state: state,
+              child: _ambientScreen(state: state, child: const SettingsView()),
+            );
+          },
         ),
         GoRoute(
           path: AppRoutes.behavior,

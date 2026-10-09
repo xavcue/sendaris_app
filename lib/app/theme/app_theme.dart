@@ -11,15 +11,15 @@ abstract final class AppTheme {
 
   static const Color _lightSecondaryText = Color(0xFF61706C);
 
-  static const Color _darkPrimary = Color(0xFF74D5C9);
+  static const Color _darkPrimary = Color(0xFF70D6CA);
 
-  static const Color _darkSurface = Color(0xFF0C1513);
+  static const Color _darkSurface = Color(0xFF010202);
 
-  static const Color _darkSurfaceContainer = Color(0xFF15211E);
+  static const Color _darkSurfaceContainer = Color(0xFF0F1412);
 
-  static const Color _darkText = Color(0xFFE7F1EE);
+  static const Color _darkText = Color(0xFFEAF2F0);
 
-  static const Color _darkSecondaryText = Color(0xFFA7B8B3);
+  static const Color _darkSecondaryText = Color(0xFFAAB5B2);
 
   static ThemeData get light {
     return _build(
@@ -41,7 +41,7 @@ abstract final class AppTheme {
       surfaceContainer: _darkSurfaceContainer,
       text: _darkText,
       secondaryText: _darkSecondaryText,
-      cardColor: const Color(0xFF14201E),
+      cardColor: const Color(0xFF0D1210),
     );
   }
 
@@ -54,6 +54,8 @@ abstract final class AppTheme {
     required Color secondaryText,
     required Color cardColor,
   }) {
+    final isDark = brightness == Brightness.dark;
+
     final colorScheme =
         ColorScheme.fromSeed(
           seedColor: primary,
@@ -63,7 +65,15 @@ abstract final class AppTheme {
           surface: surface,
           onSurface: text,
           onSurfaceVariant: secondaryText,
+          surfaceContainerLowest: isDark ? const Color(0xFF010202) : null,
           surfaceContainerLow: surfaceContainer,
+          surfaceContainer: isDark ? const Color(0xFF131916) : null,
+          surfaceContainerHigh: isDark ? const Color(0xFF18201D) : null,
+          surfaceContainerHighest: isDark ? const Color(0xFF1E2823) : null,
+          primaryContainer: isDark ? const Color(0xFF0D3A35) : null,
+          onPrimaryContainer: isDark ? const Color(0xFFC8F4EF) : null,
+          outline: isDark ? const Color(0xFF82908B) : null,
+          outlineVariant: isDark ? const Color(0xFF3A4944) : null,
         );
 
     final baseTheme = ThemeData(
@@ -147,11 +157,8 @@ abstract final class AppTheme {
       ),
     );
 
-    final isDark = brightness == Brightness.dark;
-
     return baseTheme.copyWith(
       textTheme: textTheme,
-
       appBarTheme: AppBarTheme(
         centerTitle: false,
         toolbarHeight: 72,
@@ -169,25 +176,23 @@ abstract final class AppTheme {
           height: 1.1,
         ),
       ),
-
       cardTheme: CardThemeData(
         elevation: 0,
-        color: cardColor.withValues(alpha: isDark ? 0.94 : 0.90),
+        color: cardColor.withValues(alpha: isDark ? 1 : 0.90),
         surfaceTintColor: Colors.transparent,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(22),
           side: BorderSide(
             color: colorScheme.outlineVariant.withValues(
-              alpha: isDark ? 0.34 : 0.58,
+              alpha: isDark ? 0.92 : 0.58,
             ),
           ),
         ),
       ),
-
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: cardColor.withValues(alpha: isDark ? 0.88 : 0.84),
+        fillColor: cardColor.withValues(alpha: isDark ? 1 : 0.84),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 18,
           vertical: 17,
@@ -211,7 +216,7 @@ abstract final class AppTheme {
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(
             color: colorScheme.outlineVariant.withValues(
-              alpha: isDark ? 0.42 : 0.72,
+              alpha: isDark ? 0.94 : 0.72,
             ),
           ),
         ),
@@ -228,7 +233,6 @@ abstract final class AppTheme {
           borderSide: BorderSide(color: colorScheme.error, width: 1.5),
         ),
       ),
-
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           minimumSize: const Size(0, 52),
@@ -239,7 +243,6 @@ abstract final class AppTheme {
           textStyle: textTheme.labelLarge,
         ),
       ),
-
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           minimumSize: const Size(0, 52),
@@ -250,34 +253,49 @@ abstract final class AppTheme {
           textStyle: textTheme.labelLarge,
         ),
       ),
-
       chipTheme: baseTheme.chipTheme.copyWith(
         backgroundColor: surfaceContainer,
         selectedColor: colorScheme.primaryContainer,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         labelStyle: textTheme.labelMedium,
         side: BorderSide(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.6),
+          color: colorScheme.outlineVariant.withValues(
+            alpha: isDark ? 0.86 : 0.6,
+          ),
         ),
       ),
-
       dividerTheme: DividerThemeData(
-        color: colorScheme.outlineVariant.withValues(alpha: 0.52),
+        color: colorScheme.outlineVariant.withValues(
+          alpha: isDark ? 0.82 : 0.52,
+        ),
         thickness: 1,
       ),
-
       dialogTheme: DialogThemeData(
         backgroundColor: cardColor,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
-
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: cardColor,
         modalBackgroundColor: cardColor,
         surfaceTintColor: Colors.transparent,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+        ),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: isDark
+            ? const Color(0xFF131916)
+            : colorScheme.surfaceContainerHigh,
+        surfaceTintColor: Colors.transparent,
+        elevation: 8,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: colorScheme.outlineVariant.withValues(
+              alpha: isDark ? 0.90 : 0.65,
+            ),
+          ),
         ),
       ),
     );

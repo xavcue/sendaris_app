@@ -5,20 +5,22 @@ class ThemeModeController extends ChangeNotifier {
 
   ThemeMode get themeMode => _themeMode;
 
-  void toggle(Brightness currentBrightness) {
-    _themeMode = currentBrightness == Brightness.dark
-        ? ThemeMode.light
-        : ThemeMode.dark;
-
-    notifyListeners();
-  }
-
-  void useSystemMode() {
-    if (_themeMode == ThemeMode.system) {
+  void setThemeMode(ThemeMode mode) {
+    if (_themeMode == mode) {
       return;
     }
 
-    _themeMode = ThemeMode.system;
+    _themeMode = mode;
     notifyListeners();
+  }
+
+  void toggle(Brightness currentBrightness) {
+    setThemeMode(
+      currentBrightness == Brightness.dark ? ThemeMode.light : ThemeMode.dark,
+    );
+  }
+
+  void useSystemMode() {
+    setThemeMode(ThemeMode.system);
   }
 }
