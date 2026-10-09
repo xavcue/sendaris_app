@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sendaris/features/behavior/domain/exceptions/behavior_validation_failure.dart';
 import 'package:sendaris/features/behavior/domain/models/behavior_category.dart';
 import 'package:sendaris/features/behavior/domain/models/behavior_intensity.dart';
+import 'package:sendaris/features/behavior/domain/models/behavior_record.dart';
 import 'package:sendaris/features/behavior/domain/services/behavior_record_factory.dart';
 import 'package:sendaris/features/behavior/domain/services/behavior_record_id_generator.dart';
 
@@ -36,7 +37,9 @@ void main() {
       expect(record.category, BehaviorCategory.repetitiveBehavior);
 
       expect(record.durationMinutes, 12);
+
       expect(record.time, '14:30');
+
       expect(record.context, 'Rutina de la tarde');
 
       expect(record.createdAt, DateTime.utc(2026, 9, 5, 19, 30));
@@ -53,9 +56,13 @@ void main() {
       );
 
       expect(record.time, isNull);
+
       expect(record.durationMinutes, isNull);
+
       expect(record.intensity, isNull);
+
       expect(record.context, isNull);
+
       expect(record.observation, isNull);
     });
 
@@ -70,6 +77,7 @@ void main() {
       );
 
       expect(record.context, isNull);
+
       expect(record.observation, isNull);
     });
 
@@ -137,5 +145,109 @@ void main() {
 
       expect(record.eventDateTime, DateTime(2026, 9, 5, 16, 45));
     });
+
+    test(
+      'editar conserva la identidad y la fecha de creación del registro',
+      () {
+        final currentRecord = _existingRecord();
+
+        final updated = factory.update(
+          currentRecord: currentRecord,
+          date: DateTime(2026, 9, 20),
+          time: '18:15',
+          category: BehaviorCategory.socialInitiative,
+          durationMinutes: 25,
+          intensity: BehaviorIntensity.high,
+          context: 'Actividad compartida',
+          observation: 'Observación actualizada.',
+          updatedAt: DateTime.utc(2026, 9, 20, 23, 15),
+        );
+
+        expect(updated.recordId, currentRecord.recordId);
+
+        expect(updated.anonymousId, currentRecord.anonymousId);
+
+        expect(updated.createdAt, currentRecord.createdAt);
+
+        expect(updated.updatedAt, DateTime.utc(2026, 9, 20, 23, 15));
+
+        expect(updated.date, DateTime(2026, 9, 20));
+
+        expect(updated.time, '18:15');
+
+        expect(updated.category, BehaviorCategory.socialInitiative);
+
+        expect(updated.durationMinutes, 25);
+
+        expect(updated.intensity, BehaviorIntensity.high);
+
+        expect(updated.context, 'Actividad compartida');
+
+        expect(updated.observation, 'Observación actualizada.');
+      },
+    );
+
+    test('editar permite retirar campos opcionales', () {
+      final updated = factory.update(
+        currentRecord: _existingRecord(),
+        date: DateTime(2026, 9, 20),
+        category: BehaviorCategory.repetitiveBehavior,
+        time: '   ',
+        context: ' ',
+        observation: '',
+        updatedAt: DateTime.utc(2026, 9, 20, 21),
+      );
+
+      expect(updated.time, isNull);
+
+      expect(updated.durationMinutes, isNull);
+
+      expect(updated.intensity, isNull);
+
+      expect(updated.context, isNull);
+
+      expect(updated.observation, isNull);
+    });
+
+    test('editar aplica las mismas validaciones del registro de conducta', () {
+      expect(
+        () => factory.update(
+          currentRecord: _existingRecord(),
+          date: DateTime(2026, 9, 20),
+          category: BehaviorCategory.repetitiveBehavior,
+          time: '27:70',
+          durationMinutes: 0,
+        ),
+        throwsA(
+          isA<BehaviorValidationFailure>()
+              .having(
+                (failure) => failure.errorFor('time'),
+                'error de hora',
+                isNotNull,
+              )
+              .having(
+                (failure) => failure.errorFor('durationMinutes'),
+                'error de duración',
+                isNotNull,
+              ),
+        ),
+      );
+    });
   });
+}
+
+BehaviorRecord _existingRecord() {
+  return BehaviorRecord(
+    recordId: 'conducta-existente-001',
+    anonymousId: 'seguimiento-anonimo',
+    date: DateTime(2026, 9, 15),
+    time: '14:30',
+    category: BehaviorCategory.avoidanceFear,
+    durationMinutes: 10,
+    intensity: BehaviorIntensity.medium,
+    context: 'Contexto original',
+    observation: 'Observación original.',
+    createdAt: DateTime.utc(2026, 9, 15, 19, 30),
+    updatedAt: DateTime.utc(2026, 9, 15, 19, 30),
+  );
 }

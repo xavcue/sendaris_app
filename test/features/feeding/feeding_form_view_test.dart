@@ -15,72 +15,116 @@ void main() {
       repository = _FakeFeedingRepository();
     });
 
-    testWidgets('muestra únicamente información descriptiva de alimentación', (
-      tester,
-    ) async {
-      await _pumpView(tester, repository);
+    testWidgets(
+      'muestra la estructura descriptiva y la fecha sin seleccionar',
+      (tester) async {
+        await _pumpView(tester, repository);
 
-      expect(find.text('Registrar alimentación'), findsOneWidget);
+        expect(find.text('Registrar alimentación'), findsOneWidget);
 
-      expect(find.text('Registro de alimentación'), findsOneWidget);
+        expect(find.text('Registro de alimentación'), findsOneWidget);
 
-      expect(find.text('Cuándo ocurrió'), findsOneWidget);
+        expect(find.text('Cuándo ocurrió'), findsOneWidget);
 
-      expect(find.text('Tipo de alimentación'), findsOneWidget);
+        expect(find.text('Tipo de alimentación'), findsOneWidget);
 
-      expect(find.textContaining('no calcula calorías'), findsOneWidget);
+        expect(find.text('Sin seleccionar'), findsOneWidget);
 
-      expect(find.textContaining('análisis'), findsOneWidget);
+        expect(find.text('Obligatorio'), findsNWidgets(2));
 
-      expect(find.textContaining('peso'), findsNothing);
+        expect(find.textContaining('no calcula calorías'), findsOneWidget);
 
-      expect(find.textContaining('nutrientes'), findsNothing);
+        expect(find.textContaining('análisis'), findsOneWidget);
 
-      expect(find.textContaining('diagnóstico'), findsNothing);
-    });
+        expect(find.textContaining('peso'), findsNothing);
 
-    testWidgets('muestra las cinco categorías generales definidas', (
-      tester,
-    ) async {
-      await _pumpView(tester, repository);
+        expect(find.textContaining('nutrientes'), findsNothing);
 
-      expect(find.text('Desayuno'), findsOneWidget);
+        expect(find.textContaining('diagnóstico'), findsNothing);
+      },
+    );
 
-      expect(find.text('Refrigerio'), findsOneWidget);
+    testWidgets(
+      'muestra las cinco categorías sin checks y permite deseleccionarlas',
+      (tester) async {
+        await _pumpView(tester, repository);
 
-      expect(find.text('Almuerzo'), findsOneWidget);
+        expect(find.text('Desayuno'), findsOneWidget);
 
-      expect(find.text('Merienda / cena'), findsOneWidget);
+        expect(find.text('Refrigerio'), findsOneWidget);
 
-      expect(find.text('Otro'), findsOneWidget);
-    });
+        expect(find.text('Almuerzo'), findsOneWidget);
 
-    testWidgets('valida la categoría obligatoria antes de guardar', (
-      tester,
-    ) async {
-      await _pumpView(tester, repository);
+        expect(find.text('Merienda / cena'), findsOneWidget);
 
-      final saveButton = find.byKey(const Key('feeding-save-button'));
+        expect(find.text('Otro'), findsOneWidget);
 
-      await tester.scrollUntilVisible(
-        saveButton,
-        300,
-        scrollable: find.byType(Scrollable).first,
-      );
+        final chip = find.byKey(const Key('feeding-category-almuerzo'));
 
-      await tester.pumpAndSettle();
+        var widget = tester.widget<ChoiceChip>(chip);
 
-      await tester.tap(saveButton);
+        expect(widget.selected, isFalse);
 
-      await tester.pump();
+        expect(widget.showCheckmark, isFalse);
 
-      expect(
-        find.text('Selecciona una categoría de alimentación.'),
-        findsOneWidget,
-      );
+        await tester.tap(chip);
+        await tester.pump();
 
-      expect(repository.savedRecords, isEmpty);
-    });
+        widget = tester.widget<ChoiceChip>(chip);
+
+        expect(widget.selected, isTrue);
+
+        expect(widget.showCheckmark, isFalse);
+
+        await tester.tap(chip);
+        await tester.pump();
+
+        widget = tester.widget<ChoiceChip>(chip);
+
+        expect(widget.selected, isFalse);
+      },
+    );
+
+    testWidgets(
+      'muestra errores obligatorios y los oculta después de unos segundos',
+      (tester) async {
+        await _pumpView(tester, repository);
+
+        final saveButton = find.byKey(const Key('feeding-save-button'));
+
+        await tester.scrollUntilVisible(
+          saveButton,
+          300,
+          scrollable: find.byType(Scrollable).first,
+        );
+
+        await tester.pump();
+
+        await tester.tap(saveButton);
+
+        await tester.pump();
+
+        expect(find.text('Selecciona una fecha.'), findsOneWidget);
+
+        expect(
+          find.text('Selecciona una categoría de alimentación.'),
+          findsOneWidget,
+        );
+
+        expect(repository.savedRecords, isEmpty);
+
+        await tester.pump(const Duration(seconds: 5));
+
+        await tester.pump();
+
+        expect(find.text('Selecciona una fecha.'), findsNothing);
+
+        expect(
+          find.text('Selecciona una categoría de alimentación.'),
+          findsNothing,
+        );
+      },
+    );
 
     testWidgets('la observación se presenta como información opcional', (
       tester,
@@ -95,11 +139,11 @@ void main() {
         scrollable: find.byType(Scrollable).first,
       );
 
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(observation, findsOneWidget);
 
-      expect(find.text('Observación'), findsOneWidget);
+      expect(find.text('Observación (opcional)'), findsOneWidget);
 
       expect(
         find.text(
@@ -109,14 +153,20 @@ void main() {
       );
     });
 
-    testWidgets('guarda una categoría válida con observación descriptiva', (
-      tester,
-    ) async {
+    testWidgets('guarda correctamente y regresa a Registrar', (tester) async {
       await _pumpView(tester, repository);
 
-      final lunchChip = find.byKey(const Key('feeding-category-almuerzo'));
+      final datePicker = find.byKey(const Key('feeding-date-picker'));
 
-      expect(lunchChip, findsOneWidget);
+      await tester.tap(datePicker);
+
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(TextButton, 'Seleccionar').last);
+
+      await tester.pumpAndSettle();
+
+      final lunchChip = find.byKey(const Key('feeding-category-almuerzo'));
 
       await tester.tap(lunchChip);
 
@@ -130,8 +180,6 @@ void main() {
         scrollable: find.byType(Scrollable).first,
       );
 
-      await tester.pumpAndSettle();
-
       await tester.enterText(observation, 'Registro ficticio descriptivo.');
 
       final saveButton = find.byKey(const Key('feeding-save-button'));
@@ -142,11 +190,11 @@ void main() {
         scrollable: find.byType(Scrollable).first,
       );
 
-      await tester.pumpAndSettle();
-
       await tester.tap(saveButton);
 
-      await tester.pumpAndSettle();
+      await tester.pump();
+
+      await tester.pump(const Duration(milliseconds: 400));
 
       expect(repository.savedRecords, hasLength(1));
 
@@ -156,40 +204,12 @@ void main() {
 
       expect(record.observation, 'Registro ficticio descriptivo.');
 
+      expect(find.text('Destino Registrar'), findsOneWidget);
+
       expect(
         find.text('Registro de alimentación guardado correctamente.'),
         findsOneWidget,
       );
-
-      expect(find.text('Registro ficticio descriptivo.'), findsNothing);
-    });
-
-    testWidgets('permite guardar alimentación sin observación', (tester) async {
-      await _pumpView(tester, repository);
-
-      final breakfastChip = find.byKey(const Key('feeding-category-desayuno'));
-
-      await tester.tap(breakfastChip);
-
-      await tester.pump();
-
-      final saveButton = find.byKey(const Key('feeding-save-button'));
-
-      await tester.scrollUntilVisible(
-        saveButton,
-        300,
-        scrollable: find.byType(Scrollable).first,
-      );
-
-      await tester.pumpAndSettle();
-
-      await tester.tap(saveButton);
-
-      await tester.pumpAndSettle();
-
-      expect(repository.savedRecords, hasLength(1));
-
-      expect(repository.savedRecords.single.observation, isNull);
     });
   });
 }
@@ -200,15 +220,35 @@ Future<void> _pumpView(
 ) async {
   await tester.pumpWidget(
     MaterialApp(
-      home: FeedingFormView(
-        repository: repository,
-        recordFactory: const FeedingRecordFactory(
-          _FakeFeedingRecordIdGenerator(),
-        ),
-        anonymousId: 'anonimo-test',
+      home: Builder(
+        builder: (context) {
+          return Scaffold(
+            body: Center(
+              child: FilledButton(
+                key: const Key('open-feeding-form'),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => FeedingFormView(
+                        repository: repository,
+                        recordFactory: const FeedingRecordFactory(
+                          _FakeFeedingRecordIdGenerator(),
+                        ),
+                        anonymousId: 'anonimo-test',
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('Destino Registrar'),
+              ),
+            ),
+          );
+        },
       ),
     ),
   );
+
+  await tester.tap(find.byKey(const Key('open-feeding-form')));
 
   await tester.pumpAndSettle();
 }

@@ -8,146 +8,204 @@ import 'package:sendaris/features/dysregulation/domain/services/dysregulation_re
 import 'package:sendaris/features/dysregulation/presentation/viewmodels/dysregulation_form_view_model.dart';
 
 void main() {
-  late _FakeDysregulationRepository repository;
-  late DysregulationFormViewModel viewModel;
+  group('DysregulationFormViewModel', () {
+    late _FakeDysregulationRepository repository;
+    late DysregulationFormViewModel viewModel;
 
-  setUp(() {
-    repository = _FakeDysregulationRepository();
+    setUp(() {
+      repository = _FakeDysregulationRepository();
 
-    viewModel = DysregulationFormViewModel(
-      repository,
-      const DysregulationRecordFactory(_FakeDysregulationRecordIdGenerator()),
-      anonymousId: 'anonimo-1',
-      initialDate: DateTime(2026, 9, 15, 18, 30),
-    );
-  });
+      viewModel = DysregulationFormViewModel(
+        repository,
+        const DysregulationRecordFactory(_FakeDysregulationRecordIdGenerator()),
+        anonymousId: 'anonimo-1',
+        initialDate: DateTime(2026, 9, 15, 18, 30),
+      );
+    });
 
-  test('normaliza la fecha inicial sin componente horario', () {
-    expect(viewModel.selectedDate, DateTime(2026, 9, 15));
-  });
+    tearDown(() {
+      viewModel.dispose();
+    });
 
-  test('permite seleccionar y quitar una hora opcional', () {
-    viewModel.setTime(hour: 9, minute: 5);
+    test('normaliza la fecha inicial sin componente horario', () {
+      expect(viewModel.selectedDate, DateTime(2026, 9, 15));
+    });
 
-    expect(viewModel.selectedTime, '09:05');
+    test('sin fecha inicial comienza sin fecha seleccionada', () {
+      final freshViewModel = DysregulationFormViewModel(
+        repository,
+        const DysregulationRecordFactory(_FakeDysregulationRecordIdGenerator()),
+        anonymousId: 'anonimo-2',
+      );
 
-    viewModel.clearTime();
+      expect(freshViewModel.selectedDate, isNull);
 
-    expect(viewModel.selectedTime, isNull);
-  });
+      freshViewModel.dispose();
+    });
 
-  test('la intensidad descriptiva puede seleccionarse y deseleccionarse', () {
-    viewModel.setIntensity(DysregulationIntensity.medium);
+    test('permite seleccionar una fecha', () {
+      viewModel.setDate(DateTime(2026, 9, 21, 23, 45));
 
-    expect(viewModel.selectedIntensity, DysregulationIntensity.medium);
+      expect(viewModel.selectedDate, DateTime(2026, 9, 21));
+    });
 
-    viewModel.setIntensity(DysregulationIntensity.medium);
+    test('permite seleccionar y quitar una hora opcional', () {
+      viewModel.setTime(hour: 9, minute: 5);
 
-    expect(viewModel.selectedIntensity, isNull);
-  });
+      expect(viewModel.selectedTime, '09:05');
 
-  test('guarda un episodio válido con todos los datos opcionales', () async {
-    viewModel.setTime(hour: 14, minute: 30);
+      viewModel.clearTime();
 
-    viewModel.setIntensity(DysregulationIntensity.medium);
+      expect(viewModel.selectedTime, isNull);
+    });
 
-    final success = await viewModel.save(
-      durationText: '12',
-      context: 'Durante una actividad cotidiana',
-      observation: 'Registro ficticio descriptivo.',
-    );
+    test('la intensidad descriptiva puede seleccionarse y deseleccionarse', () {
+      viewModel.setIntensity(DysregulationIntensity.medium);
 
-    expect(success, isTrue);
+      expect(viewModel.selectedIntensity, DysregulationIntensity.medium);
 
-    expect(repository.savedRecords, hasLength(1));
+      viewModel.setIntensity(DysregulationIntensity.medium);
 
-    final record = repository.savedRecords.single;
+      expect(viewModel.selectedIntensity, isNull);
+    });
 
-    expect(record.anonymousId, 'anonimo-1');
+    test('exige seleccionar una fecha antes de guardar', () async {
+      final freshViewModel = DysregulationFormViewModel(
+        repository,
+        const DysregulationRecordFactory(_FakeDysregulationRecordIdGenerator()),
+        anonymousId: 'anonimo-2',
+      );
 
-    expect(record.date, DateTime(2026, 9, 15));
+      final success = await freshViewModel.save(
+        durationText: '',
+        context: '',
+        observation: '',
+      );
 
-    expect(record.time, '14:30');
+      expect(success, isFalse);
 
-    expect(record.durationMinutes, 12);
+      expect(freshViewModel.errorFor('date'), 'Selecciona una fecha.');
 
-    expect(record.intensity, DysregulationIntensity.medium);
+      expect(repository.savedRecords, isEmpty);
 
-    expect(record.context, 'Durante una actividad cotidiana');
+      freshViewModel.dispose();
+    });
 
-    expect(record.observation, 'Registro ficticio descriptivo.');
-  });
+    test('elimina el error de fecha al seleccionar una fecha válida', () async {
+      final freshViewModel = DysregulationFormViewModel(
+        repository,
+        const DysregulationRecordFactory(_FakeDysregulationRecordIdGenerator()),
+        anonymousId: 'anonimo-2',
+      );
 
-  test('permite guardar sin campos opcionales', () async {
-    final success = await viewModel.save(
-      durationText: '',
-      context: '',
-      observation: '',
-    );
+      await freshViewModel.save(durationText: '', context: '', observation: '');
 
-    expect(success, isTrue);
+      expect(freshViewModel.errorFor('date'), isNotNull);
 
-    expect(repository.savedRecords, hasLength(1));
+      freshViewModel.setDate(DateTime(2026, 9, 21));
 
-    final record = repository.savedRecords.single;
+      expect(freshViewModel.errorFor('date'), isNull);
 
-    expect(record.time, isNull);
+      freshViewModel.dispose();
+    });
 
-    expect(record.durationMinutes, isNull);
+    test('guarda un episodio válido con todos los datos opcionales', () async {
+      viewModel.setTime(hour: 14, minute: 30);
 
-    expect(record.intensity, isNull);
+      viewModel.setIntensity(DysregulationIntensity.medium);
 
-    expect(record.context, isNull);
+      final success = await viewModel.save(
+        durationText: '12',
+        context: 'Durante una actividad cotidiana',
+        observation: 'Registro ficticio descriptivo.',
+      );
 
-    expect(record.observation, isNull);
-  });
+      expect(success, isTrue);
 
-  test('permite duración igual a cero', () async {
-    final success = await viewModel.save(
-      durationText: '0',
-      context: '',
-      observation: '',
-    );
+      expect(repository.savedRecords, hasLength(1));
 
-    expect(success, isTrue);
+      final record = repository.savedRecords.single;
 
-    expect(repository.savedRecords.single.durationMinutes, 0);
-  });
+      expect(record.anonymousId, 'anonimo-1');
 
-  test('rechaza una duración que no sea un número entero', () async {
-    final success = await viewModel.save(
-      durationText: 'doce',
-      context: '',
-      observation: '',
-    );
+      expect(record.date, DateTime(2026, 9, 15));
 
-    expect(success, isFalse);
+      expect(record.time, '14:30');
 
-    expect(viewModel.errorFor('durationMinutes'), contains('números enteros'));
+      expect(record.durationMinutes, 12);
 
-    expect(repository.savedRecords, isEmpty);
-  });
+      expect(record.intensity, DysregulationIntensity.medium);
 
-  test('propaga la validación de duración negativa', () async {
-    final success = await viewModel.save(
-      durationText: '-1',
-      context: '',
-      observation: '',
-    );
+      expect(record.context, 'Durante una actividad cotidiana');
 
-    expect(success, isFalse);
+      expect(record.observation, 'Registro ficticio descriptivo.');
 
-    expect(
-      viewModel.errorFor('durationMinutes'),
-      'La duración no puede ser negativa.',
-    );
+      expect(
+        viewModel.successMessage,
+        'Episodio de desregulación guardado correctamente.',
+      );
 
-    expect(repository.savedRecords, isEmpty);
-  });
+      expect(viewModel.selectedDate, isNull);
 
-  test(
-    'elimina el error de duración cuando el usuario corrige el valor',
-    () async {
+      expect(viewModel.selectedTime, isNull);
+
+      expect(viewModel.selectedIntensity, isNull);
+    });
+
+    test('permite guardar solo con la fecha', () async {
+      final success = await viewModel.save(
+        durationText: '',
+        context: '',
+        observation: '',
+      );
+
+      expect(success, isTrue);
+
+      expect(repository.savedRecords, hasLength(1));
+
+      final record = repository.savedRecords.single;
+
+      expect(record.time, isNull);
+
+      expect(record.durationMinutes, isNull);
+
+      expect(record.intensity, isNull);
+
+      expect(record.context, isNull);
+
+      expect(record.observation, isNull);
+    });
+
+    test('permite duración igual a cero', () async {
+      final success = await viewModel.save(
+        durationText: '0',
+        context: '',
+        observation: '',
+      );
+
+      expect(success, isTrue);
+
+      expect(repository.savedRecords.single.durationMinutes, 0);
+    });
+
+    test('rechaza una duración que no sea un número entero', () async {
+      final success = await viewModel.save(
+        durationText: 'doce',
+        context: '',
+        observation: '',
+      );
+
+      expect(success, isFalse);
+
+      expect(
+        viewModel.errorFor('durationMinutes'),
+        contains('números enteros'),
+      );
+
+      expect(repository.savedRecords, isEmpty);
+    });
+
+    test('rechaza una duración negativa', () async {
       final success = await viewModel.save(
         durationText: '-1',
         context: '',
@@ -161,82 +219,40 @@ void main() {
         'La duración no puede ser negativa.',
       );
 
-      viewModel.validateDurationCorrection('12');
+      expect(repository.savedRecords, isEmpty);
+    });
 
-      expect(viewModel.errorFor('durationMinutes'), isNull);
-    },
-  );
+    test(
+      'elimina el error de duración cuando el usuario corrige el valor',
+      () async {
+        await viewModel.save(durationText: '-1', context: '', observation: '');
 
-  test(
-    'mantiene actualizado el error mientras la duración siga siendo inválida',
-    () async {
-      await viewModel.save(durationText: '-1', context: '', observation: '');
+        expect(viewModel.errorFor('durationMinutes'), isNotNull);
 
-      viewModel.validateDurationCorrection('-5');
+        viewModel.validateDurationCorrection('12');
 
-      expect(
-        viewModel.errorFor('durationMinutes'),
-        'La duración no puede ser negativa.',
+        expect(viewModel.errorFor('durationMinutes'), isNull);
+      },
+    );
+
+    test('presenta un error controlado del repositorio', () async {
+      repository.failure = const DysregulationFailure(
+        'No tienes autorización para guardar '
+        'este episodio de desregulación.',
       );
 
-      viewModel.validateDurationCorrection('doce');
-
-      expect(
-        viewModel.errorFor('durationMinutes'),
-        contains('números enteros'),
+      final success = await viewModel.save(
+        durationText: '',
+        context: '',
+        observation: '',
       );
-    },
-  );
 
-  test('presenta un error controlado del repositorio', () async {
-    repository.failure = const DysregulationFailure(
-      'No tienes autorización para guardar '
-      'este episodio de desregulación.',
-    );
+      expect(success, isFalse);
 
-    final success = await viewModel.save(
-      durationText: '',
-      context: '',
-      observation: '',
-    );
+      expect(viewModel.errorMessage, contains('autorización'));
 
-    expect(success, isFalse);
-
-    expect(viewModel.errorMessage, contains('autorización'));
-
-    expect(repository.savedRecords, isEmpty);
-  });
-
-  test('limpia hora e intensidad después de guardar correctamente', () async {
-    viewModel.setTime(hour: 16, minute: 45);
-
-    viewModel.setIntensity(DysregulationIntensity.high);
-
-    final success = await viewModel.save(
-      durationText: '',
-      context: '',
-      observation: '',
-    );
-
-    expect(success, isTrue);
-
-    expect(viewModel.selectedTime, isNull);
-
-    expect(viewModel.selectedIntensity, isNull);
-  });
-
-  test('conserva la fecha seleccionada después de guardar', () async {
-    viewModel.setDate(DateTime(2026, 9, 14));
-
-    final success = await viewModel.save(
-      durationText: '',
-      context: '',
-      observation: '',
-    );
-
-    expect(success, isTrue);
-
-    expect(viewModel.selectedDate, DateTime(2026, 9, 14));
+      expect(repository.savedRecords, isEmpty);
+    });
   });
 }
 

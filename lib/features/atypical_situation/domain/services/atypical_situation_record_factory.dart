@@ -17,7 +17,6 @@ class AtypicalSituationRecordFactory {
     DateTime? createdAt,
   }) {
     final normalizedAnonymousId = anonymousId.trim();
-
     final normalizedObservation = observation.trim();
 
     final errors = AtypicalSituationRecordValidator.validate(
@@ -38,6 +37,39 @@ class AtypicalSituationRecordFactory {
       category: category,
       observation: normalizedObservation,
       createdAt: timestamp,
+      updatedAt: timestamp,
+    );
+  }
+
+  AtypicalSituationRecord update({
+    required AtypicalSituationRecord currentRecord,
+    required DateTime date,
+    required AtypicalSituationCategory category,
+    required String observation,
+    DateTime? updatedAt,
+  }) {
+    final normalizedAnonymousId = currentRecord.anonymousId.trim();
+
+    final normalizedObservation = observation.trim();
+
+    final errors = AtypicalSituationRecordValidator.validate(
+      anonymousId: normalizedAnonymousId,
+      observation: normalizedObservation,
+    );
+
+    if (errors.isNotEmpty) {
+      throw AtypicalSituationValidationFailure(errors);
+    }
+
+    final timestamp = (updatedAt ?? DateTime.now()).toUtc();
+
+    return AtypicalSituationRecord(
+      recordId: currentRecord.recordId,
+      anonymousId: normalizedAnonymousId,
+      date: DateTime(date.year, date.month, date.day),
+      category: category,
+      observation: normalizedObservation,
+      createdAt: currentRecord.createdAt,
       updatedAt: timestamp,
     );
   }

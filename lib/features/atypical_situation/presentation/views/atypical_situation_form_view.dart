@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../domain/models/atypical_situation_category.dart';
+import '../../domain/models/atypical_situation_record.dart';
 import '../../domain/repositories/atypical_situation_repository.dart';
 import '../../domain/services/atypical_situation_record_factory.dart';
 import '../viewmodels/atypical_situation_form_view_model.dart';
@@ -11,12 +14,14 @@ class AtypicalSituationFormView extends StatelessWidget {
     required this.repository,
     required this.recordFactory,
     required this.anonymousId,
+    this.initialRecord,
     super.key,
   });
 
   final AtypicalSituationRepository repository;
   final AtypicalSituationRecordFactory recordFactory;
   final String anonymousId;
+  final AtypicalSituationRecord? initialRecord;
 
   @override
   Widget build(BuildContext context) {
@@ -25,6 +30,7 @@ class AtypicalSituationFormView extends StatelessWidget {
         repository,
         recordFactory,
         anonymousId: anonymousId,
+        initialRecord: initialRecord,
       ),
       child: const _AtypicalSituationFormContent(),
     );
@@ -41,6 +47,12 @@ class _AtypicalSituationFormContent extends StatefulWidget {
 
 class _AtypicalSituationFormContentState
     extends State<_AtypicalSituationFormContent> {
+  static const Duration _validationMessageDuration = Duration(seconds: 4);
+
+  final ScrollController _scrollController = ScrollController();
+
+  final GlobalKey _dateSectionKey = GlobalKey();
+
   final GlobalKey _categorySectionKey = GlobalKey();
 
   final GlobalKey _observationSectionKey = GlobalKey();
@@ -49,17 +61,60 @@ class _AtypicalSituationFormContentState
 
   final TextEditingController _observationController = TextEditingController();
 
+  Timer? _validationMessageTimer;
+
+  bool _showValidationMessages = false;
+  bool _didInitializeForm = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    if (_didInitializeForm) {
+      return;
+    }
+
+    final viewModel = context.read<AtypicalSituationFormViewModel>();
+
+    _observationController.text = viewModel.initialObservation;
+
+    _didInitializeForm = true;
+  }
+
   @override
   void dispose() {
+    _validationMessageTimer?.cancel();
+
+    _scrollController.dispose();
     _observationController.dispose();
 
     super.dispose();
   }
 
+  void _showErrorsTemporarily() {
+    _validationMessageTimer?.cancel();
+
+    if (!_showValidationMessages) {
+      setState(() {
+        _showValidationMessages = true;
+      });
+    }
+
+    _validationMessageTimer = Timer(_validationMessageDuration, () {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _showValidationMessages = false;
+      });
+    });
+  }
+
   Future<void> _pickDate(AtypicalSituationFormViewModel viewModel) async {
     final selected = await showDatePicker(
       context: context,
-      initialDate: viewModel.selectedDate,
+      initialDate: viewModel.selectedDate ?? DateTime.now(),
       firstDate: DateTime(1900),
       lastDate: DateTime(2100),
       helpText: 'Seleccionar fecha',
@@ -75,6 +130,8 @@ class _AtypicalSituationFormContentState
   Future<void> _save(AtypicalSituationFormViewModel viewModel) async {
     FocusManager.instance.primaryFocus?.unfocus();
 
+    final isEditing = viewModel.isEditing;
+
     final success = await viewModel.save(
       observation: _observationController.text,
     );
@@ -84,52 +141,97 @@ class _AtypicalSituationFormContentState
     }
 
     if (!success) {
+      _showErrorsTemporarily();
+
+      if (viewModel.errorFor('date') != null) {
+        await _scrollToSection(_dateSectionKey, fallbackToEnd: false);
+
+        return;
+      }
+
       if (viewModel.errorFor('category') != null) {
-        _scrollToSection(_categorySectionKey);
+        await _scrollToSection(_categorySectionKey, fallbackToEnd: false);
 
         return;
       }
 
       if (viewModel.errorFor('observation') != null) {
-        _scrollToSection(_observationSectionKey);
+        await _scrollToSection(_observationSectionKey, fallbackToEnd: true);
 
         return;
       }
 
       if (viewModel.errorMessage != null) {
-        _scrollToSection(_generalErrorKey);
+        await _scrollToSection(_generalErrorKey, fallbackToEnd: true);
       }
 
       return;
     }
 
-    ScaffoldMessenger.of(context)
+    _validationMessageTimer?.cancel();
+
+    if (!isEditing) {
+      _observationController.clear();
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        const SnackBar(
-          content: Text('Situación guardada correctamente.'),
+        SnackBar(
+          content: Text(
+            isEditing
+                ? 'Registro de otra situación '
+                      'actualizado correctamente.'
+                : 'Situación guardada correctamente.',
+          ),
           behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
         ),
       );
 
-    Navigator.of(context).pop(true);
+    Navigator.of(context).pop(isEditing ? true : null);
   }
 
-  void _scrollToSection(GlobalKey key) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final sectionContext = key.currentContext;
+  Future<void> _scrollToSection(
+    GlobalKey key, {
+    required bool fallbackToEnd,
+  }) async {
+    var sectionContext = key.currentContext;
 
-      if (sectionContext == null || !sectionContext.mounted) {
+    if (sectionContext == null && _scrollController.hasClients) {
+      final position = fallbackToEnd
+          ? _scrollController.position.maxScrollExtent
+          : _scrollController.position.minScrollExtent;
+
+      await _scrollController.animateTo(
+        position,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutCubic,
+      );
+
+      if (!mounted) {
         return;
       }
 
-      Scrollable.ensureVisible(
+      await WidgetsBinding.instance.endOfFrame;
+
+      if (!mounted) {
+        return;
+      }
+
+      sectionContext = key.currentContext;
+    }
+
+    if (sectionContext != null && sectionContext.mounted) {
+      await Scrollable.ensureVisible(
         sectionContext,
-        duration: const Duration(milliseconds: 400),
+        duration: const Duration(milliseconds: 300),
         curve: Curves.easeOutCubic,
         alignment: 0.12,
       );
-    });
+    }
   }
 
   @override
@@ -137,11 +239,17 @@ class _AtypicalSituationFormContentState
     final viewModel = context.watch<AtypicalSituationFormViewModel>();
 
     final theme = Theme.of(context);
+
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
+      key: const Key('atypical-situation-form-view'),
       appBar: AppBar(
-        title: const Text('Registrar situación'),
+        title: Text(
+          viewModel.isEditing
+              ? 'Editar registro de otra situación'
+              : 'Registrar otra situación',
+        ),
         backgroundColor: theme.scaffoldBackgroundColor,
         foregroundColor: colorScheme.onSurface,
         elevation: 0,
@@ -151,31 +259,52 @@ class _AtypicalSituationFormContentState
       ),
       body: SafeArea(
         child: ListView(
+          controller: _scrollController,
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
           children: [
-            _IntroCard(colorScheme: colorScheme),
-
+            _IntroCard(
+              colorScheme: colorScheme,
+              isEditing: viewModel.isEditing,
+            ),
             const SizedBox(height: 20),
-
-            _SectionCard(
-              title: 'Cuándo ocurrió',
-              subtitle: 'Selecciona la fecha correspondiente.',
-              requiredField: true,
-              child: _DatePickerButton(
-                key: const Key('atypical-situation-date-picker'),
-                value: _formatDate(viewModel.selectedDate),
-                onPressed: viewModel.isSaving
-                    ? null
-                    : () => _pickDate(viewModel),
+            KeyedSubtree(
+              key: _dateSectionKey,
+              child: _SectionCard(
+                title: 'Cuándo ocurrió',
+                subtitle:
+                    'Selecciona la fecha correspondiente '
+                    'al acontecimiento.',
+                requiredField: true,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _PickerButton(
+                      key: const Key('atypical-situation-date-picker'),
+                      icon: Icons.calendar_today_outlined,
+                      label: 'Fecha',
+                      value: viewModel.selectedDate == null
+                          ? 'Sin seleccionar'
+                          : _formatDate(viewModel.selectedDate!),
+                      onPressed: viewModel.isSaving
+                          ? null
+                          : () {
+                              _pickDate(viewModel);
+                            },
+                    ),
+                    if (_showValidationMessages &&
+                        viewModel.errorFor('date') != null) ...[
+                      const SizedBox(height: 8),
+                      _FieldError(message: viewModel.errorFor('date')!),
+                    ],
+                  ],
+                ),
               ),
             ),
-
             const SizedBox(height: 16),
-
             KeyedSubtree(
               key: _categorySectionKey,
               child: _SectionCard(
-                title: '¿Qué ocurrió?',
+                title: 'Qué ocurrió',
                 subtitle:
                     'Selecciona la opción que mejor '
                     'describe la situación.',
@@ -190,7 +319,8 @@ class _AtypicalSituationFormContentState
                         for (final category in AtypicalSituationCategory.values)
                           ChoiceChip(
                             key: Key(
-                              'atypical-situation-category-${category.code}',
+                              'atypical-situation-category-'
+                              '${category.code}',
                             ),
                             selected: viewModel.selectedCategory == category,
                             showCheckmark: false,
@@ -203,24 +333,23 @@ class _AtypicalSituationFormContentState
                           ),
                       ],
                     ),
-
-                    if (viewModel.errorFor('category') != null) ...[
+                    if (_showValidationMessages &&
+                        viewModel.errorFor('category') != null) ...[
                       const SizedBox(height: 10),
-
                       _FieldError(message: viewModel.errorFor('category')!),
                     ],
                   ],
                 ),
               ),
             ),
-
             const SizedBox(height: 16),
-
             KeyedSubtree(
               key: _observationSectionKey,
               child: _SectionCard(
                 title: 'Descripción',
-                subtitle: 'Cuenta brevemente qué sucedió.',
+                subtitle: viewModel.isEditing
+                    ? 'Actualiza brevemente qué sucedió.'
+                    : 'Describe brevemente qué sucedió.',
                 requiredField: true,
                 child: TextField(
                   key: const Key('atypical-situation-observation-field'),
@@ -231,32 +360,33 @@ class _AtypicalSituationFormContentState
                   textCapitalization: TextCapitalization.sentences,
                   textInputAction: TextInputAction.newline,
                   decoration: InputDecoration(
-                    labelText: 'Describe lo ocurrido',
                     hintText:
                         'Ej. La actividad prevista '
                         'se realizó en un lugar diferente.',
-                    alignLabelWithHint: true,
+                    hintMaxLines: 2,
                     prefixIcon: const Icon(Icons.notes_outlined),
-                    errorText: viewModel.errorFor('observation'),
+                    errorText: _showValidationMessages
+                        ? viewModel.errorFor('observation')
+                        : null,
                   ),
                 ),
               ),
             ),
-
-            if (viewModel.errorMessage != null) ...[
+            if (_showValidationMessages && viewModel.errorMessage != null) ...[
               const SizedBox(height: 16),
-
               KeyedSubtree(
                 key: _generalErrorKey,
                 child: _GeneralErrorCard(message: viewModel.errorMessage!),
               ),
             ],
-
             const SizedBox(height: 24),
-
             FilledButton.icon(
               key: const Key('atypical-situation-save-button'),
-              onPressed: viewModel.isSaving ? null : () => _save(viewModel),
+              onPressed: viewModel.isSaving
+                  ? null
+                  : () {
+                      _save(viewModel);
+                    },
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(56),
                 shape: RoundedRectangleBorder(
@@ -272,20 +402,15 @@ class _AtypicalSituationFormContentState
                         color: colorScheme.onPrimary,
                       ),
                     )
-                  : const Icon(Icons.check_circle_outline),
+                  : const Icon(Icons.check_circle_outline_rounded),
               label: Text(
-                viewModel.isSaving ? 'Guardando...' : 'Guardar situación',
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            Text(
-              'Los campos marcados con * '
-              'son obligatorios.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
+                viewModel.isSaving
+                    ? viewModel.isEditing
+                          ? 'Guardando cambios...'
+                          : 'Guardando...'
+                    : viewModel.isEditing
+                    ? 'Guardar cambios'
+                    : 'Guardar situación',
               ),
             ),
           ],
@@ -317,9 +442,10 @@ class _AtypicalSituationFormContentState
 }
 
 class _IntroCard extends StatelessWidget {
-  const _IntroCard({required this.colorScheme});
+  const _IntroCard({required this.colorScheme, required this.isEditing});
 
   final ColorScheme colorScheme;
+  final bool isEditing;
 
   @override
   Widget build(BuildContext context) {
@@ -348,12 +474,12 @@ class _IntroCard extends StatelessWidget {
                   color: colorScheme.onPrimary,
                 ),
               ),
-
               const SizedBox(width: 14),
-
               Expanded(
                 child: Text(
-                  'Añade un acontecimiento',
+                  isEditing
+                      ? 'Actualizar registro de otra situación'
+                      : 'Registro de otra situación',
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -361,31 +487,28 @@ class _IntroCard extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(height: 14),
-
           Text(
-            'Utiliza este registro para una situación '
-            'relevante que no encaje en las demás opciones.',
+            isEditing
+                ? 'Actualiza la fecha, la categoría y '
+                      'la descripción del registro.'
+                : 'Utiliza este registro para una situación '
+                      'relevante que no encaje en las demás opciones.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: colorScheme.onSurfaceVariant,
               height: 1.4,
             ),
           ),
-
           const SizedBox(height: 12),
-
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.info_outline, size: 20, color: colorScheme.primary),
-
+              Icon(Icons.shield_outlined, size: 20, color: colorScheme.primary),
               const SizedBox(width: 8),
-
               Expanded(
                 child: Text(
                   'La información se guardará '
-                  'en el perfil activo.',
+                  'en el seguimiento actual.',
                   style: theme.textTheme.bodySmall,
                 ),
               ),
@@ -413,6 +536,7 @@ class _SectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     final colorScheme = theme.colorScheme;
 
     return Card(
@@ -422,24 +546,45 @@ class _SectionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              requiredField ? '$title *' : title,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                if (requiredField)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      'Obligatorio',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+              ],
             ),
-
-            const SizedBox(height: 4),
-
+            const SizedBox(height: 5),
             Text(
               subtitle,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
-
             const SizedBox(height: 16),
-
             child,
           ],
         ),
@@ -448,59 +593,68 @@ class _SectionCard extends StatelessWidget {
   }
 }
 
-class _DatePickerButton extends StatelessWidget {
-  const _DatePickerButton({
+class _PickerButton extends StatelessWidget {
+  const _PickerButton({
+    required this.icon,
+    required this.label,
     required this.value,
     required this.onPressed,
     super.key,
   });
 
+  final IconData icon;
+  final String label;
   final String value;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     final colorScheme = theme.colorScheme;
 
     return Material(
-      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.55),
-      borderRadius: BorderRadius.circular(14),
+      color: colorScheme.surfaceContainerLow.withValues(alpha: 0.72),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onPressed,
-        borderRadius: BorderRadius.circular(14),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 78),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: colorScheme.outlineVariant.withValues(alpha: 0.62),
+            ),
+          ),
           child: Row(
             children: [
-              Icon(Icons.calendar_today_outlined, color: colorScheme.primary),
-
-              const SizedBox(width: 12),
-
+              Icon(icon, size: 22, color: colorScheme.primary),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Fecha',
-                      style: theme.textTheme.bodySmall?.copyWith(
+                      label,
+                      style: theme.textTheme.labelMedium?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                       ),
                     ),
-
-                    const SizedBox(height: 2),
-
+                    const SizedBox(height: 3),
                     Text(
                       value,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
                 ),
               ),
-
-              Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant),
             ],
           ),
         ),
@@ -521,12 +675,14 @@ class _FieldError extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(Icons.error_outline, size: 18, color: colorScheme.error),
-
+        Icon(Icons.error_outline_rounded, size: 18, color: colorScheme.error),
         const SizedBox(width: 6),
-
         Expanded(
-          child: Text(message, style: TextStyle(color: colorScheme.error)),
+          child: Text(
+            message,
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: colorScheme.error),
+          ),
         ),
       ],
     );
@@ -540,25 +696,30 @@ class _GeneralErrorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+
+    final colorScheme = theme.colorScheme;
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: colorScheme.errorContainer,
+        color: colorScheme.errorContainer.withValues(alpha: 0.78),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.error_outline, color: colorScheme.onErrorContainer),
-
+          Icon(
+            Icons.error_outline_rounded,
+            color: colorScheme.onErrorContainer,
+          ),
           const SizedBox(width: 10),
-
           Expanded(
             child: Text(
               message,
-              style: TextStyle(color: colorScheme.onErrorContainer),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onErrorContainer,
+              ),
             ),
           ),
         ],

@@ -45,6 +45,42 @@ class SocialInteractionRecordFactory {
     );
   }
 
+  SocialInteractionRecord update({
+    required SocialInteractionRecord currentRecord,
+    required DateTime date,
+    required SocialInteractionCategory category,
+    String? context,
+    String? observation,
+    DateTime? updatedAt,
+  }) {
+    final normalizedAnonymousId = currentRecord.anonymousId.trim();
+
+    final normalizedContext = _normalizeOptionalText(context);
+
+    final normalizedObservation = _normalizeOptionalText(observation);
+
+    final errors = SocialInteractionRecordValidator.validate(
+      anonymousId: normalizedAnonymousId,
+    );
+
+    if (errors.isNotEmpty) {
+      throw SocialInteractionValidationFailure(errors);
+    }
+
+    final timestamp = (updatedAt ?? DateTime.now()).toUtc();
+
+    return SocialInteractionRecord(
+      recordId: currentRecord.recordId,
+      anonymousId: normalizedAnonymousId,
+      date: DateTime(date.year, date.month, date.day),
+      category: category,
+      context: normalizedContext,
+      observation: normalizedObservation,
+      createdAt: currentRecord.createdAt,
+      updatedAt: timestamp,
+    );
+  }
+
   String? _normalizeOptionalText(String? value) {
     if (value == null) {
       return null;

@@ -26,14 +26,14 @@ void main() {
 
       expect(find.text('Registrar conducta'), findsOneWidget);
 
-      expect(find.text('Conducta observada'), findsOneWidget);
+      expect(find.text('Registro de conducta'), findsOneWidget);
 
       expect(
-        find.text('La información se guardará en el perfil activo.'),
+        find.text('La información se guardará en el seguimiento actual.'),
         findsOneWidget,
       );
 
-      expect(find.textContaining('seguimiento anónimo'), findsNothing);
+      expect(find.textContaining('perfil activo'), findsNothing);
 
       expect(find.textContaining('identificador interno'), findsNothing);
 
@@ -45,13 +45,17 @@ void main() {
 
       expect(find.text('Cuándo ocurrió'), findsOneWidget);
 
+      expect(find.text('Obligatorio'), findsWidgets);
+
       await tester.scrollUntilVisible(
-        find.text('Qué observaste *'),
+        find.text('Qué observaste'),
         250,
         scrollable: scrollable,
       );
 
-      expect(find.text('Qué observaste *'), findsOneWidget);
+      expect(find.text('Qué observaste'), findsOneWidget);
+
+      expect(find.text('Qué observaste *'), findsNothing);
 
       await tester.scrollUntilVisible(
         find.text('Detalles del registro'),
@@ -68,6 +72,8 @@ void main() {
       );
 
       expect(find.text('Guardar conducta'), findsOneWidget);
+
+      expect(find.textContaining('campos marcados con *'), findsNothing);
     },
   );
 
@@ -104,6 +110,114 @@ void main() {
 
     expect(find.text(categoryError), findsOneWidget);
   });
+
+  testWidgets(
+    'permite seleccionar y deseleccionar una categoría sin mostrar check',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BehaviorFormView(
+            repository: _FakeBehaviorRepository(),
+            recordFactory: const BehaviorRecordFactory(
+              _FakeBehaviorRecordIdGenerator(),
+            ),
+            anonymousId: 'anonimo-1',
+          ),
+        ),
+      );
+
+      final scrollable = find.byType(Scrollable).first;
+
+      final category = find.byKey(
+        const Key('behavior-category-conducta_repetitiva'),
+      );
+
+      await tester.scrollUntilVisible(category, 250, scrollable: scrollable);
+
+      await tester.pumpAndSettle();
+
+      expect(category, findsOneWidget);
+
+      var chip = tester.widget<ChoiceChip>(category);
+
+      expect(chip.selected, isFalse);
+
+      expect(chip.showCheckmark, isFalse);
+
+      await tester.tap(category);
+
+      await tester.pump();
+
+      chip = tester.widget<ChoiceChip>(category);
+
+      expect(chip.selected, isTrue);
+
+      expect(chip.showCheckmark, isFalse);
+
+      await tester.tap(category);
+
+      await tester.pump();
+
+      chip = tester.widget<ChoiceChip>(category);
+
+      expect(chip.selected, isFalse);
+
+      expect(chip.showCheckmark, isFalse);
+    },
+  );
+
+  testWidgets(
+    'la intensidad puede seleccionarse y deseleccionarse sin mostrar check',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BehaviorFormView(
+            repository: _FakeBehaviorRepository(),
+            recordFactory: const BehaviorRecordFactory(
+              _FakeBehaviorRecordIdGenerator(),
+            ),
+            anonymousId: 'anonimo-1',
+          ),
+        ),
+      );
+
+      final scrollable = find.byType(Scrollable).first;
+
+      final intensity = find.byKey(const Key('behavior-intensity-media'));
+
+      await tester.scrollUntilVisible(intensity, 300, scrollable: scrollable);
+
+      await tester.pumpAndSettle();
+
+      expect(intensity, findsOneWidget);
+
+      var chip = tester.widget<FilterChip>(intensity);
+
+      expect(chip.selected, isFalse);
+
+      expect(chip.showCheckmark, isFalse);
+
+      await tester.tap(intensity);
+
+      await tester.pump();
+
+      chip = tester.widget<FilterChip>(intensity);
+
+      expect(chip.selected, isTrue);
+
+      expect(chip.showCheckmark, isFalse);
+
+      await tester.tap(intensity);
+
+      await tester.pump();
+
+      chip = tester.widget<FilterChip>(intensity);
+
+      expect(chip.selected, isFalse);
+
+      expect(chip.showCheckmark, isFalse);
+    },
+  );
 }
 
 class _FakeBehaviorRepository implements BehaviorRepository {

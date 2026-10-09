@@ -10,7 +10,6 @@ import 'package:sendaris/features/social_interaction/presentation/viewmodels/soc
 void main() {
   group('SocialInteractionFormViewModel', () {
     late _FakeSocialInteractionRepository repository;
-
     late SocialInteractionFormViewModel viewModel;
 
     setUp(() {
@@ -34,23 +33,63 @@ void main() {
       expect(viewModel.selectedDate, DateTime(2026, 9, 11));
     });
 
+    test('sin fecha inicial comienza sin fecha seleccionada', () {
+      final freshViewModel = SocialInteractionFormViewModel(
+        repository,
+        const SocialInteractionRecordFactory(
+          _FakeSocialInteractionRecordIdGenerator(),
+        ),
+        anonymousId: 'anonimo-2',
+      );
+
+      expect(freshViewModel.selectedDate, isNull);
+
+      freshViewModel.dispose();
+    });
+
     test('inicia sin una categoría seleccionada', () {
       expect(viewModel.selectedCategory, isNull);
     });
 
-    test('permite seleccionar una categoría general', () {
+    test('permite seleccionar y deseleccionar una categoría general', () {
       viewModel.setCategory(SocialInteractionCategory.socialExchange);
 
       expect(
         viewModel.selectedCategory,
         SocialInteractionCategory.socialExchange,
       );
+
+      viewModel.setCategory(SocialInteractionCategory.socialExchange);
+
+      expect(viewModel.selectedCategory, isNull);
     });
 
     test('permite actualizar la fecha', () {
       viewModel.setDate(DateTime(2026, 9, 12, 23, 30));
 
       expect(viewModel.selectedDate, DateTime(2026, 9, 12));
+    });
+
+    test('exige seleccionar una fecha antes de guardar', () async {
+      final freshViewModel = SocialInteractionFormViewModel(
+        repository,
+        const SocialInteractionRecordFactory(
+          _FakeSocialInteractionRecordIdGenerator(),
+        ),
+        anonymousId: 'anonimo-2',
+      );
+
+      freshViewModel.setCategory(SocialInteractionCategory.socialExchange);
+
+      final result = await freshViewModel.save(context: '', observation: '');
+
+      expect(result, false);
+
+      expect(freshViewModel.errorFor('date'), 'Selecciona una fecha.');
+
+      expect(repository.savedRecords, isEmpty);
+
+      freshViewModel.dispose();
     });
 
     test('exige seleccionar una categoría antes de guardar', () async {
@@ -94,6 +133,8 @@ void main() {
         viewModel.successMessage,
         'Registro de interacción social guardado correctamente.',
       );
+
+      expect(viewModel.selectedDate, isNull);
 
       expect(viewModel.selectedCategory, isNull);
     });
@@ -143,6 +184,28 @@ void main() {
         expect(viewModel.errorFor('category'), isNull);
       },
     );
+
+    test('elimina el error de fecha al seleccionar una fecha válida', () async {
+      final freshViewModel = SocialInteractionFormViewModel(
+        repository,
+        const SocialInteractionRecordFactory(
+          _FakeSocialInteractionRecordIdGenerator(),
+        ),
+        anonymousId: 'anonimo-2',
+      );
+
+      freshViewModel.setCategory(SocialInteractionCategory.sharedActivity);
+
+      await freshViewModel.save(context: '', observation: '');
+
+      expect(freshViewModel.errorFor('date'), isNotNull);
+
+      freshViewModel.setDate(DateTime(2026, 9, 21));
+
+      expect(freshViewModel.errorFor('date'), isNull);
+
+      freshViewModel.dispose();
+    });
 
     test('presenta un error controlado cuando falla el repositorio', () async {
       repository.failure = const SocialInteractionFailure(

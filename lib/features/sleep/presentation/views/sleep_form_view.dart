@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../domain/models/sleep_record.dart';
 import '../../domain/repositories/sleep_repository.dart';
 import '../../domain/services/sleep_record_factory.dart';
 import '../viewmodels/sleep_form_view_model.dart';
@@ -10,12 +13,14 @@ class SleepFormView extends StatelessWidget {
     required this.repository,
     required this.recordFactory,
     required this.anonymousId,
+    this.initialRecord,
     super.key,
   });
 
   final SleepRepository repository;
   final SleepRecordFactory recordFactory;
   final String anonymousId;
+  final SleepRecord? initialRecord;
 
   @override
   Widget build(BuildContext context) {
@@ -24,33 +29,79 @@ class SleepFormView extends StatelessWidget {
         repository,
         recordFactory,
         anonymousId: anonymousId,
+        initialRecord: initialRecord,
       ),
-      child: const _SleepFormContent(),
+      child: _SleepFormContent(
+        initialObservation: initialRecord?.observation ?? '',
+      ),
     );
   }
 }
 
 class _SleepFormContent extends StatefulWidget {
-  const _SleepFormContent();
+  const _SleepFormContent({required this.initialObservation});
+
+  final String initialObservation;
 
   @override
   State<_SleepFormContent> createState() => _SleepFormContentState();
 }
 
 class _SleepFormContentState extends State<_SleepFormContent> {
-  final TextEditingController _observationController = TextEditingController();
+  static const Duration _validationMessageDuration = Duration(seconds: 4);
+
+  final GlobalKey _dateSectionKey = GlobalKey();
+
+  final GlobalKey _scheduleSectionKey = GlobalKey();
+
+  late final TextEditingController _observationController;
+
+  Timer? _validationMessageTimer;
+
+  bool _showValidationMessages = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _observationController = TextEditingController(
+      text: widget.initialObservation,
+    );
+  }
 
   @override
   void dispose() {
+    _validationMessageTimer?.cancel();
+
     _observationController.dispose();
 
     super.dispose();
   }
 
+  void _showErrorsTemporarily() {
+    _validationMessageTimer?.cancel();
+
+    if (!_showValidationMessages) {
+      setState(() {
+        _showValidationMessages = true;
+      });
+    }
+
+    _validationMessageTimer = Timer(_validationMessageDuration, () {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _showValidationMessages = false;
+      });
+    });
+  }
+
   Future<void> _pickDate(SleepFormViewModel viewModel) async {
     final selected = await showDatePicker(
       context: context,
-      initialDate: viewModel.selectedDate,
+      initialDate: viewModel.selectedDate ?? DateTime.now(),
       firstDate: DateTime(1900),
       lastDate: DateTime(2100),
       helpText: 'Seleccionar fecha',
@@ -107,19 +158,60 @@ class _SleepFormContentState extends State<_SleepFormContent> {
     }
 
     if (!success) {
+      _showErrorsTemporarily();
+
+      BuildContext? targetContext;
+
+      if (viewModel.errorFor('date') != null) {
+        targetContext = _dateSectionKey.currentContext;
+      } else if (viewModel.errorFor('startTime') != null ||
+          viewModel.errorFor('endTime') != null) {
+        targetContext = _scheduleSectionKey.currentContext;
+      }
+
+      if (targetContext != null && targetContext.mounted) {
+        await Scrollable.ensureVisible(
+          targetContext,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOutCubic,
+          alignment: 0.15,
+        );
+      }
+
       return;
     }
 
-    _observationController.clear();
+    _validationMessageTimer?.cancel();
 
-    ScaffoldMessenger.of(context)
+    if (!viewModel.isEditing) {
+      _observationController.clear();
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    final successMessage =
+        viewModel.successMessage ??
+        (viewModel.isEditing
+            ? 'Registro de sueño actualizado correctamente.'
+            : 'Registro de sueño guardado correctamente.');
+
+    messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        const SnackBar(
-          content: Text('Registro de sueño guardado correctamente.'),
+        SnackBar(
+          content: Text(successMessage),
           behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
         ),
       );
+
+    if (viewModel.isEditing) {
+      Navigator.of(context).pop(true);
+
+      return;
+    }
+
+    Navigator.of(context).pop();
   }
 
   @override
@@ -127,11 +219,15 @@ class _SleepFormContentState extends State<_SleepFormContent> {
     final viewModel = context.watch<SleepFormViewModel>();
 
     final theme = Theme.of(context);
+
     final colorScheme = theme.colorScheme;
 
+    final isEditing = viewModel.isEditing;
+
     return Scaffold(
+      key: Key(isEditing ? 'sleep-edit-view' : 'sleep-create-view'),
       appBar: AppBar(
-        title: const Text('Registrar sueño'),
+        title: Text(isEditing ? 'Editar registro de sueño' : 'Registrar sueño'),
         backgroundColor: theme.scaffoldBackgroundColor,
         foregroundColor: colorScheme.onSurface,
         elevation: 0,
@@ -143,121 +239,131 @@ class _SleepFormContentState extends State<_SleepFormContent> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
           children: [
-            _IntroCard(colorScheme: colorScheme),
-
+            _IntroCard(colorScheme: colorScheme, isEditing: isEditing),
             const SizedBox(height: 20),
-
-            _SectionCard(
-              title: 'Cuándo ocurrió',
-              subtitle:
-                  'Selecciona la fecha correspondiente '
-                  'al inicio del periodo de sueño.',
-              requiredField: true,
-              child: _PickerButton(
-                key: const Key('sleep-date-picker'),
-                icon: Icons.calendar_today_outlined,
-                label: 'Fecha',
-                value: _formatDate(viewModel.selectedDate),
-                onPressed: viewModel.isSaving
-                    ? null
-                    : () => _pickDate(viewModel),
+            KeyedSubtree(
+              key: _dateSectionKey,
+              child: _SectionCard(
+                title: 'Cuándo ocurrió',
+                subtitle:
+                    'Selecciona la fecha correspondiente '
+                    'al inicio del periodo de sueño.',
+                requiredField: true,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _PickerButton(
+                      key: const Key('sleep-date-picker'),
+                      icon: Icons.calendar_today_outlined,
+                      label: 'Fecha',
+                      value: viewModel.selectedDate == null
+                          ? 'Sin seleccionar'
+                          : _formatDate(viewModel.selectedDate!),
+                      onPressed: viewModel.isSaving
+                          ? null
+                          : () {
+                              _pickDate(viewModel);
+                            },
+                    ),
+                    if (_showValidationMessages &&
+                        viewModel.errorFor('date') != null) ...[
+                      const SizedBox(height: 8),
+                      _FieldError(message: viewModel.errorFor('date')!),
+                    ],
+                  ],
+                ),
               ),
             ),
-
             const SizedBox(height: 16),
-
-            _SectionCard(
-              title: 'Horario',
-              subtitle:
-                  'Selecciona la hora de inicio y '
-                  'la hora de finalización.',
-              requiredField: true,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: _PickerButton(
-                          key: const Key('sleep-start-time-picker'),
-                          icon: Icons.nightlight_outlined,
-                          label: 'Inicio',
-                          value: viewModel.startTime ?? 'Seleccionar',
-                          onPressed: viewModel.isSaving
-                              ? null
-                              : () => _pickStartTime(viewModel),
-                        ),
-                      ),
-
-                      const SizedBox(width: 12),
-
-                      Expanded(
-                        child: _PickerButton(
-                          key: const Key('sleep-end-time-picker'),
-                          icon: Icons.wb_twilight_outlined,
-                          label: 'Finalización',
-                          value: viewModel.endTime ?? 'Seleccionar',
-                          onPressed: viewModel.isSaving
-                              ? null
-                              : () => _pickEndTime(viewModel),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  if (viewModel.errorFor('startTime') != null) ...[
-                    const SizedBox(height: 8),
-                    _FieldError(message: viewModel.errorFor('startTime')!),
-                  ],
-
-                  if (viewModel.errorFor('endTime') != null) ...[
-                    const SizedBox(height: 8),
-                    _FieldError(message: viewModel.errorFor('endTime')!),
-                  ],
-
-                  const SizedBox(height: 16),
-
-                  _DurationSummary(
-                    duration: viewModel.formattedDuration,
-                    hasStartTime: viewModel.startTime != null,
-                    hasEndTime: viewModel.endTime != null,
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(
-                        Icons.info_outline_rounded,
-                        size: 18,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-
-                      const SizedBox(width: 8),
-
-                      Expanded(
-                        child: Text(
-                          'Si la hora de finalización '
-                          'es anterior a la hora de inicio, '
-                          'se considera que el periodo '
-                          'terminó al día siguiente.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
+            KeyedSubtree(
+              key: _scheduleSectionKey,
+              child: _SectionCard(
+                title: 'Horario',
+                subtitle:
+                    'Selecciona la hora de inicio '
+                    'y la hora de finalización.',
+                requiredField: true,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _PickerButton(
+                            key: const Key('sleep-start-time-picker'),
+                            icon: Icons.nightlight_outlined,
+                            label: 'Hora de inicio',
+                            value: viewModel.startTime ?? 'Sin seleccionar',
+                            onPressed: viewModel.isSaving
+                                ? null
+                                : () {
+                                    _pickStartTime(viewModel);
+                                  },
                           ),
                         ),
-                      ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _PickerButton(
+                            key: const Key('sleep-end-time-picker'),
+                            icon: Icons.wb_twilight_outlined,
+                            label: 'Hora final',
+                            value: viewModel.endTime ?? 'Sin seleccionar',
+                            onPressed: viewModel.isSaving
+                                ? null
+                                : () {
+                                    _pickEndTime(viewModel);
+                                  },
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_showValidationMessages &&
+                        viewModel.errorFor('startTime') != null) ...[
+                      const SizedBox(height: 8),
+                      _FieldError(message: viewModel.errorFor('startTime')!),
                     ],
-                  ),
-                ],
+                    if (_showValidationMessages &&
+                        viewModel.errorFor('endTime') != null) ...[
+                      const SizedBox(height: 8),
+                      _FieldError(message: viewModel.errorFor('endTime')!),
+                    ],
+                    const SizedBox(height: 16),
+                    _DurationSummary(
+                      duration: viewModel.formattedDuration,
+                      hasStartTime: viewModel.startTime != null,
+                      hasEndTime: viewModel.endTime != null,
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.info_outline_rounded,
+                          size: 18,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Si la hora de finalización '
+                            'es anterior a la hora de inicio, '
+                            'se considera que el periodo '
+                            'terminó al día siguiente.',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-
             const SizedBox(height: 16),
-
             _SectionCard(
-              title: 'Observación',
+              title: 'Observación (opcional)',
               subtitle:
                   'Añade información descriptiva '
                   'solo si es necesaria.',
@@ -275,18 +381,18 @@ class _SleepFormContentState extends State<_SleepFormContent> {
                 ),
               ),
             ),
-
-            if (viewModel.errorMessage != null) ...[
+            if (_showValidationMessages && viewModel.errorMessage != null) ...[
               const SizedBox(height: 16),
-
               _GeneralErrorCard(message: viewModel.errorMessage!),
             ],
-
             const SizedBox(height: 24),
-
             FilledButton.icon(
               key: const Key('sleep-save-button'),
-              onPressed: viewModel.isSaving ? null : () => _save(viewModel),
+              onPressed: viewModel.isSaving
+                  ? null
+                  : () {
+                      _save(viewModel);
+                    },
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(56),
                 shape: RoundedRectangleBorder(
@@ -304,18 +410,13 @@ class _SleepFormContentState extends State<_SleepFormContent> {
                     )
                   : const Icon(Icons.check_circle_outline_rounded),
               label: Text(
-                viewModel.isSaving ? 'Guardando...' : 'Guardar sueño',
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            Text(
-              'Los campos marcados con * '
-              'son obligatorios.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
+                viewModel.isSaving
+                    ? isEditing
+                          ? 'Guardando cambios...'
+                          : 'Guardando...'
+                    : isEditing
+                    ? 'Guardar cambios'
+                    : 'Guardar sueño',
               ),
             ),
           ],
@@ -369,9 +470,10 @@ class _SleepFormContentState extends State<_SleepFormContent> {
 }
 
 class _IntroCard extends StatelessWidget {
-  const _IntroCard({required this.colorScheme});
+  const _IntroCard({required this.colorScheme, required this.isEditing});
 
   final ColorScheme colorScheme;
+  final bool isEditing;
 
   @override
   Widget build(BuildContext context) {
@@ -400,12 +502,17 @@ class _IntroCard extends StatelessWidget {
                   color: colorScheme.onPrimary,
                 ),
               ),
-
               const SizedBox(width: 14),
-
               Expanded(
                 child: Text(
-                  'Periodo de sueño',
+                  isEditing
+                      ? 'Actualizar registro de sueño'
+                      : 'Registro de sueño',
+                  key: Key(
+                    isEditing
+                        ? 'sleep-edit-intro-title'
+                        : 'sleep-create-intro-title',
+                  ),
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -413,27 +520,24 @@ class _IntroCard extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(height: 14),
-
           Text(
-            'Registra la fecha y el horario '
-            'correspondiente al periodo de sueño.',
+            isEditing
+                ? 'Revisa y modifica únicamente la '
+                      'información necesaria del registro.'
+                : 'Registra la fecha y el horario '
+                      'correspondiente al periodo de sueño.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: colorScheme.onSurfaceVariant,
               height: 1.4,
             ),
           ),
-
           const SizedBox(height: 14),
-
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(Icons.shield_outlined, size: 20, color: colorScheme.primary),
-
               const SizedBox(width: 8),
-
               Expanded(
                 child: Text(
                   'Sendaris calcula únicamente '
@@ -468,6 +572,7 @@ class _SectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     final colorScheme = theme.colorScheme;
 
     return Card(
@@ -488,7 +593,6 @@ class _SectionCard extends StatelessWidget {
                     ),
                   ),
                 ),
-
                 if (requiredField)
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -509,18 +613,14 @@ class _SectionCard extends StatelessWidget {
                   ),
               ],
             ),
-
             const SizedBox(height: 5),
-
             Text(
               subtitle,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
-
             const SizedBox(height: 16),
-
             child,
           ],
         ),
@@ -546,6 +646,7 @@ class _PickerButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     final colorScheme = theme.colorScheme;
 
     return Material(
@@ -566,9 +667,7 @@ class _PickerButton extends StatelessWidget {
           child: Row(
             children: [
               Icon(icon, size: 22, color: colorScheme.primary),
-
               const SizedBox(width: 10),
-
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -580,9 +679,7 @@ class _PickerButton extends StatelessWidget {
                         color: colorScheme.onSurfaceVariant,
                       ),
                     ),
-
                     const SizedBox(height: 3),
-
                     Text(
                       value,
                       maxLines: 1,
@@ -616,6 +713,7 @@ class _DurationSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     final colorScheme = theme.colorScheme;
 
     final hasCompleteSchedule = hasStartTime && hasEndTime;
@@ -668,9 +766,7 @@ class _DurationSummary extends StatelessWidget {
                   : colorScheme.onSurfaceVariant,
             ),
           ),
-
           const SizedBox(width: 13),
-
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -682,9 +778,7 @@ class _DurationSummary extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-
                 const SizedBox(height: 2),
-
                 Text(
                   value,
                   style: theme.textTheme.titleLarge?.copyWith(
@@ -694,9 +788,7 @@ class _DurationSummary extends StatelessWidget {
                         : colorScheme.onSurface,
                   ),
                 ),
-
                 const SizedBox(height: 2),
-
                 Text(
                   description,
                   style: theme.textTheme.bodySmall?.copyWith(
@@ -725,9 +817,7 @@ class _FieldError extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(Icons.error_outline_rounded, size: 18, color: colorScheme.error),
-
         const SizedBox(width: 6),
-
         Expanded(
           child: Text(
             message,
@@ -748,6 +838,7 @@ class _GeneralErrorCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     final colorScheme = theme.colorScheme;
 
     return Container(
@@ -763,9 +854,7 @@ class _GeneralErrorCard extends StatelessWidget {
             Icons.error_outline_rounded,
             color: colorScheme.onErrorContainer,
           ),
-
           const SizedBox(width: 10),
-
           Expanded(
             child: Text(
               message,

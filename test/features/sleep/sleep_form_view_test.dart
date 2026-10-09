@@ -21,11 +21,13 @@ void main() {
 
       expect(find.text('Registrar sueño'), findsOneWidget);
 
-      expect(find.text('Periodo de sueño'), findsOneWidget);
+      expect(find.text('Registro de sueño'), findsOneWidget);
 
       expect(find.text('Cuándo ocurrió'), findsOneWidget);
 
       expect(find.text('Horario'), findsOneWidget);
+
+      expect(find.text('Obligatorio'), findsWidgets);
 
       expect(find.text('Duración calculada'), findsOneWidget);
 
@@ -34,6 +36,8 @@ void main() {
       expect(find.textContaining('calidad del sueño'), findsNothing);
 
       expect(find.textContaining('recomendación'), findsNothing);
+
+      expect(find.textContaining('*'), findsNothing);
 
       final observationField = find.byKey(const Key('sleep-observation-field'));
 
@@ -47,7 +51,7 @@ void main() {
 
       expect(observationField, findsOneWidget);
 
-      expect(find.text('Observación'), findsOneWidget);
+      expect(find.text('Observación (opcional)'), findsOneWidget);
 
       final saveButton = find.byKey(const Key('sleep-save-button'));
 
@@ -129,6 +133,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(observation, findsOneWidget);
+
+      expect(find.text('Observación (opcional)'), findsOneWidget);
 
       expect(
         find.text('Añade información descriptiva solo si es necesaria.'),

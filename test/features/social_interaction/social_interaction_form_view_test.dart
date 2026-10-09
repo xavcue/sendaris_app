@@ -15,83 +15,145 @@ void main() {
       repository = _FakeSocialInteractionRepository();
     });
 
-    testWidgets(
-      'muestra únicamente información descriptiva de interacción social',
-      (tester) async {
-        await _pumpView(tester, repository);
-
-        expect(find.text('Registrar interacción social'), findsOneWidget);
-
-        expect(find.text('Registro de interacción social'), findsOneWidget);
-
-        expect(find.text('Cuándo ocurrió'), findsOneWidget);
-
-        expect(find.text('Categoría de interacción'), findsOneWidget);
-
-        expect(
-          find.textContaining('no evalúa habilidades sociales'),
-          findsOneWidget,
-        );
-
-        expect(find.textContaining('puntuaciones clínicas'), findsOneWidget);
-
-        expect(find.textContaining('nivel social'), findsNothing);
-
-        expect(find.textContaining('severidad'), findsNothing);
-
-        expect(find.textContaining('diagnóstico'), findsNothing);
-      },
-    );
-
-    testWidgets('muestra las cinco categorías generales definidas', (
+    testWidgets('muestra información descriptiva y fecha sin seleccionar', (
       tester,
     ) async {
       await _pumpView(tester, repository);
 
-      expect(find.text('Inicio de interacción'), findsOneWidget);
+      expect(find.text('Registrar interacción social'), findsOneWidget);
 
-      expect(find.text('Respuesta a interacción'), findsOneWidget);
+      expect(find.text('Registro de interacción social'), findsOneWidget);
 
-      expect(find.text('Intercambio social'), findsOneWidget);
+      expect(find.text('Cuándo ocurrió'), findsOneWidget);
 
-      expect(find.text('Actividad compartida'), findsOneWidget);
+      expect(find.text('Categoría de interacción'), findsOneWidget);
 
-      expect(find.text('Otro'), findsOneWidget);
-    });
+      expect(find.text('Sin seleccionar'), findsOneWidget);
 
-    testWidgets('valida la categoría obligatoria antes de guardar', (
-      tester,
-    ) async {
-      await _pumpView(tester, repository);
-
-      final saveButton = find.byKey(
-        const Key('social-interaction-save-button'),
-      );
-
-      await tester.scrollUntilVisible(
-        saveButton,
-        300,
-        scrollable: find.byType(Scrollable).first,
-      );
-
-      await tester.pumpAndSettle();
-
-      await tester.tap(saveButton);
-
-      await tester.pump();
+      expect(find.text('Obligatorio'), findsNWidgets(2));
 
       expect(
-        find.text('Selecciona una categoría de interacción social.'),
+        find.textContaining('no evalúa habilidades sociales'),
         findsOneWidget,
       );
 
-      expect(repository.savedRecords, isEmpty);
+      expect(find.textContaining('puntuaciones clínicas'), findsOneWidget);
+
+      expect(find.textContaining('nivel social'), findsNothing);
+
+      expect(find.textContaining('severidad'), findsNothing);
+
+      expect(find.textContaining('diagnóstico'), findsNothing);
     });
+
+    testWidgets(
+      'muestra las cinco categorías sin checks y permite deseleccionarlas',
+      (tester) async {
+        await _pumpView(tester, repository);
+
+        final scrollable = find.byType(Scrollable).first;
+
+        expect(find.text('Inicio de interacción'), findsOneWidget);
+
+        expect(find.text('Respuesta a interacción'), findsOneWidget);
+
+        expect(find.text('Intercambio social'), findsOneWidget);
+
+        expect(find.text('Actividad compartida'), findsOneWidget);
+
+        expect(find.text('Otro'), findsOneWidget);
+
+        final chip = find.byKey(
+          const Key('social-interaction-category-intercambio_social'),
+        );
+
+        await tester.scrollUntilVisible(chip, 250, scrollable: scrollable);
+
+        await tester.pump();
+
+        expect(chip, findsOneWidget);
+
+        var widget = tester.widget<ChoiceChip>(chip);
+
+        expect(widget.selected, isFalse);
+
+        expect(widget.showCheckmark, isFalse);
+
+        await tester.tap(chip);
+
+        await tester.pump();
+
+        widget = tester.widget<ChoiceChip>(chip);
+
+        expect(widget.selected, isTrue);
+
+        expect(widget.showCheckmark, isFalse);
+
+        await tester.tap(chip);
+
+        await tester.pump();
+
+        widget = tester.widget<ChoiceChip>(chip);
+
+        expect(widget.selected, isFalse);
+
+        expect(widget.showCheckmark, isFalse);
+      },
+    );
+
+    testWidgets(
+      'muestra errores obligatorios y los oculta después de unos segundos',
+      (tester) async {
+        await _pumpView(tester, repository);
+
+        final scrollable = find.byType(Scrollable).first;
+
+        final saveButton = find.byKey(
+          const Key('social-interaction-save-button'),
+        );
+
+        await tester.scrollUntilVisible(
+          saveButton,
+          300,
+          scrollable: scrollable,
+        );
+
+        await tester.pump();
+
+        await tester.tap(saveButton);
+
+        await tester.pump();
+
+        await tester.pump(const Duration(milliseconds: 400));
+
+        expect(find.text('Selecciona una fecha.'), findsOneWidget);
+
+        expect(
+          find.text('Selecciona una categoría de interacción social.'),
+          findsOneWidget,
+        );
+
+        expect(repository.savedRecords, isEmpty);
+
+        await tester.pump(const Duration(seconds: 5));
+
+        await tester.pump();
+
+        expect(find.text('Selecciona una fecha.'), findsNothing);
+
+        expect(
+          find.text('Selecciona una categoría de interacción social.'),
+          findsNothing,
+        );
+      },
+    );
 
     testWidgets('contexto y observación se presentan como datos opcionales', (
       tester,
     ) async {
       await _pumpView(tester, repository);
+
+      final scrollable = find.byType(Scrollable).first;
 
       final contextField = find.byKey(
         const Key('social-interaction-context-field'),
@@ -100,14 +162,14 @@ void main() {
       await tester.scrollUntilVisible(
         contextField,
         300,
-        scrollable: find.byType(Scrollable).first,
+        scrollable: scrollable,
       );
 
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(contextField, findsOneWidget);
 
-      expect(find.text('Contexto general'), findsOneWidget);
+      expect(find.text('Contexto general (opcional)'), findsOneWidget);
 
       expect(
         find.text(
@@ -123,163 +185,116 @@ void main() {
       await tester.scrollUntilVisible(
         observationField,
         300,
-        scrollable: find.byType(Scrollable).first,
+        scrollable: scrollable,
       );
 
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(observationField, findsOneWidget);
 
-      expect(find.text('Observación'), findsOneWidget);
-
-      expect(
-        find.text(
-          'Añade información descriptiva complementaria solo si es necesaria.',
-        ),
-        findsOneWidget,
-      );
+      expect(find.text('Observación (opcional)'), findsOneWidget);
     });
 
-    testWidgets(
-      'guarda una categoría válida con contexto y observación descriptivos',
-      (tester) async {
-        await _pumpView(tester, repository);
-
-        final categoryChip = find.byKey(
-          const Key('social-interaction-category-intercambio_social'),
-        );
-
-        expect(categoryChip, findsOneWidget);
-
-        await tester.scrollUntilVisible(
-          categoryChip,
-          300,
-          scrollable: find.byType(Scrollable).first,
-        );
-
-        await tester.pumpAndSettle();
-
-        await tester.tap(categoryChip);
-
-        await tester.pump();
-
-        final contextField = find.byKey(
-          const Key('social-interaction-context-field'),
-        );
-
-        await tester.scrollUntilVisible(
-          contextField,
-          300,
-          scrollable: find.byType(Scrollable).first,
-        );
-
-        await tester.pumpAndSettle();
-
-        await tester.enterText(
-          contextField,
-          'Durante una actividad cotidiana.',
-        );
-
-        final observationField = find.byKey(
-          const Key('social-interaction-observation-field'),
-        );
-
-        await tester.scrollUntilVisible(
-          observationField,
-          300,
-          scrollable: find.byType(Scrollable).first,
-        );
-
-        await tester.pumpAndSettle();
-
-        await tester.enterText(
-          observationField,
-          'Registro ficticio descriptivo.',
-        );
-
-        final saveButton = find.byKey(
-          const Key('social-interaction-save-button'),
-        );
-
-        await tester.scrollUntilVisible(
-          saveButton,
-          300,
-          scrollable: find.byType(Scrollable).first,
-        );
-
-        await tester.pumpAndSettle();
-
-        await tester.tap(saveButton);
-
-        await tester.pumpAndSettle();
-
-        expect(repository.savedRecords, hasLength(1));
-
-        final record = repository.savedRecords.single;
-
-        expect(record.category, SocialInteractionCategory.socialExchange);
-
-        expect(record.context, 'Durante una actividad cotidiana.');
-
-        expect(record.observation, 'Registro ficticio descriptivo.');
-
-        expect(
-          find.text('Registro de interacción social guardado correctamente.'),
-          findsOneWidget,
-        );
-
-        expect(find.text('Durante una actividad cotidiana.'), findsNothing);
-
-        expect(find.text('Registro ficticio descriptivo.'), findsNothing);
-      },
-    );
-
-    testWidgets('permite guardar sin contexto ni observación', (tester) async {
+    testWidgets('guarda correctamente y regresa a Registrar', (tester) async {
       await _pumpView(tester, repository);
 
-      final categoryChip = find.byKey(
-        const Key('social-interaction-category-actividad_compartida'),
+      final scrollable = find.byType(Scrollable).first;
+
+      final datePicker = find.byKey(
+        const Key('social-interaction-date-picker'),
       );
 
-      expect(categoryChip, findsOneWidget);
+      await tester.tap(datePicker);
+
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(TextButton, 'Seleccionar').last);
+
+      await tester.pumpAndSettle();
+
+      final categoryChip = find.byKey(
+        const Key('social-interaction-category-intercambio_social'),
+      );
 
       await tester.scrollUntilVisible(
         categoryChip,
-        300,
-        scrollable: find.byType(Scrollable).first,
+        250,
+        scrollable: scrollable,
       );
 
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       await tester.tap(categoryChip);
 
       await tester.pump();
 
+      final selectedChip = tester.widget<ChoiceChip>(categoryChip);
+
+      expect(selectedChip.selected, isTrue);
+
+      expect(selectedChip.showCheckmark, isFalse);
+
+      final contextField = find.byKey(
+        const Key('social-interaction-context-field'),
+      );
+
+      await tester.scrollUntilVisible(
+        contextField,
+        300,
+        scrollable: scrollable,
+      );
+
+      await tester.pump();
+
+      await tester.enterText(contextField, 'Durante una actividad cotidiana.');
+
+      final observationField = find.byKey(
+        const Key('social-interaction-observation-field'),
+      );
+
+      await tester.scrollUntilVisible(
+        observationField,
+        300,
+        scrollable: scrollable,
+      );
+
+      await tester.pump();
+
+      await tester.enterText(
+        observationField,
+        'Registro ficticio descriptivo.',
+      );
+
       final saveButton = find.byKey(
         const Key('social-interaction-save-button'),
       );
 
-      await tester.scrollUntilVisible(
-        saveButton,
-        300,
-        scrollable: find.byType(Scrollable).first,
-      );
+      await tester.scrollUntilVisible(saveButton, 300, scrollable: scrollable);
 
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       await tester.tap(saveButton);
 
-      await tester.pumpAndSettle();
+      await tester.pump();
+
+      await tester.pump(const Duration(milliseconds: 500));
 
       expect(repository.savedRecords, hasLength(1));
 
       final record = repository.savedRecords.single;
 
-      expect(record.category, SocialInteractionCategory.sharedActivity);
+      expect(record.category, SocialInteractionCategory.socialExchange);
 
-      expect(record.context, isNull);
+      expect(record.context, 'Durante una actividad cotidiana.');
 
-      expect(record.observation, isNull);
+      expect(record.observation, 'Registro ficticio descriptivo.');
+
+      expect(find.text('Destino Registrar'), findsOneWidget);
+
+      expect(
+        find.text('Registro de interacción social guardado correctamente.'),
+        findsOneWidget,
+      );
     });
   });
 }
@@ -290,15 +305,35 @@ Future<void> _pumpView(
 ) async {
   await tester.pumpWidget(
     MaterialApp(
-      home: SocialInteractionFormView(
-        repository: repository,
-        recordFactory: const SocialInteractionRecordFactory(
-          _FakeSocialInteractionRecordIdGenerator(),
-        ),
-        anonymousId: 'anonimo-test',
+      home: Builder(
+        builder: (context) {
+          return Scaffold(
+            body: Center(
+              child: FilledButton(
+                key: const Key('open-social-interaction-form'),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => SocialInteractionFormView(
+                        repository: repository,
+                        recordFactory: const SocialInteractionRecordFactory(
+                          _FakeSocialInteractionRecordIdGenerator(),
+                        ),
+                        anonymousId: 'anonimo-test',
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('Destino Registrar'),
+              ),
+            ),
+          );
+        },
       ),
     ),
   );
+
+  await tester.tap(find.byKey(const Key('open-social-interaction-form')));
 
   await tester.pumpAndSettle();
 }

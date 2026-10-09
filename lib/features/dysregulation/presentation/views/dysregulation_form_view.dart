@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../domain/models/dysregulation_intensity.dart';
+import '../../domain/models/dysregulation_record.dart';
 import '../../domain/repositories/dysregulation_repository.dart';
 import '../../domain/services/dysregulation_record_factory.dart';
 import '../viewmodels/dysregulation_form_view_model.dart';
@@ -11,12 +14,14 @@ class DysregulationFormView extends StatelessWidget {
     required this.repository,
     required this.recordFactory,
     required this.anonymousId,
+    this.initialRecord,
     super.key,
   });
 
   final DysregulationRepository repository;
   final DysregulationRecordFactory recordFactory;
   final String anonymousId;
+  final DysregulationRecord? initialRecord;
 
   @override
   Widget build(BuildContext context) {
@@ -25,6 +30,7 @@ class DysregulationFormView extends StatelessWidget {
         repository,
         recordFactory,
         anonymousId: anonymousId,
+        initialRecord: initialRecord,
       ),
       child: const _DysregulationFormContent(),
     );
@@ -40,7 +46,11 @@ class _DysregulationFormContent extends StatefulWidget {
 }
 
 class _DysregulationFormContentState extends State<_DysregulationFormContent> {
+  static const Duration _validationMessageDuration = Duration(seconds: 4);
+
   final ScrollController _scrollController = ScrollController();
+
+  final GlobalKey _dateSectionKey = GlobalKey();
 
   final GlobalKey _durationFieldAnchorKey = GlobalKey();
 
@@ -52,8 +62,35 @@ class _DysregulationFormContentState extends State<_DysregulationFormContent> {
 
   final TextEditingController _observationController = TextEditingController();
 
+  Timer? _validationMessageTimer;
+
+  bool _showValidationMessages = false;
+
+  bool _didInitializeForm = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    if (_didInitializeForm) {
+      return;
+    }
+
+    final viewModel = context.read<DysregulationFormViewModel>();
+
+    _durationController.text = viewModel.initialDurationText;
+
+    _contextController.text = viewModel.initialContext;
+
+    _observationController.text = viewModel.initialObservation;
+
+    _didInitializeForm = true;
+  }
+
   @override
   void dispose() {
+    _validationMessageTimer?.cancel();
+
     _scrollController.dispose();
     _durationFocusNode.dispose();
 
@@ -64,10 +101,30 @@ class _DysregulationFormContentState extends State<_DysregulationFormContent> {
     super.dispose();
   }
 
+  void _showErrorsTemporarily() {
+    _validationMessageTimer?.cancel();
+
+    if (!_showValidationMessages) {
+      setState(() {
+        _showValidationMessages = true;
+      });
+    }
+
+    _validationMessageTimer = Timer(_validationMessageDuration, () {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _showValidationMessages = false;
+      });
+    });
+  }
+
   Future<void> _pickDate(DysregulationFormViewModel viewModel) async {
     final selected = await showDatePicker(
       context: context,
-      initialDate: viewModel.selectedDate,
+      initialDate: viewModel.selectedDate ?? DateTime.now(),
       firstDate: DateTime(1900),
       lastDate: DateTime(2100),
       helpText: 'Seleccionar fecha',
@@ -99,6 +156,8 @@ class _DysregulationFormContentState extends State<_DysregulationFormContent> {
   Future<void> _save(DysregulationFormViewModel viewModel) async {
     FocusManager.instance.primaryFocus?.unfocus();
 
+    final isEditing = viewModel.isEditing;
+
     final success = await viewModel.save(
       durationText: _durationController.text,
       context: _contextController.text,
@@ -110,30 +169,76 @@ class _DysregulationFormContentState extends State<_DysregulationFormContent> {
     }
 
     if (!success) {
-      await _showFirstValidationError(viewModel);
+      _showErrorsTemporarily();
+
+      if (viewModel.errorFor('date') != null) {
+        await _bringDateErrorIntoView();
+
+        return;
+      }
+
+      if (viewModel.errorFor('durationMinutes') != null) {
+        await _bringDurationErrorIntoView();
+      }
 
       return;
     }
 
-    _durationController.clear();
-    _contextController.clear();
-    _observationController.clear();
+    _validationMessageTimer?.cancel();
 
-    ScaffoldMessenger.of(context)
+    if (!isEditing) {
+      _durationController.clear();
+      _contextController.clear();
+      _observationController.clear();
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        const SnackBar(
-          content: Text('Episodio de desregulación guardado correctamente.'),
+        SnackBar(
+          content: Text(
+            isEditing
+                ? 'Registro de desregulación actualizado correctamente.'
+                : 'Episodio de desregulación guardado correctamente.',
+          ),
           behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
         ),
       );
+
+    Navigator.of(context).pop(isEditing ? true : null);
   }
 
-  Future<void> _showFirstValidationError(
-    DysregulationFormViewModel viewModel,
-  ) async {
-    if (viewModel.errorFor('durationMinutes') != null) {
-      await _bringDurationErrorIntoView();
+  Future<void> _bringDateErrorIntoView() async {
+    if (_scrollController.hasClients) {
+      await _scrollController.animateTo(
+        _scrollController.position.minScrollExtent,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutCubic,
+      );
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    await WidgetsBinding.instance.endOfFrame;
+
+    if (!mounted) {
+      return;
+    }
+
+    final target = _dateSectionKey.currentContext;
+
+    if (target != null && target.mounted) {
+      await Scrollable.ensureVisible(
+        target,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        alignment: 0.15,
+      );
     }
   }
 
@@ -149,7 +254,7 @@ class _DysregulationFormContentState extends State<_DysregulationFormContent> {
       return;
     }
 
-    var fieldContext = _durationFieldAnchorKey.currentContext;
+    final fieldContext = _durationFieldAnchorKey.currentContext;
 
     if (fieldContext != null && fieldContext.mounted) {
       await Scrollable.ensureVisible(
@@ -165,23 +270,6 @@ class _DysregulationFormContentState extends State<_DysregulationFormContent> {
     }
 
     _durationFocusNode.requestFocus();
-
-    await WidgetsBinding.instance.endOfFrame;
-
-    if (!mounted) {
-      return;
-    }
-
-    fieldContext = _durationFieldAnchorKey.currentContext;
-
-    if (fieldContext != null && fieldContext.mounted) {
-      await Scrollable.ensureVisible(
-        fieldContext,
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-        alignment: 0.18,
-      );
-    }
   }
 
   @override
@@ -192,9 +280,15 @@ class _DysregulationFormContentState extends State<_DysregulationFormContent> {
 
     final colorScheme = theme.colorScheme;
 
+    final isEditing = viewModel.isEditing;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Registrar desregulación'),
+        title: Text(
+          isEditing
+              ? 'Editar registro de desregulación'
+              : 'Registrar desregulación',
+        ),
         backgroundColor: theme.scaffoldBackgroundColor,
         foregroundColor: colorScheme.onSurface,
         elevation: 0,
@@ -207,66 +301,74 @@ class _DysregulationFormContentState extends State<_DysregulationFormContent> {
           controller: _scrollController,
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
           children: [
-            _IntroCard(colorScheme: colorScheme),
-
+            _IntroCard(colorScheme: colorScheme, isEditing: isEditing),
             const SizedBox(height: 20),
-
-            _SectionCard(
-              title: 'Cuándo ocurrió',
-              subtitle:
-                  'Selecciona la fecha y, si la conoces, '
-                  'también la hora.',
-              requiredField: true,
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _PickerButton(
-                          key: const Key('dysregulation-date-picker'),
-                          icon: Icons.calendar_today_outlined,
-                          label: 'Fecha',
-                          value: _formatDate(viewModel.selectedDate),
-                          onPressed: viewModel.isSaving
-                              ? null
-                              : () => _pickDate(viewModel),
+            KeyedSubtree(
+              key: _dateSectionKey,
+              child: _SectionCard(
+                title: 'Cuándo ocurrió',
+                subtitle:
+                    'Selecciona la fecha del episodio. '
+                    'La hora es opcional.',
+                requiredField: true,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _PickerButton(
+                            key: const Key('dysregulation-date-picker'),
+                            icon: Icons.calendar_today_outlined,
+                            label: 'Fecha',
+                            value: viewModel.selectedDate == null
+                                ? 'Sin seleccionar'
+                                : _formatDate(viewModel.selectedDate!),
+                            onPressed: viewModel.isSaving
+                                ? null
+                                : () {
+                                    _pickDate(viewModel);
+                                  },
+                          ),
                         ),
-                      ),
-
-                      const SizedBox(width: 12),
-
-                      Expanded(
-                        child: _PickerButton(
-                          key: const Key('dysregulation-time-picker'),
-                          icon: Icons.schedule_outlined,
-                          label: 'Hora',
-                          value: viewModel.selectedTime ?? 'Opcional',
-                          onPressed: viewModel.isSaving
-                              ? null
-                              : () => _pickTime(viewModel),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _PickerButton(
+                            key: const Key('dysregulation-time-picker'),
+                            icon: Icons.schedule_outlined,
+                            label: 'Hora (opcional)',
+                            value: viewModel.selectedTime ?? 'Sin hora',
+                            onPressed: viewModel.isSaving
+                                ? null
+                                : () {
+                                    _pickTime(viewModel);
+                                  },
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-
-                  if (viewModel.selectedTime != null)
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton.icon(
-                        key: const Key('dysregulation-clear-time-button'),
-                        onPressed: viewModel.isSaving
-                            ? null
-                            : viewModel.clearTime,
-                        icon: const Icon(Icons.close, size: 18),
-                        label: const Text('Quitar hora'),
-                      ),
+                      ],
                     ),
-                ],
+                    if (_showValidationMessages &&
+                        viewModel.errorFor('date') != null) ...[
+                      const SizedBox(height: 8),
+                      _FieldError(message: viewModel.errorFor('date')!),
+                    ],
+                    if (viewModel.selectedTime != null)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          key: const Key('dysregulation-clear-time-button'),
+                          onPressed: viewModel.isSaving
+                              ? null
+                              : viewModel.clearTime,
+                          icon: const Icon(Icons.close_rounded, size: 18),
+                          label: const Text('Quitar hora'),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
-
             const SizedBox(height: 16),
-
             _SectionCard(
               title: 'Detalles del episodio',
               subtitle:
@@ -290,13 +392,13 @@ class _DysregulationFormContentState extends State<_DysregulationFormContent> {
                         hintText: 'Ej. 12',
                         suffixText: 'min',
                         prefixIcon: const Icon(Icons.timer_outlined),
-                        errorText: viewModel.errorFor('durationMinutes'),
+                        errorText: _showValidationMessages
+                            ? viewModel.errorFor('durationMinutes')
+                            : null,
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 20),
-
                   Text(
                     'Intensidad descriptiva '
                     '(opcional)',
@@ -304,9 +406,7 @@ class _DysregulationFormContentState extends State<_DysregulationFormContent> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-
                   const SizedBox(height: 4),
-
                   Text(
                     'Describe únicamente la intensidad '
                     'observada. No corresponde a una '
@@ -315,9 +415,7 @@ class _DysregulationFormContentState extends State<_DysregulationFormContent> {
                       color: colorScheme.onSurfaceVariant,
                     ),
                   ),
-
                   const SizedBox(height: 10),
-
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
@@ -342,11 +440,9 @@ class _DysregulationFormContentState extends State<_DysregulationFormContent> {
                 ],
               ),
             ),
-
             const SizedBox(height: 16),
-
             _SectionCard(
-              title: 'Contexto general',
+              title: 'Contexto general (opcional)',
               subtitle:
                   'Describe brevemente dónde o bajo '
                   'qué situación ocurrió, solo si es '
@@ -365,15 +461,12 @@ class _DysregulationFormContentState extends State<_DysregulationFormContent> {
                 ),
               ),
             ),
-
             const SizedBox(height: 16),
-
             _SectionCard(
-              title: 'Observación',
+              title: 'Observación (opcional)',
               subtitle:
                   'Añade información descriptiva '
-                  'complementaria solo si es '
-                  'necesaria.',
+                  'complementaria solo si es necesaria.',
               child: TextField(
                 key: const Key('dysregulation-observation-field'),
                 controller: _observationController,
@@ -388,18 +481,18 @@ class _DysregulationFormContentState extends State<_DysregulationFormContent> {
                 ),
               ),
             ),
-
-            if (viewModel.errorMessage != null) ...[
+            if (_showValidationMessages && viewModel.errorMessage != null) ...[
               const SizedBox(height: 16),
-
               _GeneralErrorCard(message: viewModel.errorMessage!),
             ],
-
             const SizedBox(height: 24),
-
             FilledButton.icon(
               key: const Key('dysregulation-save-button'),
-              onPressed: viewModel.isSaving ? null : () => _save(viewModel),
+              onPressed: viewModel.isSaving
+                  ? null
+                  : () {
+                      _save(viewModel);
+                    },
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(56),
                 shape: RoundedRectangleBorder(
@@ -417,19 +510,13 @@ class _DysregulationFormContentState extends State<_DysregulationFormContent> {
                     )
                   : const Icon(Icons.check_circle_outline_rounded),
               label: Text(
-                viewModel.isSaving ? 'Guardando...' : 'Guardar episodio',
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            Text(
-              'La fecha es obligatoria. Los demás '
-              'datos se completan solo cuando '
-              'corresponda.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
+                viewModel.isSaving
+                    ? isEditing
+                          ? 'Guardando cambios...'
+                          : 'Guardando...'
+                    : isEditing
+                    ? 'Guardar cambios'
+                    : 'Guardar episodio',
               ),
             ),
           ],
@@ -483,9 +570,10 @@ class _DysregulationFormContentState extends State<_DysregulationFormContent> {
 }
 
 class _IntroCard extends StatelessWidget {
-  const _IntroCard({required this.colorScheme});
+  const _IntroCard({required this.colorScheme, required this.isEditing});
 
   final ColorScheme colorScheme;
+  final bool isEditing;
 
   @override
   Widget build(BuildContext context) {
@@ -514,12 +602,12 @@ class _IntroCard extends StatelessWidget {
                   color: colorScheme.onPrimary,
                 ),
               ),
-
               const SizedBox(width: 14),
-
               Expanded(
                 child: Text(
-                  'Registro de desregulación',
+                  isEditing
+                      ? 'Actualizar registro de desregulación'
+                      : 'Registro de desregulación',
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -527,28 +615,25 @@ class _IntroCard extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(height: 14),
-
           Text(
-            'Registra un episodio de forma clara '
-            'y descriptiva utilizando únicamente '
-            'la información observada.',
+            isEditing
+                ? 'Actualiza la fecha, la hora y la información '
+                      'descriptiva del registro.'
+                : 'Registra un episodio de forma clara '
+                      'y descriptiva utilizando únicamente '
+                      'la información observada.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: colorScheme.onSurfaceVariant,
               height: 1.4,
             ),
           ),
-
           const SizedBox(height: 14),
-
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(Icons.shield_outlined, size: 20, color: colorScheme.primary),
-
               const SizedBox(width: 8),
-
               Expanded(
                 child: Text(
                   'Sendaris no determina causas, '
@@ -605,7 +690,6 @@ class _SectionCard extends StatelessWidget {
                     ),
                   ),
                 ),
-
                 if (requiredField)
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -626,18 +710,14 @@ class _SectionCard extends StatelessWidget {
                   ),
               ],
             ),
-
             const SizedBox(height: 5),
-
             Text(
               subtitle,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
-
             const SizedBox(height: 16),
-
             child,
           ],
         ),
@@ -684,9 +764,7 @@ class _PickerButton extends StatelessWidget {
           child: Row(
             children: [
               Icon(icon, size: 22, color: colorScheme.primary),
-
               const SizedBox(width: 10),
-
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -698,9 +776,7 @@ class _PickerButton extends StatelessWidget {
                         color: colorScheme.onSurfaceVariant,
                       ),
                     ),
-
                     const SizedBox(height: 3),
-
                     Text(
                       value,
                       maxLines: 1,
@@ -720,6 +796,32 @@ class _PickerButton extends StatelessWidget {
   }
 }
 
+class _FieldError extends StatelessWidget {
+  const _FieldError({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.error_outline_rounded, size: 18, color: colorScheme.error),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            message,
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: colorScheme.error),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _GeneralErrorCard extends StatelessWidget {
   const _GeneralErrorCard({required this.message});
 
@@ -732,9 +834,9 @@ class _GeneralErrorCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: colorScheme.errorContainer.withValues(alpha: 0.72),
+        color: colorScheme.errorContainer.withValues(alpha: 0.78),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -744,9 +846,7 @@ class _GeneralErrorCard extends StatelessWidget {
             Icons.error_outline_rounded,
             color: colorScheme.onErrorContainer,
           ),
-
           const SizedBox(width: 10),
-
           Expanded(
             child: Text(
               message,
