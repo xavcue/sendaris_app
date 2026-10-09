@@ -64,28 +64,6 @@ void main() {
     },
   );
 
-  test('conserva estados históricos de rutinas desactivadas', () async {
-    routineRepository.routines = [
-      _routine(id: 'rutina-inactiva', isActive: false),
-    ];
-
-    routineStatusRepository.records = [
-      _statusRecord(
-        id: 'estado-historico',
-        routineId: 'rutina-inactiva',
-        status: RoutineStatus.completed,
-      ),
-    ];
-
-    final entries = await repository.recoverEntries(anonymousId: 'perfil-a');
-
-    expect(entries, hasLength(1));
-
-    expect(entries.single.routineId, 'rutina-inactiva');
-
-    expect(entries.single.status, RoutineStatus.completed);
-  });
-
   test(
     'descarta estados pertenecientes a otro identificador anónimo',
     () async {
@@ -269,17 +247,8 @@ void main() {
   );
 }
 
-Routine _routine({
-  required String id,
-  String anonymousId = 'perfil-a',
-  bool isActive = true,
-}) {
-  return Routine(
-    routineId: id,
-    anonymousId: anonymousId,
-    name: 'Rutina $id',
-    isActive: isActive,
-  );
+Routine _routine({required String id, String anonymousId = 'perfil-a'}) {
+  return Routine(routineId: id, anonymousId: anonymousId, name: 'Rutina $id');
 }
 
 RoutineStatusRecord _statusRecord({
@@ -326,7 +295,7 @@ class _FakeRoutineRepository implements RoutineRepository {
   Future<void> updateRoutine(Routine routine) async {}
 
   @override
-  Future<void> deactivateRoutine({
+  Future<void> deleteRoutine({
     required String anonymousId,
     required String routineId,
   }) async {}

@@ -71,7 +71,6 @@ async function createActiveRoutine({
   await setDoc(reference, {
     nombre: 'Preparar mochila',
     recurrencia: 'diaria',
-    activa: true,
   });
 
   return reference;
@@ -134,7 +133,7 @@ async function prepareActiveContext() {
 }
 
 test(
-  'el propietario puede registrar un estado válido para una rutina activa',
+  'el propietario puede registrar un estado válido para una rutina existente',
   async () => {
     const { db, anonymousId } =
       await prepareActiveContext();
@@ -245,38 +244,6 @@ test(
         validRoutineStatusData({
           routineId: 'rutina-que-no-existe',
         }),
-      ),
-    );
-  },
-);
-
-test(
-  'se rechaza un estado asociado a una rutina desactivada',
-  async () => {
-    const { db, anonymousId } =
-      await prepareActiveContext();
-
-    const routineReference = doc(
-      db,
-      `usuarios/usuario-a/seguimientos/${anonymousId}/rutinas/rutina-test`,
-    );
-
-    await updateDoc(
-      routineReference,
-      {
-        activa: false,
-      },
-    );
-
-    const reference = doc(
-      db,
-      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/rutina-inactiva`,
-    );
-
-    await assertFails(
-      setDoc(
-        reference,
-        validRoutineStatusData(),
       ),
     );
   },

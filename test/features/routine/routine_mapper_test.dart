@@ -12,7 +12,6 @@ void main() {
         description: 'Revisar materiales',
         scheduledTime: '20:00',
         recurrence: 'diaria',
-        isActive: true,
       );
 
       final data = RoutineMapper.toFirestore(routine);
@@ -25,9 +24,11 @@ void main() {
 
       expect(data['nombre'], 'Preparar mochila');
 
-      expect(data['recurrencia'], 'diaria');
+      expect(data['descripcion'], 'Revisar materiales');
 
-      expect(data['activa'], isTrue);
+      expect(data['horaProgramada'], '20:00');
+
+      expect(data['recurrencia'], 'diaria');
     });
 
     test('omite campos opcionales cuando no aplican', () {
@@ -35,12 +36,11 @@ void main() {
         routineId: 'routine-test-id',
         anonymousId: 'anonimo-test',
         name: 'Cena',
-        isActive: true,
       );
 
       final data = RoutineMapper.toFirestore(routine);
 
-      expect(data.keys.toSet(), {'nombre', 'activa'});
+      expect(data.keys.toSet(), {'nombre'});
 
       expect(data.containsKey('descripcion'), isFalse);
 
@@ -53,12 +53,11 @@ void main() {
       final routine = RoutineMapper.fromFirestore(
         routineId: 'routine-test-id',
         anonymousId: 'anonimo-test',
-        data: {
+        data: const {
           'nombre': 'Preparar mochila',
           'descripcion': 'Revisar materiales',
           'horaProgramada': '20:00',
           'recurrencia': 'semanal',
-          'activa': true,
         },
       );
 
@@ -68,9 +67,11 @@ void main() {
 
       expect(routine.name, 'Preparar mochila');
 
-      expect(routine.recurrence, 'semanal');
+      expect(routine.description, 'Revisar materiales');
 
-      expect(routine.isActive, isTrue);
+      expect(routine.scheduledTime, '20:00');
+
+      expect(routine.recurrence, 'semanal');
     });
 
     test('rechaza una rutina con campos adicionales', () {
@@ -78,11 +79,7 @@ void main() {
         () => RoutineMapper.fromFirestore(
           routineId: 'routine-test-id',
           anonymousId: 'anonimo-test',
-          data: {
-            'nombre': 'Cena',
-            'activa': true,
-            'nombreNino': 'Dato prohibido',
-          },
+          data: const {'nombre': 'Cena', 'nombreNino': 'Dato prohibido'},
         ),
         throwsFormatException,
       );
@@ -93,7 +90,7 @@ void main() {
         () => RoutineMapper.fromFirestore(
           routineId: 'routine-test-id',
           anonymousId: 'anonimo-test',
-          data: {'nombre': 'Cena', 'recurrencia': 'invalida', 'activa': true},
+          data: const {'nombre': 'Cena', 'recurrencia': 'invalida'},
         ),
         throwsFormatException,
       );

@@ -3,7 +3,6 @@ class Routine {
     required this.routineId,
     required this.anonymousId,
     required this.name,
-    required this.isActive,
     this.description,
     this.scheduledTime,
     this.recurrence,
@@ -17,8 +16,6 @@ class Routine {
   final String? scheduledTime;
   final String? recurrence;
 
-  final bool isActive;
-
   Routine copyWith({
     String? name,
     String? description,
@@ -27,7 +24,6 @@ class Routine {
     bool clearScheduledTime = false,
     String? recurrence,
     bool clearRecurrence = false,
-    bool? isActive,
   }) {
     return Routine(
       routineId: routineId,
@@ -38,7 +34,6 @@ class Routine {
           ? null
           : scheduledTime ?? this.scheduledTime,
       recurrence: clearRecurrence ? null : recurrence ?? this.recurrence,
-      isActive: isActive ?? this.isActive,
     );
   }
 }

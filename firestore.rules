@@ -834,21 +834,16 @@ service cloud.firestore {
         );
     }
 
-    function routineExistsAndIsActive(
+    function routineExists(
       uid,
       idAnonimo,
       idRutina
     ) {
       return exists(
-          /databases/$(database)/documents
-          /usuarios/$(uid)/seguimientos/$(idAnonimo)
-          /rutinas/$(idRutina)
-        )
-        && get(
-          /databases/$(database)/documents
-          /usuarios/$(uid)/seguimientos/$(idAnonimo)
-          /rutinas/$(idRutina)
-        ).data.activa == true;
+        /databases/$(database)/documents
+        /usuarios/$(uid)/seguimientos/$(idAnonimo)
+        /rutinas/$(idRutina)
+      );
     }
 
     function isValidRoutineStatusCreate(
@@ -861,7 +856,7 @@ service cloud.firestore {
         && hasValidRoutineStatusRoutineId()
         && hasValidRoutineStatusValue()
         && hasValidOptionalRoutineStatusObservation()
-        && routineExistsAndIsActive(
+        && routineExists(
           uid,
           idAnonimo,
           request.resource.data.datos.idRutina
@@ -989,18 +984,15 @@ service cloud.firestore {
     function hasValidRoutineFields() {
       return request.resource.data.keys().hasAll([
           'nombre',
-          'activa'
         ])
         && request.resource.data.keys().hasOnly([
           'nombre',
           'descripcion',
           'horaProgramada',
           'recurrencia',
-          'activa'
         ])
         && request.resource.data.nombre is string
         && request.resource.data.nombre.size() > 0
-        && request.resource.data.activa is bool
         && (
           !('descripcion' in request.resource.data)
           || (
@@ -1031,16 +1023,11 @@ service cloud.firestore {
     }
 
     function isValidRoutineCreate() {
-      return hasValidRoutineFields()
-        && request.resource.data.activa == true;
+      return hasValidRoutineFields();
     }
 
     function isValidRoutineUpdate() {
-      return hasValidRoutineFields()
-        && (
-          resource.data.activa == true
-          || request.resource.data.activa == false
-        );
+      return hasValidRoutineFields();
     }
 
     match /usuarios/{uid} {

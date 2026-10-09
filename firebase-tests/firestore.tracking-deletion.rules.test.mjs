@@ -118,7 +118,6 @@ async function seedTrackingTree() {
         ),
         {
           nombre: 'Rutina ficticia',
-          activa: true,
         },
       );
     },

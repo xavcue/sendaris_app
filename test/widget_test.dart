@@ -290,7 +290,7 @@ class FakeRoutineRepository implements RoutineRepository {
   Future<void> updateRoutine(Routine routine) async {}
 
   @override
-  Future<void> deactivateRoutine({
+  Future<void> deleteRoutine({
     required String anonymousId,
     required String routineId,
   }) async {}

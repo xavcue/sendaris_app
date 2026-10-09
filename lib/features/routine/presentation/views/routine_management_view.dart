@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../app/router/app_routes.dart';
 import '../../domain/models/routine.dart';
 import '../../domain/repositories/routine_repository.dart';
 import '../viewmodels/routine_management_view_model.dart';
@@ -27,51 +28,93 @@ class RoutineManagementView extends StatelessWidget {
   }
 }
 
-class _RoutineManagementContent extends StatelessWidget {
+class _RoutineManagementContent extends StatefulWidget {
   const _RoutineManagementContent();
 
-  Future<void> _openCreate(BuildContext context) async {
-    final changed = await context.push<bool>('/routines/new');
+  @override
+  State<_RoutineManagementContent> createState() =>
+      _RoutineManagementContentState();
+}
+
+class _RoutineManagementContentState extends State<_RoutineManagementContent> {
+  final TextEditingController _searchController = TextEditingController();
+
+  String? _deletingRoutineId;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+
+    super.dispose();
+  }
+
+  Future<void> _openDetail(BuildContext context, Routine routine) async {
+    await context.push<void>(AppRoutes.routineDetail, extra: routine);
+  }
+
+  Future<void> _openNew(
+    BuildContext context,
+    RoutineManagementViewModel viewModel,
+  ) async {
+    final changed = await context.push<bool>(AppRoutes.routineNew);
 
     if (changed == true && context.mounted) {
-      await context.read<RoutineManagementViewModel>().reload();
+      await viewModel.reload();
     }
   }
 
-  Future<void> _openEdit(BuildContext context, Routine routine) async {
-    final changed = await context.push<bool>('/routines/edit', extra: routine);
+  Future<void> _openEdit(
+    BuildContext context,
+    RoutineManagementViewModel viewModel,
+    Routine routine,
+  ) async {
+    final changed = await context.push<bool>(
+      AppRoutes.routineEdit,
+      extra: routine,
+    );
 
     if (changed == true && context.mounted) {
-      await context.read<RoutineManagementViewModel>().reload();
+      await viewModel.reload();
     }
   }
 
-  Future<void> _confirmDeactivate(BuildContext context, Routine routine) async {
+  void _clearSearch(RoutineManagementViewModel viewModel) {
+    _searchController.clear();
+
+    viewModel.clearSearch();
+
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    RoutineManagementViewModel viewModel,
+    Routine routine,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          icon: const Icon(Icons.pause_circle_outline),
-          title: const Text('Desactivar rutina'),
+          title: const Text('¿Eliminar rutina?'),
           content: Text(
-            '“${routine.name}” dejará de mostrarse '
-            'como rutina activa. Su información '
-            'se conservará para que puedas '
-            'consultarla más adelante.',
+            'Se eliminará “${routine.name}” y todos los estados '
+            'registrados para esta rutina. '
+            'Esta acción no se puede deshacer.',
           ),
           actions: [
             TextButton(
+              key: const Key('cancel-delete-routine'),
               onPressed: () {
                 Navigator.of(dialogContext).pop(false);
               },
               child: const Text('Cancelar'),
             ),
             FilledButton(
-              key: const Key('confirm-deactivate-routine'),
+              key: const Key('confirm-delete-routine'),
               onPressed: () {
                 Navigator.of(dialogContext).pop(true);
               },
-              child: const Text('Desactivar'),
+              child: const Text('Eliminar definitivamente'),
             ),
           ],
         );
@@ -82,24 +125,49 @@ class _RoutineManagementContent extends StatelessWidget {
       return;
     }
 
-    final viewModel = context.read<RoutineManagementViewModel>();
+    setState(() {
+      _deletingRoutineId = routine.routineId;
+    });
 
-    final success = await viewModel.deactivateRoutine(routine);
+    final success = await viewModel.deleteRoutine(routine);
 
     if (!context.mounted) {
       return;
     }
 
+    setState(() {
+      _deletingRoutineId = null;
+    });
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    messenger.hideCurrentSnackBar();
+
     if (success) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('Rutina desactivada correctamente.'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Rutina eliminada correctamente.'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 3),
+        ),
+      );
+
+      return;
     }
+
+    final message =
+        viewModel.errorMessage ??
+        'No fue posible eliminar la rutina. Inténtalo nuevamente.';
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+      ),
+    );
+
+    viewModel.clearError();
   }
 
   @override
@@ -110,6 +178,8 @@ class _RoutineManagementContent extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
+      key: const Key('routine-management-view'),
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Rutinas'),
         backgroundColor: theme.scaffoldBackgroundColor,
@@ -118,22 +188,9 @@ class _RoutineManagementContent extends StatelessWidget {
         scrolledUnderElevation: 0,
         shadowColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
-        actions: [
-          IconButton(
-            key: const Key('routine-refresh-button'),
-            tooltip: 'Actualizar',
-            onPressed: viewModel.isLoading ? null : viewModel.reload,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        key: const Key('routine-create-button'),
-        onPressed: viewModel.isUpdating ? null : () => _openCreate(context),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Nueva rutina'),
       ),
       body: SafeArea(
+        top: false,
         child: RefreshIndicator(
           onRefresh: () async {
             await viewModel.reload();
@@ -150,9 +207,12 @@ class _RoutineManagementContent extends StatelessWidget {
   ) {
     if (viewModel.isLoading && !viewModel.hasRoutines) {
       return ListView(
+        key: const Key('routine-management-loading'),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
         physics: const AlwaysScrollableScrollPhysics(),
         children: const [
-          SizedBox(height: 180),
+          _RoutineIntro(),
+          SizedBox(height: 72),
           Center(child: CircularProgressIndicator()),
         ],
       );
@@ -160,10 +220,13 @@ class _RoutineManagementContent extends StatelessWidget {
 
     if (viewModel.errorMessage != null && !viewModel.hasRoutines) {
       return ListView(
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 120),
+        key: const Key('routine-management-error'),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          _ErrorState(
+          const _RoutineIntro(),
+          const SizedBox(height: 24),
+          _RoutineErrorState(
             message: viewModel.errorMessage!,
             onRetry: viewModel.reload,
           ),
@@ -171,195 +234,158 @@ class _RoutineManagementContent extends StatelessWidget {
       );
     }
 
-    if (!viewModel.hasRoutines) {
-      return ListView(
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 120),
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: const [
-          _RoutineIntroCard(),
-          SizedBox(height: 24),
-          _EmptyRoutineState(),
-        ],
-      );
-    }
-
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+      key: const Key('routine-management-list'),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
-        const _RoutineIntroCard(),
-
-        const SizedBox(height: 20),
-
-        _RoutineSummary(
-          activeCount: viewModel.activeRoutines.length,
-          inactiveCount: viewModel.inactiveRoutines.length,
-        ),
-
+        const _RoutineIntro(),
         if (viewModel.errorMessage != null) ...[
           const SizedBox(height: 16),
           _InlineError(message: viewModel.errorMessage!),
         ],
-
-        const SizedBox(height: 24),
-
-        _SectionTitle(
-          title: 'Rutinas activas',
-          count: viewModel.activeRoutines.length,
-        ),
-
-        const SizedBox(height: 12),
-
-        if (viewModel.activeRoutines.isEmpty)
-          const _NoActiveRoutines()
-        else
-          ...viewModel.activeRoutines.map(
-            (routine) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _RoutineCard(
-                key: Key('routine-card-${routine.routineId}'),
-                routine: routine,
-                isUpdating: viewModel.isUpdating,
-                onEdit: () {
-                  _openEdit(context, routine);
-                },
-                onDeactivate: () {
-                  _confirmDeactivate(context, routine);
-                },
-              ),
-            ),
+        const SizedBox(height: 20),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            key: const Key('routine-create-button'),
+            onPressed: viewModel.isLoading || viewModel.isUpdating
+                ? null
+                : () {
+                    _openNew(context, viewModel);
+                  },
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Nueva rutina'),
           ),
-
-        if (viewModel.inactiveRoutines.isNotEmpty) ...[
-          const SizedBox(height: 16),
-
-          Card(
-            margin: EdgeInsets.zero,
-            clipBehavior: Clip.antiAlias,
-            child: ExpansionTile(
-              key: const Key('inactive-routines-section'),
-              shape: const RoundedRectangleBorder(),
-              collapsedShape: const RoundedRectangleBorder(),
-              leading: const Icon(Icons.history_rounded),
-              title: Text(
-                'Rutinas desactivadas '
-                '(${viewModel.inactiveRoutines.length})',
-              ),
-              subtitle: const Text(
-                'Puedes consultarlas '
-                'más adelante.',
-              ),
-              childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              children: [
-                for (final routine in viewModel.inactiveRoutines)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: _RoutineCard(
-                      key: Key('routine-card-${routine.routineId}'),
-                      routine: routine,
-                      isUpdating: false,
-                      onEdit: null,
-                      onDeactivate: null,
-                    ),
-                  ),
-              ],
-            ),
+        ),
+        const SizedBox(height: 26),
+        _ResultsHeader(
+          visibleCount: viewModel.searchedRoutineCount,
+          totalCount: viewModel.routines.length,
+          hasSearch: viewModel.hasSearchQuery,
+        ),
+        if (viewModel.hasRoutines) ...[
+          const SizedBox(height: 12),
+          _RoutineSearchField(
+            controller: _searchController,
+            hasQuery: viewModel.hasSearchQuery,
+            onChanged: viewModel.setSearchQuery,
+            onClear: () {
+              _clearSearch(viewModel);
+            },
           ),
         ],
+        const SizedBox(height: 16),
+        if (!viewModel.hasRoutines)
+          const _RoutineEmptyState()
+        else if (viewModel.hasNoSearchResults)
+          _NoRoutineSearchResults(
+            query: viewModel.searchQuery,
+            onClear: () {
+              _clearSearch(viewModel);
+            },
+          )
+        else
+          for (final routine in viewModel.searchedRoutines)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _RoutineCard(
+                routine: routine,
+                enabled: !viewModel.isUpdating,
+                isDeleting: _deletingRoutineId == routine.routineId,
+                onOpen: () {
+                  _openDetail(context, routine);
+                },
+                onEdit: () {
+                  _openEdit(context, viewModel, routine);
+                },
+                onDelete: () {
+                  _confirmDelete(context, viewModel, routine);
+                },
+              ),
+            ),
       ],
     );
   }
 }
 
-class _RoutineIntroCard extends StatelessWidget {
-  const _RoutineIntroCard();
+class _RoutineIntro extends StatelessWidget {
+  const _RoutineIntro();
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Container(
-      key: const Key('routine-management-intro'),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: colorScheme.primaryContainer.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: colorScheme.primary,
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: Icon(Icons.checklist_rounded, color: colorScheme.onPrimary),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Gestión de rutinas',
+          key: const Key('routine-management-title'),
+          style: theme.textTheme.headlineMedium,
+        ),
+        const SizedBox(height: 7),
+        Text(
+          'Consulta y administra las rutinas registradas.',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
           ),
-
-          const SizedBox(width: 14),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Organiza las rutinas',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 6),
-
-                Text(
-                  'Crea y organiza las '
-                  'actividades habituales '
-                  'del perfil activo.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          'Puedes crear, consultar, editar o eliminar '
+          'las rutinas del seguimiento actual.',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+            height: 1.4,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-class _RoutineSummary extends StatelessWidget {
-  const _RoutineSummary({
-    required this.activeCount,
-    required this.inactiveCount,
+class _ResultsHeader extends StatelessWidget {
+  const _ResultsHeader({
+    required this.visibleCount,
+    required this.totalCount,
+    required this.hasSearch,
   });
 
-  final int activeCount;
-  final int inactiveCount;
+  final int visibleCount;
+  final int totalCount;
+  final bool hasSearch;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Row(
       children: [
         Expanded(
-          child: _SummaryCard(
-            icon: Icons.check_circle_outline,
-            label: 'Activas',
-            value: activeCount,
+          child: Text(
+            'Rutinas',
+            key: const Key('routine-results-title'),
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
-
-        const SizedBox(width: 12),
-
-        Expanded(
-          child: _SummaryCard(
-            icon: Icons.history_rounded,
-            label: 'Desactivadas',
-            value: inactiveCount,
+        Container(
+          key: const Key('routine-count'),
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+          decoration: BoxDecoration(
+            color: colorScheme.primaryContainer.withValues(alpha: 0.62),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            hasSearch ? '$visibleCount de $totalCount' : '$totalCount',
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: colorScheme.onPrimaryContainer,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
       ],
@@ -367,99 +393,108 @@ class _RoutineSummary extends StatelessWidget {
   }
 }
 
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({
-    required this.icon,
-    required this.label,
-    required this.value,
+class _RoutineSearchField extends StatelessWidget {
+  const _RoutineSearchField({
+    required this.controller,
+    required this.hasQuery,
+    required this.onChanged,
+    required this.onClear,
   });
 
-  final IconData icon;
-  final String label;
-  final int value;
+  final TextEditingController controller;
+  final bool hasQuery;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return TextField(
+      key: const Key('routine-search-field'),
+      controller: controller,
+      onChanged: onChanged,
+      textInputAction: TextInputAction.search,
+      autocorrect: false,
+      decoration: InputDecoration(
+        hintText: 'Buscar rutina por nombre',
+        prefixIcon: const Icon(Icons.search_rounded),
+        suffixIcon: hasQuery
+            ? IconButton(
+                key: const Key('routine-clear-search'),
+                tooltip: 'Limpiar búsqueda',
+                onPressed: onClear,
+                icon: const Icon(Icons.close_rounded),
+              )
+            : null,
+        filled: true,
+        fillColor: colorScheme.surfaceContainerLow,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: colorScheme.outlineVariant),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
+        ),
+      ),
+    );
+  }
+}
+
+class _NoRoutineSearchResults extends StatelessWidget {
+  const _NoRoutineSearchResults({required this.query, required this.onClear});
+
+  final String query;
+  final VoidCallback onClear;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    final normalizedQuery = query.trim();
+
     return Card(
+      key: const Key('routine-no-search-results'),
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
+        child: Column(
           children: [
-            Icon(icon, color: colorScheme.primary),
-
-            const SizedBox(width: 10),
-
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '$value',
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  Text(
-                    label,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+            Icon(
+              Icons.search_off_rounded,
+              size: 42,
+              color: colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'No se encontraron rutinas',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
               ),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              'No hay rutinas que coincidan con '
+              '“$normalizedQuery”.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 14),
+            TextButton.icon(
+              key: const Key('routine-clear-empty-search'),
+              onPressed: onClear,
+              icon: const Icon(Icons.restart_alt_rounded),
+              label: const Text('Limpiar búsqueda'),
             ),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.title, required this.count});
-
-  final String title;
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            title,
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-
-        Container(
-          key: const Key('routine-active-count'),
-          constraints: const BoxConstraints(minWidth: 30),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Text(
-            '$count',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: colorScheme.onPrimaryContainer,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -467,222 +502,203 @@ class _SectionTitle extends StatelessWidget {
 class _RoutineCard extends StatelessWidget {
   const _RoutineCard({
     required this.routine,
-    required this.isUpdating,
+    required this.enabled,
+    required this.isDeleting,
+    required this.onOpen,
     required this.onEdit,
-    required this.onDeactivate,
-    super.key,
+    required this.onDelete,
   });
 
   final Routine routine;
-  final bool isUpdating;
-  final VoidCallback? onEdit;
-  final VoidCallback? onDeactivate;
+  final bool enabled;
+  final bool isDeleting;
+
+  final VoidCallback onOpen;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    const accentColor = Color(0xFF5CB9AA);
+
+    final metadata = <Widget>[];
+
+    final scheduledTime = routine.scheduledTime;
+
+    if (scheduledTime != null) {
+      metadata.add(
+        _RoutineInfoChip(icon: Icons.schedule_outlined, label: scheduledTime),
+      );
+    }
+
+    final recurrence = routine.recurrence;
+
+    if (recurrence != null) {
+      metadata.add(
+        _RoutineInfoChip(
+          icon: Icons.repeat_rounded,
+          label: _formatRecurrence(recurrence),
+        ),
+      );
+    }
+
     return Card(
+      key: Key('routine-card-${routine.routineId}'),
       margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: routine.isActive
-                        ? colorScheme.primaryContainer
-                        : colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        key: Key('routine-open-${routine.routineId}'),
+        onTap: enabled ? onOpen : null,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(
+                    alpha: theme.brightness == Brightness.dark ? 0.20 : 0.14,
                   ),
-                  child: Icon(
-                    routine.isActive
-                        ? Icons.event_repeat_rounded
-                        : Icons.history_rounded,
-                    color: routine.isActive
-                        ? colorScheme.primary
-                        : colorScheme.onSurfaceVariant,
-                  ),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-
-                const SizedBox(width: 14),
-
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                child: Icon(
+                  Icons.event_repeat_outlined,
+                  color: theme.brightness == Brightness.dark
+                      ? Color.lerp(accentColor, Colors.white, 0.25)
+                      : accentColor,
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      routine.name,
+                      key: Key('routine-name-${routine.routineId}'),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (routine.description != null) ...[
+                      const SizedBox(height: 7),
                       Text(
-                        routine.name,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
+                        routine.description!,
+                        key: Key('routine-description-${routine.routineId}'),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          height: 1.35,
                         ),
                       ),
-
-                      const SizedBox(height: 6),
-
-                      _StatusChip(active: routine.isActive),
                     ],
-                  ),
+                    if (metadata.isNotEmpty) ...[
+                      const SizedBox(height: 11),
+                      Wrap(spacing: 8, runSpacing: 7, children: metadata),
+                    ],
+                  ],
                 ),
+              ),
+              if (isDeleting)
+                const Padding(
+                  key: Key('routine-delete-progress'),
+                  padding: EdgeInsets.all(12),
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              else
+                PopupMenuButton<_RoutineAction>(
+                  key: Key('routine-menu-${routine.routineId}'),
+                  enabled: enabled,
+                  tooltip: 'Opciones de rutina',
+                  onSelected: (action) {
+                    switch (action) {
+                      case _RoutineAction.edit:
+                        onEdit();
 
-                if (routine.isActive)
-                  PopupMenuButton<String>(
-                    key: Key('routine-menu-${routine.routineId}'),
-                    enabled: !isUpdating,
-                    onSelected: (value) {
-                      switch (value) {
-                        case 'edit':
-                          onEdit?.call();
-                          break;
-                        case 'deactivate':
-                          onDeactivate?.call();
-                          break;
-                      }
-                    },
-                    itemBuilder: (_) => const [
+                      case _RoutineAction.delete:
+                        onDelete();
+                    }
+                  },
+                  itemBuilder: (context) {
+                    return const [
                       PopupMenuItem(
-                        value: 'edit',
+                        value: _RoutineAction.edit,
                         child: ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
                           leading: Icon(Icons.edit_outlined),
                           title: Text('Editar'),
-                          contentPadding: EdgeInsets.zero,
                         ),
                       ),
                       PopupMenuItem(
-                        value: 'deactivate',
+                        value: _RoutineAction.delete,
                         child: ListTile(
-                          leading: Icon(Icons.pause_circle_outline),
-                          title: Text('Desactivar'),
+                          dense: true,
                           contentPadding: EdgeInsets.zero,
+                          leading: Icon(Icons.delete_outline_rounded),
+                          title: Text('Eliminar'),
                         ),
                       ),
-                    ],
-                  ),
-              ],
-            ),
-
-            if (routine.description != null) ...[
-              const SizedBox(height: 14),
-
-              Text(
-                routine.description!,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
+                    ];
+                  },
                 ),
-              ),
             ],
-
-            if (routine.scheduledTime != null ||
-                routine.recurrence != null) ...[
-              const SizedBox(height: 14),
-
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  if (routine.scheduledTime != null)
-                    _InfoChip(
-                      icon: Icons.schedule_outlined,
-                      label: routine.scheduledTime!,
-                    ),
-
-                  if (routine.recurrence != null)
-                    _InfoChip(
-                      icon: Icons.repeat_rounded,
-                      label: _recurrenceLabel(routine.recurrence!),
-                    ),
-                ],
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  static String _recurrenceLabel(String value) {
-    switch (value) {
-      case 'diaria':
-        return 'Diaria';
-      case 'semanal':
-        return 'Semanal';
-      case 'mensual':
-        return 'Mensual';
-      default:
-        return value;
-    }
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.active});
-
-  final bool active;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: active
-            ? colorScheme.primaryContainer
-            : colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        active ? 'Activa' : 'Desactivada',
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-          color: active
-              ? colorScheme.onPrimaryContainer
-              : colorScheme.onSurfaceVariant,
-          fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );
   }
 }
 
-class _InfoChip extends StatelessWidget {
-  const _InfoChip({required this.icon, required this.label});
+enum _RoutineAction { edit, delete }
+
+class _RoutineInfoChip extends StatelessWidget {
+  const _RoutineInfoChip({required this.icon, required this.label});
 
   final IconData icon;
   final String label;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(10),
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.62),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: colorScheme.onSurfaceVariant),
-
-          const SizedBox(width: 6),
-
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
+          Icon(icon, size: 15, color: colorScheme.onSurfaceVariant),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _EmptyRoutineState extends StatelessWidget {
-  const _EmptyRoutineState();
+class _RoutineEmptyState extends StatelessWidget {
+  const _RoutineEmptyState();
 
   @override
   Widget build(BuildContext context) {
@@ -690,33 +706,28 @@ class _EmptyRoutineState extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return Card(
+      key: const Key('routine-empty-state'),
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(28),
+        padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
         child: Column(
           children: [
             Icon(
               Icons.event_repeat_outlined,
-              size: 54,
-              color: colorScheme.primary,
+              size: 42,
+              color: colorScheme.onSurfaceVariant,
             ),
-
-            const SizedBox(height: 16),
-
+            const SizedBox(height: 14),
             Text(
               'Aún no hay rutinas',
               textAlign: TextAlign.center,
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
               ),
             ),
-
-            const SizedBox(height: 8),
-
+            const SizedBox(height: 7),
             Text(
-              'Crea la primera rutina '
-              'para organizar las actividades '
-              'habituales del perfil activo.',
+              'Las nuevas rutinas aparecerán aquí.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: colorScheme.onSurfaceVariant,
@@ -729,27 +740,52 @@ class _EmptyRoutineState extends StatelessWidget {
   }
 }
 
-class _NoActiveRoutines extends StatelessWidget {
-  const _NoActiveRoutines();
+class _RoutineErrorState extends StatelessWidget {
+  const _RoutineErrorState({required this.message, required this.onRetry});
+
+  final String message;
+  final Future<bool> Function() onRetry;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Row(
+        padding: const EdgeInsets.fromLTRB(24, 30, 24, 30),
+        child: Column(
           children: [
-            const Icon(Icons.info_outline),
-
-            const SizedBox(width: 12),
-
-            Expanded(
-              child: Text(
-                'No hay rutinas activas. '
-                'Puedes crear una nueva rutina.',
-                style: Theme.of(context).textTheme.bodyMedium,
+            Icon(
+              Icons.error_outline_rounded,
+              size: 42,
+              color: colorScheme.error,
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'No pudimos cargar las rutinas',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
               ),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              key: const Key('routine-retry-button'),
+              onPressed: () async {
+                await onRetry();
+              },
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Intentar nuevamente'),
             ),
           ],
         ),
@@ -765,24 +801,29 @@ class _InlineError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: colorScheme.errorContainer,
-        borderRadius: BorderRadius.circular(14),
+        color: colorScheme.errorContainer.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.error_outline, color: colorScheme.onErrorContainer),
-
-          const SizedBox(width: 10),
-
+          Icon(
+            Icons.error_outline_rounded,
+            color: colorScheme.onErrorContainer,
+          ),
+          const SizedBox(width: 9),
           Expanded(
             child: Text(
               message,
-              style: TextStyle(color: colorScheme.onErrorContainer),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onErrorContainer,
+              ),
             ),
           ),
         ],
@@ -791,46 +832,11 @@ class _InlineError extends StatelessWidget {
   }
 }
 
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.message, required this.onRetry});
-
-  final String message;
-  final Future<bool> Function() onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            const Icon(Icons.cloud_off_outlined, size: 48),
-
-            const SizedBox(height: 16),
-
-            Text(
-              'No fue posible cargar las rutinas',
-              style: Theme.of(context).textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 8),
-
-            Text(message, textAlign: TextAlign.center),
-
-            const SizedBox(height: 18),
-
-            FilledButton.icon(
-              onPressed: () {
-                onRetry();
-              },
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Reintentar'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+String _formatRecurrence(String value) {
+  return switch (value) {
+    'diaria' => 'Diaria',
+    'semanal' => 'Semanal',
+    'mensual' => 'Mensual',
+    _ => value,
+  };
 }

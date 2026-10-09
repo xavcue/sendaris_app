@@ -13,18 +13,45 @@ class RoutineManagementViewModel extends ChangeNotifier {
 
   List<Routine> _routines = const [];
 
+  String _searchQuery = '';
+
   bool _isLoading = false;
+
   bool _isUpdating = false;
 
   String? _errorMessage;
 
-  List<Routine> get routines => List.unmodifiable(_routines);
+  List<Routine> get routines {
+    return List.unmodifiable(_routines);
+  }
 
-  List<Routine> get activeRoutines =>
-      List.unmodifiable(_routines.where((routine) => routine.isActive));
+  String get searchQuery => _searchQuery;
 
-  List<Routine> get inactiveRoutines =>
-      List.unmodifiable(_routines.where((routine) => !routine.isActive));
+  bool get hasSearchQuery {
+    return _searchQuery.trim().isNotEmpty;
+  }
+
+  List<Routine> get searchedRoutines {
+    if (!hasSearchQuery) {
+      return routines;
+    }
+
+    final query = _normalizeSearchText(_searchQuery);
+
+    return List.unmodifiable(
+      _routines.where(
+        (routine) => _normalizeSearchText(routine.name).contains(query),
+      ),
+    );
+  }
+
+  int get searchedRoutineCount {
+    return searchedRoutines.length;
+  }
+
+  bool get hasNoSearchResults {
+    return hasSearchQuery && _routines.isNotEmpty && searchedRoutines.isEmpty;
+  }
 
   bool get isLoading => _isLoading;
 
@@ -57,7 +84,11 @@ class RoutineManagementViewModel extends ChangeNotifier {
         anonymousId: anonymousId,
       );
 
-      _routines = _sortRoutines(recovered);
+      final currentRoutines = recovered.where(
+        (routine) => routine.anonymousId == anonymousId,
+      );
+
+      _routines = _sortRoutines(currentRoutines);
 
       return true;
     } on RoutineFailure catch (failure) {
@@ -77,8 +108,30 @@ class RoutineManagementViewModel extends ChangeNotifier {
     }
   }
 
-  Future<bool> deactivateRoutine(Routine routine) async {
-    if (_isUpdating || !routine.isActive) {
+  void setSearchQuery(String value) {
+    if (_searchQuery == value) {
+      return;
+    }
+
+    _searchQuery = value;
+
+    notifyListeners();
+  }
+
+  void clearSearch() {
+    if (_searchQuery.isEmpty) {
+      return;
+    }
+
+    _searchQuery = '';
+
+    notifyListeners();
+  }
+
+  Future<bool> deleteRoutine(Routine routine) async {
+    if (_isUpdating ||
+        routine.anonymousId != anonymousId ||
+        !_routines.any((current) => current.routineId == routine.routineId)) {
       return false;
     }
 
@@ -88,19 +141,14 @@ class RoutineManagementViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _repository.deactivateRoutine(
-        anonymousId: routine.anonymousId,
+      await _repository.deleteRoutine(
+        anonymousId: anonymousId,
         routineId: routine.routineId,
       );
 
-      final updated = routine.copyWith(isActive: false);
-
-      _routines = _sortRoutines(
+      _routines = List.unmodifiable(
         _routines
-            .map(
-              (current) =>
-                  current.routineId == routine.routineId ? updated : current,
-            )
+            .where((current) => current.routineId != routine.routineId)
             .toList(),
       );
 
@@ -111,7 +159,7 @@ class RoutineManagementViewModel extends ChangeNotifier {
       return false;
     } catch (_) {
       _errorMessage =
-          'No fue posible desactivar la rutina. '
+          'No fue posible eliminar la rutina. '
           'Inténtalo nuevamente.';
 
       return false;
@@ -135,14 +183,47 @@ class RoutineManagementViewModel extends ChangeNotifier {
   List<Routine> _sortRoutines(Iterable<Routine> routines) {
     final result = routines.toList();
 
-    result.sort((first, second) {
-      if (first.isActive != second.isActive) {
-        return first.isActive ? -1 : 1;
-      }
-
-      return first.name.toLowerCase().compareTo(second.name.toLowerCase());
-    });
+    result.sort(
+      (first, second) =>
+          first.name.toLowerCase().compareTo(second.name.toLowerCase()),
+    );
 
     return List.unmodifiable(result);
+  }
+
+  static String _normalizeSearchText(String value) {
+    var normalized = value.trim().toLowerCase();
+
+    const replacements = <String, String>{
+      'á': 'a',
+      'à': 'a',
+      'ä': 'a',
+      'â': 'a',
+      'ã': 'a',
+      'é': 'e',
+      'è': 'e',
+      'ë': 'e',
+      'ê': 'e',
+      'í': 'i',
+      'ì': 'i',
+      'ï': 'i',
+      'î': 'i',
+      'ó': 'o',
+      'ò': 'o',
+      'ö': 'o',
+      'ô': 'o',
+      'õ': 'o',
+      'ú': 'u',
+      'ù': 'u',
+      'ü': 'u',
+      'û': 'u',
+      'ñ': 'n',
+    };
+
+    for (final entry in replacements.entries) {
+      normalized = normalized.replaceAll(entry.key, entry.value);
+    }
+
+    return normalized.replaceAll(RegExp(r'\s+'), ' ');
   }
 }
