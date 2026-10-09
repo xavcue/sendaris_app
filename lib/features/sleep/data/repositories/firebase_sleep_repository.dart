@@ -2,13 +2,13 @@ import 'package:firebase_core/firebase_core.dart';
 
 import '../../domain/exceptions/sleep_failure.dart';
 import '../../domain/models/sleep_record.dart';
-import '../../domain/repositories/sleep_repository.dart';
+import '../../domain/repositories/sleep_management_repository.dart';
 import '../services/sleep_remote_service.dart';
 
-class FirebaseSleepRepository implements SleepRepository {
+class FirebaseSleepRepository implements SleepManagementRepository {
   FirebaseSleepRepository(this._remoteService);
 
-  final SleepRemoteService _remoteService;
+  final SleepManagementRemoteService _remoteService;
 
   @override
   Future<void> saveSleep(SleepRecord record) async {
@@ -53,6 +53,48 @@ class FirebaseSleepRepository implements SleepRepository {
     }
   }
 
+  @override
+  Future<void> updateSleep(SleepRecord record) async {
+    try {
+      await _remoteService.updateSleep(record);
+    } on StateError {
+      throw const SleepFailure(
+        'Debes iniciar sesión antes de actualizar un registro de sueño.',
+      );
+    } on FirebaseException catch (error) {
+      throw SleepFailure(_safeUpdateMessage(error.code));
+    } catch (_) {
+      throw const SleepFailure(
+        'No fue posible actualizar el registro de sueño. '
+        'Inténtalo nuevamente.',
+      );
+    }
+  }
+
+  @override
+  Future<void> deleteSleep({
+    required String anonymousId,
+    required String recordId,
+  }) async {
+    try {
+      await _remoteService.deleteSleep(
+        anonymousId: anonymousId,
+        recordId: recordId,
+      );
+    } on StateError {
+      throw const SleepFailure(
+        'Debes iniciar sesión antes de eliminar un registro de sueño.',
+      );
+    } on FirebaseException catch (error) {
+      throw SleepFailure(_safeDeleteMessage(error.code));
+    } catch (_) {
+      throw const SleepFailure(
+        'No fue posible eliminar el registro de sueño. '
+        'Inténtalo nuevamente.',
+      );
+    }
+  }
+
   String _safeSaveMessage(String code) {
     switch (code) {
       case 'permission-denied':
@@ -83,6 +125,40 @@ class FirebaseSleepRepository implements SleepRepository {
 
       default:
         return 'No fue posible cargar los registros de sueño. '
+            'Inténtalo nuevamente.';
+    }
+  }
+
+  String _safeUpdateMessage(String code) {
+    switch (code) {
+      case 'permission-denied':
+      case 'unauthenticated':
+        return 'No tienes autorización para actualizar este registro de sueño.';
+
+      case 'unavailable':
+      case 'network-request-failed':
+        return 'No fue posible actualizar el registro de sueño. '
+            'Verifica tu conexión.';
+
+      default:
+        return 'No fue posible actualizar el registro de sueño. '
+            'Inténtalo nuevamente.';
+    }
+  }
+
+  String _safeDeleteMessage(String code) {
+    switch (code) {
+      case 'permission-denied':
+      case 'unauthenticated':
+        return 'No tienes autorización para eliminar este registro de sueño.';
+
+      case 'unavailable':
+      case 'network-request-failed':
+        return 'No fue posible eliminar el registro de sueño. '
+            'Verifica tu conexión.';
+
+      default:
+        return 'No fue posible eliminar el registro de sueño. '
             'Inténtalo nuevamente.';
     }
   }

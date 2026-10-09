@@ -7,3 +7,13 @@ abstract interface class FeedingRemoteService {
     required String anonymousId,
   });
 }
+
+abstract interface class FeedingManagementRemoteService
+    implements FeedingRemoteService {
+  Future<void> updateFeeding(FeedingRecord record);
+
+  Future<void> deleteFeeding({
+    required String anonymousId,
+    required String recordId,
+  });
+}

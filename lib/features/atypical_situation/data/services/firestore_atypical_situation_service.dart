@@ -7,7 +7,7 @@ import '../mappers/atypical_situation_record_mapper.dart';
 import 'atypical_situation_remote_service.dart';
 
 class FirestoreAtypicalSituationService
-    implements AtypicalSituationRemoteService {
+    implements AtypicalSituationManagementRemoteService {
   FirestoreAtypicalSituationService(this._firestore, this._firebaseAuth);
 
   final FirebaseFirestore _firestore;
@@ -15,22 +15,28 @@ class FirestoreAtypicalSituationService
 
   @override
   Future<void> saveAtypicalSituation(AtypicalSituationRecord record) async {
+    await _writeAtypicalSituation(record);
+  }
+
+  @override
+  Future<void> updateAtypicalSituation(AtypicalSituationRecord record) async {
+    await _writeAtypicalSituation(record);
+  }
+
+  @override
+  Future<void> deleteAtypicalSituation({
+    required String anonymousId,
+    required String recordId,
+  }) async {
     final uid = _requireAuthenticatedUid();
 
     final path = TrackingFirestorePaths.trackingRecordDocument(
       uid: uid,
-      anonymousId: record.anonymousId,
-      recordId: record.recordId,
+      anonymousId: anonymousId,
+      recordId: recordId,
     );
 
-    await _firestore
-        .doc(path)
-        .set(
-          AtypicalSituationRecordMapper.toFirestore(
-            record: record,
-            operationUid: uid,
-          ),
-        );
+    await _firestore.doc(path).delete();
 
     await _firestore.waitForPendingWrites();
   }
@@ -64,6 +70,27 @@ class FirestoreAtypicalSituationService
           ),
         )
         .toList(growable: false);
+  }
+
+  Future<void> _writeAtypicalSituation(AtypicalSituationRecord record) async {
+    final uid = _requireAuthenticatedUid();
+
+    final path = TrackingFirestorePaths.trackingRecordDocument(
+      uid: uid,
+      anonymousId: record.anonymousId,
+      recordId: record.recordId,
+    );
+
+    await _firestore
+        .doc(path)
+        .set(
+          AtypicalSituationRecordMapper.toFirestore(
+            record: record,
+            operationUid: uid,
+          ),
+        );
+
+    await _firestore.waitForPendingWrites();
   }
 
   String _requireAuthenticatedUid() {

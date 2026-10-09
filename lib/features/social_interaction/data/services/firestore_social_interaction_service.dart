@@ -7,7 +7,7 @@ import '../mappers/social_interaction_record_mapper.dart';
 import 'social_interaction_remote_service.dart';
 
 class FirestoreSocialInteractionService
-    implements SocialInteractionRemoteService {
+    implements SocialInteractionManagementRemoteService {
   FirestoreSocialInteractionService(this._firestore, this._firebaseAuth);
 
   final FirebaseFirestore _firestore;
@@ -16,24 +16,7 @@ class FirestoreSocialInteractionService
 
   @override
   Future<void> saveSocialInteraction(SocialInteractionRecord record) async {
-    final uid = _requireAuthenticatedUid();
-
-    final path = TrackingFirestorePaths.trackingRecordDocument(
-      uid: uid,
-      anonymousId: record.anonymousId,
-      recordId: record.recordId,
-    );
-
-    await _firestore
-        .doc(path)
-        .set(
-          SocialInteractionRecordMapper.toFirestore(
-            record: record,
-            operationUid: uid,
-          ),
-        );
-
-    await _firestore.waitForPendingWrites();
+    await _writeSocialInteraction(record);
   }
 
   @override
@@ -65,6 +48,50 @@ class FirestoreSocialInteractionService
           ),
         )
         .toList(growable: false);
+  }
+
+  @override
+  Future<void> updateSocialInteraction(SocialInteractionRecord record) async {
+    await _writeSocialInteraction(record);
+  }
+
+  @override
+  Future<void> deleteSocialInteraction({
+    required String anonymousId,
+    required String recordId,
+  }) async {
+    final uid = _requireAuthenticatedUid();
+
+    final path = TrackingFirestorePaths.trackingRecordDocument(
+      uid: uid,
+      anonymousId: anonymousId,
+      recordId: recordId,
+    );
+
+    await _firestore.doc(path).delete();
+
+    await _firestore.waitForPendingWrites();
+  }
+
+  Future<void> _writeSocialInteraction(SocialInteractionRecord record) async {
+    final uid = _requireAuthenticatedUid();
+
+    final path = TrackingFirestorePaths.trackingRecordDocument(
+      uid: uid,
+      anonymousId: record.anonymousId,
+      recordId: record.recordId,
+    );
+
+    await _firestore
+        .doc(path)
+        .set(
+          SocialInteractionRecordMapper.toFirestore(
+            record: record,
+            operationUid: uid,
+          ),
+        );
+
+    await _firestore.waitForPendingWrites();
   }
 
   String _requireAuthenticatedUid() {

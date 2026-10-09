@@ -6,7 +6,7 @@ import '../../domain/models/sleep_record.dart';
 import '../mappers/sleep_record_mapper.dart';
 import 'sleep_remote_service.dart';
 
-class FirestoreSleepService implements SleepRemoteService {
+class FirestoreSleepService implements SleepManagementRemoteService {
   FirestoreSleepService(this._firestore, this._firebaseAuth);
 
   final FirebaseFirestore _firestore;
@@ -14,19 +14,12 @@ class FirestoreSleepService implements SleepRemoteService {
 
   @override
   Future<void> saveSleep(SleepRecord record) async {
-    final uid = _requireAuthenticatedUid();
+    await _writeSleep(record);
+  }
 
-    final path = TrackingFirestorePaths.trackingRecordDocument(
-      uid: uid,
-      anonymousId: record.anonymousId,
-      recordId: record.recordId,
-    );
-
-    await _firestore
-        .doc(path)
-        .set(SleepRecordMapper.toFirestore(record: record, operationUid: uid));
-
-    await _firestore.waitForPendingWrites();
+  @override
+  Future<void> updateSleep(SleepRecord record) async {
+    await _writeSleep(record);
   }
 
   @override
@@ -55,6 +48,40 @@ class FirestoreSleepService implements SleepRemoteService {
           ),
         )
         .toList(growable: false);
+  }
+
+  @override
+  Future<void> deleteSleep({
+    required String anonymousId,
+    required String recordId,
+  }) async {
+    final uid = _requireAuthenticatedUid();
+
+    final path = TrackingFirestorePaths.trackingRecordDocument(
+      uid: uid,
+      anonymousId: anonymousId,
+      recordId: recordId,
+    );
+
+    await _firestore.doc(path).delete();
+
+    await _firestore.waitForPendingWrites();
+  }
+
+  Future<void> _writeSleep(SleepRecord record) async {
+    final uid = _requireAuthenticatedUid();
+
+    final path = TrackingFirestorePaths.trackingRecordDocument(
+      uid: uid,
+      anonymousId: record.anonymousId,
+      recordId: record.recordId,
+    );
+
+    await _firestore
+        .doc(path)
+        .set(SleepRecordMapper.toFirestore(record: record, operationUid: uid));
+
+    await _firestore.waitForPendingWrites();
   }
 
   String _requireAuthenticatedUid() {

@@ -7,3 +7,13 @@ abstract interface class DysregulationRemoteService {
     required String anonymousId,
   });
 }
+
+abstract interface class DysregulationManagementRemoteService
+    implements DysregulationRemoteService {
+  Future<void> updateDysregulation(DysregulationRecord record);
+
+  Future<void> deleteDysregulation({
+    required String anonymousId,
+    required String recordId,
+  });
+}
