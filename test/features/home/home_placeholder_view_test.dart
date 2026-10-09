@@ -53,6 +53,39 @@ void main() {
     },
   );
 
+  testWidgets('home no muestra accesos generales de registro ni historial', (
+    tester,
+  ) async {
+    final repository = _FakeTrackingRepository(
+      recoveredProfiles: [
+        AnonymousTrackingProfile(
+          anonymousId: 'seguimiento-actual',
+          createdAt: DateTime(2026, 9, 7),
+          trackingNumber: 1,
+        ),
+      ],
+    );
+
+    final viewModel = TrackingViewModel(
+      repository,
+      const AnonymousTrackingProfileFactory(_FakeAnonymousIdGenerator()),
+    );
+
+    addTearDown(viewModel.dispose);
+
+    await _pumpHome(tester, viewModel, largeViewport: true);
+
+    expect(find.byKey(const Key('home-new-register-action')), findsNothing);
+
+    expect(find.byKey(const Key('home-history-action')), findsNothing);
+
+    expect(find.text('Nuevo registro'), findsNothing);
+
+    expect(find.text('Historial'), findsNothing);
+
+    expect(find.byKey(const Key('home-routines-action')), findsOneWidget);
+  });
+
   testWidgets(
     'selector muestra varios seguimientos sin mostrar sus identificadores',
     (tester) async {
