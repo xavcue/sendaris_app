@@ -183,6 +183,51 @@ service cloud.firestore {
         && hasValidOptionalBehaviorObservation();
     }
 
+    function hasValidBehaviorUpdateTopLevelFields(uid) {
+      return request.resource.data.keys().hasAll([
+          'tipoRegistro',
+          'fechaEvento',
+          'fechaCreacion',
+          'fechaActualizacion',
+          'uidOperacion',
+          'datos'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'tipoRegistro',
+          'fechaEvento',
+          'fechaCreacion',
+          'fechaActualizacion',
+          'uidOperacion',
+          'datos'
+        ])
+        && resource.data.tipoRegistro == 'conducta'
+        && request.resource.data.tipoRegistro == 'conducta'
+        && request.resource.data.fechaEvento is timestamp
+        && request.resource.data.fechaCreacion is timestamp
+        && request.resource.data.fechaCreacion
+          == resource.data.fechaCreacion
+        && request.resource.data.fechaActualizacion is timestamp
+        && request.resource.data.fechaActualizacion
+          > resource.data.fechaActualizacion
+        && request.resource.data.uidOperacion is string
+        && request.resource.data.uidOperacion == uid
+        && request.resource.data.uidOperacion
+          == request.auth.uid
+        && request.resource.data.datos is map;
+    }
+
+    function isValidBehaviorUpdate(uid) {
+      return hasValidBehaviorUpdateTopLevelFields(uid)
+        && hasValidBehaviorDataFields()
+        && hasValidBehaviorDate()
+        && hasValidBehaviorCategory()
+        && hasValidOptionalBehaviorTime()
+        && hasValidOptionalBehaviorDuration()
+        && hasValidOptionalBehaviorIntensity()
+        && hasValidOptionalBehaviorContext()
+        && hasValidOptionalBehaviorObservation();
+    }
+
     function hasValidSleepTopLevelFields(uid) {
       return request.resource.data.keys().hasAll([
           'tipoRegistro',
@@ -277,6 +322,50 @@ service cloud.firestore {
         && hasValidOptionalSleepObservation();
     }
 
+    function hasValidSleepUpdateTopLevelFields(uid) {
+      return request.resource.data.keys().hasAll([
+          'tipoRegistro',
+          'fechaEvento',
+          'fechaCreacion',
+          'fechaActualizacion',
+          'uidOperacion',
+          'datos'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'tipoRegistro',
+          'fechaEvento',
+          'fechaCreacion',
+          'fechaActualizacion',
+          'uidOperacion',
+          'datos'
+        ])
+        && resource.data.tipoRegistro == 'sueno'
+        && request.resource.data.tipoRegistro == 'sueno'
+        && request.resource.data.fechaEvento is timestamp
+        && request.resource.data.fechaCreacion is timestamp
+        && request.resource.data.fechaCreacion
+          == resource.data.fechaCreacion
+        && request.resource.data.fechaActualizacion is timestamp
+        && request.resource.data.fechaActualizacion
+          > resource.data.fechaActualizacion
+        && request.resource.data.uidOperacion is string
+        && request.resource.data.uidOperacion == uid
+        && request.resource.data.uidOperacion
+          == request.auth.uid
+        && request.resource.data.datos is map;
+    }
+
+    function isValidSleepUpdate(uid) {
+      return hasValidSleepUpdateTopLevelFields(uid)
+        && hasValidSleepDataFields()
+        && hasValidSleepDate()
+        && hasValidSleepStartTime()
+        && hasValidSleepEndTime()
+        && hasDistinctSleepTimes()
+        && hasValidSleepDuration()
+        && hasValidOptionalSleepObservation();
+    }
+
     function hasValidFeedingTopLevelFields(uid) {
       return request.resource.data.keys().hasAll([
           'tipoRegistro',
@@ -346,6 +435,47 @@ service cloud.firestore {
 
     function isValidFeedingCreate(uid) {
       return hasValidFeedingTopLevelFields(uid)
+        && hasValidFeedingDataFields()
+        && hasValidFeedingDate()
+        && hasValidFeedingCategory()
+        && hasValidOptionalFeedingObservation();
+    }
+
+    function hasValidFeedingUpdateTopLevelFields(uid) {
+      return request.resource.data.keys().hasAll([
+          'tipoRegistro',
+          'fechaEvento',
+          'fechaCreacion',
+          'fechaActualizacion',
+          'uidOperacion',
+          'datos'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'tipoRegistro',
+          'fechaEvento',
+          'fechaCreacion',
+          'fechaActualizacion',
+          'uidOperacion',
+          'datos'
+        ])
+        && resource.data.tipoRegistro == 'alimentacion'
+        && request.resource.data.tipoRegistro == 'alimentacion'
+        && request.resource.data.fechaEvento is timestamp
+        && request.resource.data.fechaCreacion is timestamp
+        && request.resource.data.fechaCreacion
+          == resource.data.fechaCreacion
+        && request.resource.data.fechaActualizacion is timestamp
+        && request.resource.data.fechaActualizacion
+          > resource.data.fechaActualizacion
+        && request.resource.data.uidOperacion is string
+        && request.resource.data.uidOperacion == uid
+        && request.resource.data.uidOperacion
+          == request.auth.uid
+        && request.resource.data.datos is map;
+    }
+
+    function isValidFeedingUpdate(uid) {
+      return hasValidFeedingUpdateTopLevelFields(uid)
         && hasValidFeedingDataFields()
         && hasValidFeedingDate()
         && hasValidFeedingCategory()
@@ -438,6 +568,49 @@ service cloud.firestore {
         && hasValidOptionalSocialInteractionObservation();
     }
 
+    function hasValidSocialInteractionUpdateTopLevelFields(uid) {
+      return request.resource.data.keys().hasAll([
+          'tipoRegistro',
+          'fechaEvento',
+          'fechaCreacion',
+          'fechaActualizacion',
+          'uidOperacion',
+          'datos'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'tipoRegistro',
+          'fechaEvento',
+          'fechaCreacion',
+          'fechaActualizacion',
+          'uidOperacion',
+          'datos'
+        ])
+        && resource.data.tipoRegistro == 'interaccionSocial'
+        && request.resource.data.tipoRegistro
+          == 'interaccionSocial'
+        && request.resource.data.fechaEvento is timestamp
+        && request.resource.data.fechaCreacion is timestamp
+        && request.resource.data.fechaCreacion
+          == resource.data.fechaCreacion
+        && request.resource.data.fechaActualizacion is timestamp
+        && request.resource.data.fechaActualizacion
+          > resource.data.fechaActualizacion
+        && request.resource.data.uidOperacion is string
+        && request.resource.data.uidOperacion == uid
+        && request.resource.data.uidOperacion
+          == request.auth.uid
+        && request.resource.data.datos is map;
+    }
+
+    function isValidSocialInteractionUpdate(uid) {
+      return hasValidSocialInteractionUpdateTopLevelFields(uid)
+        && hasValidSocialInteractionDataFields()
+        && hasValidSocialInteractionDate()
+        && hasValidSocialInteractionCategory()
+        && hasValidOptionalSocialInteractionContext()
+        && hasValidOptionalSocialInteractionObservation();
+    }
+
     function hasValidDysregulationTopLevelFields(uid) {
       return request.resource.data.keys().hasAll([
           'tipoRegistro',
@@ -484,12 +657,7 @@ service cloud.firestore {
     }
 
     function hasValidDysregulationDate() {
-      return request.resource.data.datos.fecha is timestamp
-        && (
-          ('hora' in request.resource.data.datos)
-          || request.resource.data.fechaEvento
-            == request.resource.data.datos.fecha
-        );
+      return request.resource.data.datos.fecha is timestamp;
     }
 
     function hasValidOptionalDysregulationTime() {
@@ -540,6 +708,50 @@ service cloud.firestore {
 
     function isValidDysregulationCreate(uid) {
       return hasValidDysregulationTopLevelFields(uid)
+        && hasValidDysregulationDataFields()
+        && hasValidDysregulationDate()
+        && hasValidOptionalDysregulationTime()
+        && hasValidOptionalDysregulationDuration()
+        && hasValidOptionalDysregulationIntensity()
+        && hasValidOptionalDysregulationContext()
+        && hasValidOptionalDysregulationObservation();
+    }
+
+    function hasValidDysregulationUpdateTopLevelFields(uid) {
+      return request.resource.data.keys().hasAll([
+          'tipoRegistro',
+          'fechaEvento',
+          'fechaCreacion',
+          'fechaActualizacion',
+          'uidOperacion',
+          'datos'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'tipoRegistro',
+          'fechaEvento',
+          'fechaCreacion',
+          'fechaActualizacion',
+          'uidOperacion',
+          'datos'
+        ])
+        && resource.data.tipoRegistro == 'desregulacion'
+        && request.resource.data.tipoRegistro == 'desregulacion'
+        && request.resource.data.fechaEvento is timestamp
+        && request.resource.data.fechaCreacion is timestamp
+        && request.resource.data.fechaCreacion
+          == resource.data.fechaCreacion
+        && request.resource.data.fechaActualizacion is timestamp
+        && request.resource.data.fechaActualizacion
+          > resource.data.fechaActualizacion
+        && request.resource.data.uidOperacion is string
+        && request.resource.data.uidOperacion == uid
+        && request.resource.data.uidOperacion
+          == request.auth.uid
+        && request.resource.data.datos is map;
+    }
+
+    function isValidDysregulationUpdate(uid) {
+      return hasValidDysregulationUpdateTopLevelFields(uid)
         && hasValidDysregulationDataFields()
         && hasValidDysregulationDate()
         && hasValidOptionalDysregulationTime()
@@ -732,6 +944,48 @@ service cloud.firestore {
         && hasValidAtypicalSituationObservation();
     }
 
+    function hasValidAtypicalSituationUpdateTopLevelFields(uid) {
+      return request.resource.data.keys().hasAll([
+          'tipoRegistro',
+          'fechaEvento',
+          'fechaCreacion',
+          'fechaActualizacion',
+          'uidOperacion',
+          'datos'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'tipoRegistro',
+          'fechaEvento',
+          'fechaCreacion',
+          'fechaActualizacion',
+          'uidOperacion',
+          'datos'
+        ])
+        && resource.data.tipoRegistro == 'situacionAtipica'
+        && request.resource.data.tipoRegistro
+          == 'situacionAtipica'
+        && request.resource.data.fechaEvento is timestamp
+        && request.resource.data.fechaCreacion is timestamp
+        && request.resource.data.fechaCreacion
+          == resource.data.fechaCreacion
+        && request.resource.data.fechaActualizacion is timestamp
+        && request.resource.data.fechaActualizacion
+          > resource.data.fechaActualizacion
+        && request.resource.data.uidOperacion is string
+        && request.resource.data.uidOperacion == uid
+        && request.resource.data.uidOperacion
+          == request.auth.uid
+        && request.resource.data.datos is map;
+    }
+
+    function isValidAtypicalSituationUpdate(uid) {
+      return hasValidAtypicalSituationUpdateTopLevelFields(uid)
+        && hasValidAtypicalSituationDataFields()
+        && hasValidAtypicalSituationDate()
+        && hasValidAtypicalSituationCategory()
+        && hasValidAtypicalSituationObservation();
+    }
+
     function hasValidRoutineFields() {
       return request.resource.data.keys().hasAll([
           'nombre',
@@ -831,7 +1085,19 @@ service cloud.firestore {
               || isValidAtypicalSituationCreate(uid)
             );
 
-          allow update: if false;
+          allow update: if isOwner(uid)
+            && trackingProfileExistsAndIsActive(
+              uid,
+              idAnonimo
+            )
+            && (
+              isValidBehaviorUpdate(uid)
+              || isValidSleepUpdate(uid)
+              || isValidFeedingUpdate(uid)
+              || isValidSocialInteractionUpdate(uid)
+              || isValidDysregulationUpdate(uid)
+              || isValidAtypicalSituationUpdate(uid)
+            );
 
           allow delete: if isOwner(uid);
         }

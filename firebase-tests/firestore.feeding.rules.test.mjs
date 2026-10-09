@@ -39,6 +39,10 @@ after(async () => {
   await testEnv.cleanup();
 });
 
+function authenticatedDb(uid) {
+  return testEnv.authenticatedContext(uid).firestore();
+}
+
 async function createActiveTrackingProfile({
   db,
   uid,
@@ -87,9 +91,7 @@ function validFeedingData({
 }
 
 async function prepareActiveContext() {
-  const db = testEnv
-    .authenticatedContext('usuario-a')
-    .firestore();
+  const db = authenticatedDb('usuario-a');
 
   const anonymousId =
     '550e8400-e29b-41d4-a716-446655440000';
@@ -379,9 +381,7 @@ test(
 test(
   'otro usuario no puede registrar alimentación en un perfil ajeno',
   async () => {
-    const ownerDb = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const ownerDb = authenticatedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -392,9 +392,7 @@ test(
       anonymousId,
     });
 
-    const otherDb = testEnv
-      .authenticatedContext('usuario-b')
-      .firestore();
+    const otherDb = authenticatedDb('usuario-b');
 
     const reference = doc(
       otherDb,
@@ -417,9 +415,7 @@ test(
 test(
   'un usuario no autenticado no puede registrar alimentación',
   async () => {
-    const ownerDb = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const ownerDb = authenticatedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -528,29 +524,19 @@ test(
 );
 
 test(
-  'un registro de alimentación no puede modificarse, pero el propietario puede eliminarlo',
+  'el propietario puede eliminar un registro de alimentación persistido',
   async () => {
     const { db, anonymousId } =
       await prepareActiveContext();
 
     const reference = doc(
       db,
-      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/alimentacion-inmutable`,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/alimentacion-eliminar`,
     );
 
     await setDoc(
       reference,
       validFeedingData(),
-    );
-
-    await assertFails(
-      updateDoc(
-        reference,
-        {
-          'datos.categoria':
-              'desayuno',
-        },
-      ),
     );
 
     await assertSucceeds(

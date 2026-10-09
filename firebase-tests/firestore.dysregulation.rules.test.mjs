@@ -18,6 +18,11 @@ import {
 
 const projectId = 'sendaris-dysregulation-rules-test';
 
+const rulesUrl = new URL(
+  '../firestore.rules',
+  import.meta.url,
+);
+
 let testEnv;
 
 before(async () => {
@@ -26,7 +31,10 @@ before(async () => {
     firestore: {
       host: '127.0.0.1',
       port: 8080,
-      rules: fs.readFileSync('../firestore.rules', 'utf8'),
+      rules: fs.readFileSync(
+        rulesUrl,
+        'utf8',
+      ),
     },
   });
 });
@@ -36,8 +44,14 @@ beforeEach(async () => {
 });
 
 after(async () => {
-  await testEnv.cleanup();
+  if (testEnv != null) {
+    await testEnv.cleanup();
+  }
 });
+
+function authenticatedDb(uid) {
+  return testEnv.authenticatedContext(uid).firestore();
+}
 
 async function createActiveTrackingProfile({
   db,
@@ -50,7 +64,9 @@ async function createActiveTrackingProfile({
   );
 
   await setDoc(reference, {
-    fechaCreacion: new Date('2026-09-15T12:00:00Z'),
+    fechaCreacion: new Date(
+      '2026-09-15T12:00:00Z',
+    ),
     activo: true,
   });
 
@@ -58,13 +74,22 @@ async function createActiveTrackingProfile({
 }
 
 function validDysregulationData({
+  uid = 'usuario-a',
   time,
   durationMinutes,
   intensity,
   context,
   observation,
-  eventDate = new Date('2026-09-15T00:00:00Z'),
-  episodeDate = new Date('2026-09-15T00:00:00Z'),
+  eventDate = new Date(
+    '2026-09-15T00:00:00Z',
+  ),
+  episodeDate = new Date(
+    '2026-09-15T00:00:00Z',
+  ),
+  createdAt = new Date(
+    '2026-09-15T20:00:00Z',
+  ),
+  updatedAt = createdAt,
   overrides = {},
   dataOverrides = {},
 } = {}) {
@@ -78,36 +103,38 @@ function validDysregulationData({
   }
 
   if (durationMinutes !== undefined) {
-    episodeData.duracionMin = durationMinutes;
+    episodeData.duracionMin =
+      durationMinutes;
   }
 
   if (intensity !== undefined) {
-    episodeData.intensidad = intensity;
+    episodeData.intensidad =
+      intensity;
   }
 
   if (context !== undefined) {
-    episodeData.contexto = context;
+    episodeData.contexto =
+      context;
   }
 
   if (observation !== undefined) {
-    episodeData.observacion = observation;
+    episodeData.observacion =
+      observation;
   }
 
   return {
     tipoRegistro: 'desregulacion',
     fechaEvento: eventDate,
-    fechaCreacion: new Date('2026-09-15T20:00:00Z'),
-    fechaActualizacion: new Date('2026-09-15T20:00:00Z'),
-    uidOperacion: 'usuario-a',
+    fechaCreacion: createdAt,
+    fechaActualizacion: updatedAt,
+    uidOperacion: uid,
     datos: episodeData,
     ...overrides,
   };
 }
 
 async function prepareActiveContext() {
-  const db = testEnv
-    .authenticatedContext('usuario-a')
-    .firestore();
+  const db = authenticatedDb('usuario-a');
 
   const anonymousId =
     '550e8400-e29b-41d4-a716-446655440000';
@@ -124,11 +151,42 @@ async function prepareActiveContext() {
   };
 }
 
+async function prepareDysregulation({
+  recordId =
+    'desregulacion-rud-1',
+  initialData = {},
+} = {}) {
+  const {
+    db,
+    anonymousId,
+  } = await prepareActiveContext();
+
+  const reference = doc(
+    db,
+    `usuarios/usuario-a/seguimientos/${anonymousId}/registros/${recordId}`,
+  );
+
+  await setDoc(
+    reference,
+    validDysregulationData(
+      initialData,
+    ),
+  );
+
+  return {
+    db,
+    anonymousId,
+    reference,
+  };
+}
+
 test(
   'el propietario puede registrar un episodio de desregulación válido',
   async () => {
-    const { db, anonymousId } =
-      await prepareActiveContext();
+    const {
+      db,
+      anonymousId,
+    } = await prepareActiveContext();
 
     const reference = doc(
       db,
@@ -147,8 +205,10 @@ test(
 test(
   'los campos descriptivos opcionales pueden omitirse',
   async () => {
-    const { db, anonymousId } =
-      await prepareActiveContext();
+    const {
+      db,
+      anonymousId,
+    } = await prepareActiveContext();
 
     const reference = doc(
       db,
@@ -167,8 +227,10 @@ test(
 test(
   'se permiten hora duración intensidad contexto y observación válidos',
   async () => {
-    const { db, anonymousId } =
-      await prepareActiveContext();
+    const {
+      db,
+      anonymousId,
+    } = await prepareActiveContext();
 
     const reference = doc(
       db,
@@ -182,10 +244,13 @@ test(
           time: '14:30',
           durationMinutes: 12,
           intensity: 'media',
-          context: 'Durante una actividad cotidiana',
-          observation: 'Registro ficticio descriptivo.',
-          eventDate:
-            new Date('2026-09-15T14:30:00Z'),
+          context:
+            'Durante una actividad cotidiana',
+          observation:
+            'Registro ficticio descriptivo.',
+          eventDate: new Date(
+            '2026-09-15T14:30:00Z',
+          ),
         }),
       ),
     );
@@ -195,8 +260,10 @@ test(
 test(
   'se permite una duración igual a cero',
   async () => {
-    const { db, anonymousId } =
-      await prepareActiveContext();
+    const {
+      db,
+      anonymousId,
+    } = await prepareActiveContext();
 
     const reference = doc(
       db,
@@ -217,8 +284,10 @@ test(
 test(
   'se permiten exclusivamente las tres intensidades descriptivas definidas',
   async () => {
-    const { db, anonymousId } =
-      await prepareActiveContext();
+    const {
+      db,
+      anonymousId,
+    } = await prepareActiveContext();
 
     const intensities = [
       'baja',
@@ -226,7 +295,10 @@ test(
       'alta',
     ];
 
-    for (const intensity of intensities) {
+    for (
+      const intensity
+      of intensities
+    ) {
       const reference = doc(
         db,
         `usuarios/usuario-a/seguimientos/${anonymousId}/registros/intensidad-${intensity}`,
@@ -247,8 +319,10 @@ test(
 test(
   'se rechaza una fecha que no sea timestamp',
   async () => {
-    const { db, anonymousId } =
-      await prepareActiveContext();
+    const {
+      db,
+      anonymousId,
+    } = await prepareActiveContext();
 
     const reference = doc(
       db,
@@ -260,7 +334,8 @@ test(
         reference,
         validDysregulationData({
           dataOverrides: {
-            fecha: '2026-09-15',
+            fecha:
+              '2026-09-15',
           },
         }),
       ),
@@ -269,22 +344,57 @@ test(
 );
 
 test(
-  'sin hora se rechaza fechaEvento diferente de datos.fecha',
+  'sin hora se permite fechaEvento diferente de datos.fecha',
   async () => {
-    const { db, anonymousId } =
-      await prepareActiveContext();
+    const {
+      db,
+      anonymousId,
+    } = await prepareActiveContext();
 
     const reference = doc(
       db,
-      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/fecha-no-coincide`,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/sin-hora-utc-5`,
+    );
+
+    await assertSucceeds(
+      setDoc(
+        reference,
+        validDysregulationData({
+          eventDate:
+            new Date(
+              '2026-09-15T05:00:00Z',
+            ),
+          episodeDate:
+            new Date(
+              '2026-09-15T00:00:00Z',
+            ),
+        }),
+      ),
+    );
+  },
+);
+
+test(
+  'se rechaza fechaEvento cuando no es timestamp',
+  async () => {
+    const {
+      db,
+      anonymousId,
+    } = await prepareActiveContext();
+
+    const reference = doc(
+      db,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/fecha-evento-invalida`,
     );
 
     await assertFails(
       setDoc(
         reference,
         validDysregulationData({
-          eventDate:
-            new Date('2026-09-16T00:00:00Z'),
+          overrides: {
+            fechaEvento:
+              '2026-09-15T05:00:00Z',
+          },
         }),
       ),
     );
@@ -294,8 +404,10 @@ test(
 test(
   'se rechaza una hora con formato inválido',
   async () => {
-    const { db, anonymousId } =
-      await prepareActiveContext();
+    const {
+      db,
+      anonymousId,
+    } = await prepareActiveContext();
 
     const reference = doc(
       db,
@@ -308,7 +420,9 @@ test(
         validDysregulationData({
           time: '25:90',
           eventDate:
-            new Date('2026-09-15T14:30:00Z'),
+            new Date(
+              '2026-09-15T14:30:00Z',
+            ),
         }),
       ),
     );
@@ -318,8 +432,10 @@ test(
 test(
   'se rechaza una duración negativa',
   async () => {
-    const { db, anonymousId } =
-      await prepareActiveContext();
+    const {
+      db,
+      anonymousId,
+    } = await prepareActiveContext();
 
     const reference = doc(
       db,
@@ -340,8 +456,10 @@ test(
 test(
   'se rechaza una duración que no sea un entero',
   async () => {
-    const { db, anonymousId } =
-      await prepareActiveContext();
+    const {
+      db,
+      anonymousId,
+    } = await prepareActiveContext();
 
     const reference = doc(
       db,
@@ -364,8 +482,10 @@ test(
 test(
   'se rechaza una intensidad fuera del catálogo',
   async () => {
-    const { db, anonymousId } =
-      await prepareActiveContext();
+    const {
+      db,
+      anonymousId,
+    } = await prepareActiveContext();
 
     const reference = doc(
       db,
@@ -386,8 +506,10 @@ test(
 test(
   'se rechaza un contexto vacío cuando está presente',
   async () => {
-    const { db, anonymousId } =
-      await prepareActiveContext();
+    const {
+      db,
+      anonymousId,
+    } = await prepareActiveContext();
 
     const reference = doc(
       db,
@@ -408,8 +530,10 @@ test(
 test(
   'se rechaza una observación vacía cuando está presente',
   async () => {
-    const { db, anonymousId } =
-      await prepareActiveContext();
+    const {
+      db,
+      anonymousId,
+    } = await prepareActiveContext();
 
     const reference = doc(
       db,
@@ -430,22 +554,35 @@ test(
 test(
   'se rechazan campos causales clínicos o identificadores fuera del alcance',
   async () => {
-    const { db, anonymousId } =
-      await prepareActiveContext();
+    const {
+      db,
+      anonymousId,
+    } = await prepareActiveContext();
 
     const forbiddenFields = {
-      causa: 'dato no permitido',
-      causaInferida: 'dato no permitido',
-      diagnostico: 'dato no permitido',
-      recomendacion: 'dato no permitido',
-      interpretacionClinica: 'dato no permitido',
+      causa:
+        'dato no permitido',
+      causaInferida:
+        'dato no permitido',
+      diagnostico:
+        'dato no permitido',
+      recomendacion:
+        'dato no permitido',
+      interpretacionClinica:
+        'dato no permitido',
       severidad: 'alta',
-      nombreNino: 'dato no permitido',
+      nombreNino:
+        'dato no permitido',
     };
 
-    for (const [field, value] of Object.entries(
-      forbiddenFields,
-    )) {
+    for (
+      const [
+        field,
+        value,
+      ] of Object.entries(
+        forbiddenFields,
+      )
+    ) {
       const reference = doc(
         db,
         `usuarios/usuario-a/seguimientos/${anonymousId}/registros/campo-${field}`,
@@ -468,8 +605,10 @@ test(
 test(
   'se rechazan campos adicionales en el nivel superior',
   async () => {
-    const { db, anonymousId } =
-      await prepareActiveContext();
+    const {
+      db,
+      anonymousId,
+    } = await prepareActiveContext();
 
     const reference = doc(
       db,
@@ -481,7 +620,8 @@ test(
         reference,
         validDysregulationData({
           overrides: {
-            nombreNino: 'dato no permitido',
+            nombreNino:
+              'dato no permitido',
           },
         }),
       ),
@@ -492,8 +632,10 @@ test(
 test(
   'se rechaza un uidOperacion diferente al propietario',
   async () => {
-    const { db, anonymousId } =
-      await prepareActiveContext();
+    const {
+      db,
+      anonymousId,
+    } = await prepareActiveContext();
 
     const reference = doc(
       db,
@@ -504,9 +646,7 @@ test(
       setDoc(
         reference,
         validDysregulationData({
-          overrides: {
-            uidOperacion: 'usuario-b',
-          },
+          uid: 'usuario-b',
         }),
       ),
     );
@@ -514,11 +654,9 @@ test(
 );
 
 test(
-  'otro usuario no puede registrar desregulación en un perfil ajeno',
+  'otro usuario no puede registrar desregulación en un seguimiento ajeno',
   async () => {
-    const ownerDb = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const ownerDb = authenticatedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -529,9 +667,7 @@ test(
       anonymousId,
     });
 
-    const otherDb = testEnv
-      .authenticatedContext('usuario-b')
-      .firestore();
+    const otherDb = authenticatedDb('usuario-b');
 
     const reference = doc(
       otherDb,
@@ -542,9 +678,7 @@ test(
       setDoc(
         reference,
         validDysregulationData({
-          overrides: {
-            uidOperacion: 'usuario-b',
-          },
+          uid: 'usuario-b',
         }),
       ),
     );
@@ -554,9 +688,7 @@ test(
 test(
   'un usuario no autenticado no puede registrar desregulación',
   async () => {
-    const ownerDb = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const ownerDb = authenticatedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -567,9 +699,10 @@ test(
       anonymousId,
     });
 
-    const unauthenticatedDb = testEnv
-      .unauthenticatedContext()
-      .firestore();
+    const unauthenticatedDb =
+      testEnv
+        .unauthenticatedContext()
+        .firestore();
 
     const reference = doc(
       unauthenticatedDb,
@@ -586,15 +719,18 @@ test(
 );
 
 test(
-  'no se puede registrar desregulación cuando el perfil está inactivo',
+  'no se puede registrar desregulación cuando el seguimiento está inactivo',
   async () => {
-    const { db, anonymousId } =
-      await prepareActiveContext();
-
-    const profileReference = doc(
+    const {
       db,
-      `usuarios/usuario-a/seguimientos/${anonymousId}`,
-    );
+      anonymousId,
+    } = await prepareActiveContext();
+
+    const profileReference =
+      doc(
+        db,
+        `usuarios/usuario-a/seguimientos/${anonymousId}`,
+      );
 
     await updateDoc(
       profileReference,
@@ -620,8 +756,10 @@ test(
 test(
   'el propietario puede consultar un episodio de desregulación persistido',
   async () => {
-    const { db, anonymousId } =
-      await prepareActiveContext();
+    const {
+      db,
+      anonymousId,
+    } = await prepareActiveContext();
 
     const reference = doc(
       db,
@@ -634,17 +772,22 @@ test(
         time: '14:30',
         durationMinutes: 12,
         intensity: 'media',
-        context: 'Actividad cotidiana',
+        context:
+          'Actividad cotidiana',
         observation:
           'Registro ficticio para prueba.',
         eventDate:
-          new Date('2026-09-15T14:30:00Z'),
+          new Date(
+            '2026-09-15T14:30:00Z',
+          ),
       }),
     );
 
     const snapshot =
       await assertSucceeds(
-        getDoc(reference),
+        getDoc(
+          reference,
+        ),
       );
 
     assert.equal(
@@ -653,66 +796,763 @@ test(
     );
 
     assert.equal(
-      snapshot.data().tipoRegistro,
+      snapshot.data()
+        .tipoRegistro,
       'desregulacion',
     );
 
     assert.equal(
-      snapshot.data().datos.hora,
+      snapshot.data()
+        .datos.hora,
       '14:30',
     );
 
     assert.equal(
-      snapshot.data().datos.duracionMin,
+      snapshot.data()
+        .datos.duracionMin,
       12,
     );
 
     assert.equal(
-      snapshot.data().datos.intensidad,
+      snapshot.data()
+        .datos.intensidad,
       'media',
     );
 
     assert.equal(
-      snapshot.data().datos.contexto,
+      snapshot.data()
+        .datos.contexto,
       'Actividad cotidiana',
     );
 
     assert.equal(
-      snapshot.data().datos.observacion,
+      snapshot.data()
+        .datos.observacion,
       'Registro ficticio para prueba.',
     );
   },
 );
 
 test(
-  'un registro de desregulación no puede modificarse, pero el propietario puede eliminarlo',
+  'el propietario puede editar un registro de desregulación válido con hora',
   async () => {
-    const { db, anonymousId } =
-      await prepareActiveContext();
-
-    const reference = doc(
-      db,
-      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/desregulacion-inmutable`,
-    );
-
-    await setDoc(
+    const {
       reference,
-      validDysregulationData({
+    } = await prepareDysregulation({
+      initialData: {
+        time: '14:30',
+        durationMinutes: 12,
         intensity: 'media',
-      }),
-    );
+        context:
+          'Actividad cotidiana',
+        observation:
+          'Registro inicial.',
+        eventDate:
+          new Date(
+            '2026-09-15T14:30:00Z',
+          ),
+      },
+    });
 
-    await assertFails(
-      updateDoc(
+    await assertSucceeds(
+      setDoc(
         reference,
-        {
-          'datos.intensidad': 'alta',
-        },
+        validDysregulationData({
+          time: '18:45',
+          durationMinutes: 25,
+          intensity: 'alta',
+          context:
+            'Cambio de actividad',
+          observation:
+            'Registro actualizado.',
+          eventDate:
+            new Date(
+              '2026-09-20T18:45:00Z',
+            ),
+          episodeDate:
+            new Date(
+              '2026-09-20T00:00:00Z',
+            ),
+          updatedAt:
+            new Date(
+              '2026-09-20T23:00:00Z',
+            ),
+        }),
       ),
     );
 
+    const snapshot =
+      await getDoc(
+        reference,
+      );
+
+    assert.equal(
+      snapshot.data()
+        .datos.hora,
+      '18:45',
+    );
+
+    assert.equal(
+      snapshot.data()
+        .datos.duracionMin,
+      25,
+    );
+
+    assert.equal(
+      snapshot.data()
+        .datos.intensidad,
+      'alta',
+    );
+  },
+);
+
+test(
+  'el propietario puede editar un registro de desregulación válido sin hora',
+  async () => {
+    const {
+      reference,
+    } = await prepareDysregulation({
+      initialData: {
+        time: '14:30',
+        eventDate:
+          new Date(
+            '2026-09-15T14:30:00Z',
+          ),
+      },
+    });
+
     await assertSucceeds(
-      deleteDoc(reference),
+      setDoc(
+        reference,
+        validDysregulationData({
+          episodeDate:
+            new Date(
+              '2026-09-20T00:00:00Z',
+            ),
+          eventDate:
+            new Date(
+              '2026-09-20T05:00:00Z',
+            ),
+          updatedAt:
+            new Date(
+              '2026-09-20T23:00:00Z',
+            ),
+        }),
+      ),
+    );
+
+    const snapshot =
+      await getDoc(
+        reference,
+      );
+
+    assert.equal(
+      'hora' in
+        snapshot.data().datos,
+      false,
+    );
+  },
+);
+
+test(
+  'la edición permite cambiar fechaEvento sin exigir igualdad con datos.fecha',
+  async () => {
+    const {
+      reference,
+    } =
+      await prepareDysregulation();
+
+    await assertSucceeds(
+      setDoc(
+        reference,
+        validDysregulationData({
+          time: '09:10',
+          episodeDate:
+            new Date(
+              '2026-09-22T00:00:00Z',
+            ),
+          eventDate:
+            new Date(
+              '2026-09-22T14:10:00Z',
+            ),
+          updatedAt:
+            new Date(
+              '2026-09-22T20:00:00Z',
+            ),
+        }),
+      ),
+    );
+  },
+);
+
+test(
+  'la edición permite retirar todos los campos opcionales',
+  async () => {
+    const {
+      reference,
+    } = await prepareDysregulation({
+      initialData: {
+        time: '14:30',
+        durationMinutes: 12,
+        intensity: 'media',
+        context:
+          'Actividad cotidiana',
+        observation:
+          'Registro inicial.',
+        eventDate:
+          new Date(
+            '2026-09-15T14:30:00Z',
+          ),
+      },
+    });
+
+    await assertSucceeds(
+      setDoc(
+        reference,
+        validDysregulationData({
+          updatedAt:
+            new Date(
+              '2026-09-16T20:00:00Z',
+            ),
+        }),
+      ),
+    );
+
+    const snapshot =
+      await getDoc(
+        reference,
+      );
+
+    assert.deepEqual(
+      Object.keys(
+        snapshot.data().datos,
+      ).sort(),
+      [
+        'fecha',
+      ],
+    );
+  },
+);
+
+test(
+  'la edición permite duración igual a cero',
+  async () => {
+    const {
+      reference,
+    } =
+      await prepareDysregulation();
+
+    await assertSucceeds(
+      setDoc(
+        reference,
+        validDysregulationData({
+          durationMinutes: 0,
+          updatedAt:
+            new Date(
+              '2026-09-16T20:00:00Z',
+            ),
+        }),
+      ),
+    );
+  },
+);
+
+test(
+  'la edición rechaza cambiar tipoRegistro',
+  async () => {
+    const {
+      reference,
+    } =
+      await prepareDysregulation();
+
+    await assertFails(
+      setDoc(
+        reference,
+        validDysregulationData({
+          updatedAt:
+            new Date(
+              '2026-09-16T20:00:00Z',
+            ),
+          overrides: {
+            tipoRegistro:
+              'alimentacion',
+          },
+        }),
+      ),
+    );
+  },
+);
+
+test(
+  'la edición rechaza cambiar fechaCreacion',
+  async () => {
+    const {
+      reference,
+    } =
+      await prepareDysregulation();
+
+    await assertFails(
+      setDoc(
+        reference,
+        validDysregulationData({
+          createdAt:
+            new Date(
+              '2026-09-16T20:00:00Z',
+            ),
+          updatedAt:
+            new Date(
+              '2026-09-17T20:00:00Z',
+            ),
+        }),
+      ),
+    );
+  },
+);
+
+test(
+  'la edición exige una fechaActualizacion posterior',
+  async () => {
+    const {
+      reference,
+    } =
+      await prepareDysregulation();
+
+    await assertFails(
+      setDoc(
+        reference,
+        validDysregulationData({
+          updatedAt:
+            new Date(
+              '2026-09-15T20:00:00Z',
+            ),
+        }),
+      ),
+    );
+
+    await assertFails(
+      setDoc(
+        reference,
+        validDysregulationData({
+          updatedAt:
+            new Date(
+              '2026-09-14T20:00:00Z',
+            ),
+        }),
+      ),
+    );
+  },
+);
+
+test(
+  'la edición rechaza fechaEvento cuando no es timestamp',
+  async () => {
+    const {
+      reference,
+    } =
+      await prepareDysregulation();
+
+    await assertFails(
+      setDoc(
+        reference,
+        validDysregulationData({
+          updatedAt:
+            new Date(
+              '2026-09-16T20:00:00Z',
+            ),
+          overrides: {
+            fechaEvento:
+              '2026-09-16T10:00:00Z',
+          },
+        }),
+      ),
+    );
+  },
+);
+
+test(
+  'la edición rechaza un uidOperacion diferente al propietario',
+  async () => {
+    const {
+      reference,
+    } =
+      await prepareDysregulation();
+
+    await assertFails(
+      setDoc(
+        reference,
+        validDysregulationData({
+          uid: 'usuario-b',
+          updatedAt:
+            new Date(
+              '2026-09-16T20:00:00Z',
+            ),
+        }),
+      ),
+    );
+  },
+);
+
+test(
+  'la edición rechaza una hora inválida',
+  async () => {
+    const {
+      reference,
+    } =
+      await prepareDysregulation();
+
+    await assertFails(
+      setDoc(
+        reference,
+        validDysregulationData({
+          time: '25:90',
+          updatedAt:
+            new Date(
+              '2026-09-16T20:00:00Z',
+            ),
+        }),
+      ),
+    );
+  },
+);
+
+test(
+  'la edición rechaza una duración negativa',
+  async () => {
+    const {
+      reference,
+    } =
+      await prepareDysregulation();
+
+    await assertFails(
+      setDoc(
+        reference,
+        validDysregulationData({
+          durationMinutes: -1,
+          updatedAt:
+            new Date(
+              '2026-09-16T20:00:00Z',
+            ),
+        }),
+      ),
+    );
+  },
+);
+
+test(
+  'la edición rechaza una duración que no sea un entero',
+  async () => {
+    const {
+      reference,
+    } =
+      await prepareDysregulation();
+
+    await assertFails(
+      setDoc(
+        reference,
+        validDysregulationData({
+          updatedAt:
+            new Date(
+              '2026-09-16T20:00:00Z',
+            ),
+          dataOverrides: {
+            duracionMin: '12',
+          },
+        }),
+      ),
+    );
+  },
+);
+
+test(
+  'la edición rechaza una intensidad fuera del catálogo',
+  async () => {
+    const {
+      reference,
+    } =
+      await prepareDysregulation();
+
+    await assertFails(
+      setDoc(
+        reference,
+        validDysregulationData({
+          intensity: 'severa',
+          updatedAt:
+            new Date(
+              '2026-09-16T20:00:00Z',
+            ),
+        }),
+      ),
+    );
+  },
+);
+
+test(
+  'la edición rechaza contexto y observación vacíos cuando están presentes',
+  async () => {
+    const {
+      reference,
+    } =
+      await prepareDysregulation();
+
+    await assertFails(
+      setDoc(
+        reference,
+        validDysregulationData({
+          context: '',
+          updatedAt:
+            new Date(
+              '2026-09-16T20:00:00Z',
+            ),
+        }),
+      ),
+    );
+
+    await assertFails(
+      setDoc(
+        reference,
+        validDysregulationData({
+          observation: '',
+          updatedAt:
+            new Date(
+              '2026-09-16T20:00:00Z',
+            ),
+        }),
+      ),
+    );
+  },
+);
+
+test(
+  'la edición rechaza campos adicionales dentro de datos',
+  async () => {
+    const {
+      reference,
+    } =
+      await prepareDysregulation();
+
+    await assertFails(
+      setDoc(
+        reference,
+        validDysregulationData({
+          updatedAt:
+            new Date(
+              '2026-09-16T20:00:00Z',
+            ),
+          dataOverrides: {
+            causa:
+              'dato no permitido',
+          },
+        }),
+      ),
+    );
+  },
+);
+
+test(
+  'la edición rechaza campos adicionales en el nivel superior',
+  async () => {
+    const {
+      reference,
+    } =
+      await prepareDysregulation();
+
+    await assertFails(
+      setDoc(
+        reference,
+        validDysregulationData({
+          updatedAt:
+            new Date(
+              '2026-09-16T20:00:00Z',
+            ),
+          overrides: {
+            nombreNino:
+              'dato no permitido',
+          },
+        }),
+      ),
+    );
+  },
+);
+
+test(
+  'otro usuario no puede editar un registro de desregulación ajeno',
+  async () => {
+    const {
+      anonymousId,
+    } =
+      await prepareDysregulation();
+
+    const otherDb = authenticatedDb('usuario-b');
+
+    const reference = doc(
+      otherDb,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/desregulacion-rud-1`,
+    );
+
+    await assertFails(
+      setDoc(
+        reference,
+        validDysregulationData({
+          uid: 'usuario-b',
+          updatedAt:
+            new Date(
+              '2026-09-16T20:00:00Z',
+            ),
+        }),
+      ),
+    );
+  },
+);
+
+test(
+  'un usuario no autenticado no puede editar desregulación',
+  async () => {
+    const {
+      anonymousId,
+    } =
+      await prepareDysregulation();
+
+    const unauthenticatedDb =
+      testEnv
+        .unauthenticatedContext()
+        .firestore();
+
+    const reference = doc(
+      unauthenticatedDb,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/desregulacion-rud-1`,
+    );
+
+    await assertFails(
+      setDoc(
+        reference,
+        validDysregulationData({
+          updatedAt:
+            new Date(
+              '2026-09-16T20:00:00Z',
+            ),
+        }),
+      ),
+    );
+  },
+);
+
+test(
+  'la edición de desregulación requiere un seguimiento vigente',
+  async () => {
+    const {
+      db,
+      anonymousId,
+      reference,
+    } =
+      await prepareDysregulation();
+
+    const trackingReference =
+      doc(
+        db,
+        `usuarios/usuario-a/seguimientos/${anonymousId}`,
+      );
+
+    await updateDoc(
+      trackingReference,
+      {
+        activo: false,
+      },
+    );
+
+    await assertFails(
+      setDoc(
+        reference,
+        validDysregulationData({
+          updatedAt:
+            new Date(
+              '2026-09-16T20:00:00Z',
+            ),
+        }),
+      ),
+    );
+  },
+);
+
+test(
+  'el propietario puede eliminar un registro de desregulación',
+  async () => {
+    const {
+      reference,
+    } =
+      await prepareDysregulation({
+        recordId:
+          'desregulacion-eliminar',
+      });
+
+    await assertSucceeds(
+      deleteDoc(
+        reference,
+      ),
+    );
+
+    const snapshot =
+      await getDoc(
+        reference,
+      );
+
+    assert.equal(
+      snapshot.exists(),
+      false,
+    );
+  },
+);
+
+test(
+  'otro usuario no puede eliminar un registro de desregulación ajeno',
+  async () => {
+    const {
+      anonymousId,
+    } =
+      await prepareDysregulation({
+        recordId:
+          'desregulacion-eliminar-ajena',
+      });
+
+    const otherDb = authenticatedDb('usuario-b');
+
+    const reference = doc(
+      otherDb,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/desregulacion-eliminar-ajena`,
+    );
+
+    await assertFails(
+      deleteDoc(
+        reference,
+      ),
+    );
+  },
+);
+
+test(
+  'un usuario no autenticado no puede eliminar desregulación',
+  async () => {
+    const {
+      anonymousId,
+    } =
+      await prepareDysregulation({
+        recordId:
+          'desregulacion-eliminar-sin-auth',
+      });
+
+    const unauthenticatedDb =
+      testEnv
+        .unauthenticatedContext()
+        .firestore();
+
+    const reference = doc(
+      unauthenticatedDb,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/registros/desregulacion-eliminar-sin-auth`,
+    );
+
+    await assertFails(
+      deleteDoc(
+        reference,
+      ),
     );
   },
 );
