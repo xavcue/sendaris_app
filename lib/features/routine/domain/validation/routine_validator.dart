@@ -14,7 +14,7 @@ abstract final class RoutineValidator {
     final errors = <String, String>{};
 
     if (anonymousId.trim().isEmpty) {
-      errors['anonymousId'] = 'No hay un perfil activo disponible.';
+      errors['anonymousId'] = 'No hay un seguimiento actual disponible.';
     }
 
     if (name.trim().isEmpty) {

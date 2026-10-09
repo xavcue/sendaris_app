@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -45,25 +47,58 @@ class _RoutineFormContent extends StatefulWidget {
 }
 
 class _RoutineFormContentState extends State<_RoutineFormContent> {
-  final _nameController = TextEditingController();
+  static const Duration _validationMessageDuration = Duration(seconds: 4);
 
-  final _descriptionController = TextEditingController();
+  final GlobalKey _nameSectionKey = GlobalKey();
+
+  late final TextEditingController _nameController;
+  late final TextEditingController _descriptionController;
+
+  Timer? _validationMessageTimer;
+
+  bool _showValidationMessages = false;
 
   @override
   void initState() {
     super.initState();
 
-    _nameController.text = widget.initialRoutine?.name ?? '';
+    _nameController = TextEditingController(
+      text: widget.initialRoutine?.name ?? '',
+    );
 
-    _descriptionController.text = widget.initialRoutine?.description ?? '';
+    _descriptionController = TextEditingController(
+      text: widget.initialRoutine?.description ?? '',
+    );
   }
 
   @override
   void dispose() {
+    _validationMessageTimer?.cancel();
+
     _nameController.dispose();
     _descriptionController.dispose();
 
     super.dispose();
+  }
+
+  void _showErrorsTemporarily() {
+    _validationMessageTimer?.cancel();
+
+    if (!_showValidationMessages) {
+      setState(() {
+        _showValidationMessages = true;
+      });
+    }
+
+    _validationMessageTimer = Timer(_validationMessageDuration, () {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _showValidationMessages = false;
+      });
+    });
   }
 
   Future<void> _pickTime(RoutineFormViewModel viewModel) async {
@@ -77,33 +112,61 @@ class _RoutineFormContentState extends State<_RoutineFormContent> {
       confirmText: 'Seleccionar',
     );
 
-    if (selected != null) {
-      viewModel.setTime(hour: selected.hour, minute: selected.minute);
+    if (selected == null) {
+      return;
     }
+
+    viewModel.setTime(hour: selected.hour, minute: selected.minute);
   }
 
   Future<void> _save(RoutineFormViewModel viewModel) async {
     FocusManager.instance.primaryFocus?.unfocus();
+
+    final isEditing = viewModel.isEditing;
 
     final result = await viewModel.save(
       name: _nameController.text,
       description: _descriptionController.text,
     );
 
-    if (!mounted || result == null) {
+    if (!mounted) {
       return;
     }
 
-    ScaffoldMessenger.of(context)
+    if (result == null) {
+      _showErrorsTemporarily();
+
+      if (viewModel.errorFor('name') != null) {
+        final targetContext = _nameSectionKey.currentContext;
+
+        if (targetContext != null && targetContext.mounted) {
+          await Scrollable.ensureVisible(
+            targetContext,
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeOutCubic,
+            alignment: 0.15,
+          );
+        }
+      }
+
+      return;
+    }
+
+    _validationMessageTimer?.cancel();
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
           content: Text(
-            viewModel.isEditing
+            isEditing
                 ? 'Rutina actualizada correctamente.'
                 : 'Rutina creada correctamente.',
           ),
           behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
         ),
       );
 
@@ -118,8 +181,14 @@ class _RoutineFormContentState extends State<_RoutineFormContent> {
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
+      key: const Key('routine-form-view'),
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: Text(viewModel.isEditing ? 'Editar rutina' : 'Nueva rutina'),
+        title: Text(
+          viewModel.isEditing
+              ? 'Editar registro de rutina'
+              : 'Registrar rutina',
+        ),
         backgroundColor: theme.scaffoldBackgroundColor,
         foregroundColor: colorScheme.onSurface,
         elevation: 0,
@@ -128,209 +197,211 @@ class _RoutineFormContentState extends State<_RoutineFormContent> {
         surfaceTintColor: Colors.transparent,
       ),
       body: SafeArea(
-        child: ListView(
+        top: false,
+        child: SingleChildScrollView(
+          key: const Key('routine-form-scroll'),
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-          children: [
-            _IntroCard(editing: viewModel.isEditing),
-
-            const SizedBox(height: 20),
-
-            _SectionCard(
-              title: 'Información de la rutina',
-              subtitle:
-                  'Registra una actividad habitual para el perfil activo.',
-              child: Column(
-                children: [
-                  TextField(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _IntroCard(isEditing: viewModel.isEditing),
+              const SizedBox(height: 20),
+              KeyedSubtree(
+                key: _nameSectionKey,
+                child: _SectionCard(
+                  title: 'Nombre de la rutina',
+                  subtitle:
+                      'Escribe un nombre breve que permita '
+                      'identificar la rutina fácilmente.',
+                  requiredField: true,
+                  child: TextField(
                     key: const Key('routine-name-field'),
                     controller: _nameController,
                     enabled: !viewModel.isSaving,
                     textCapitalization: TextCapitalization.sentences,
                     textInputAction: TextInputAction.next,
                     decoration: InputDecoration(
-                      labelText: 'Nombre *',
                       hintText: 'Ej. Preparar mochila',
-                      prefixIcon: const Icon(Icons.checklist_outlined),
-                      errorText: viewModel.errorFor('name'),
+                      prefixIcon: const Icon(Icons.checklist_rounded),
+                      errorText: _showValidationMessages
+                          ? viewModel.errorFor('name')
+                          : null,
                     ),
                   ),
-
-                  const SizedBox(height: 16),
-
-                  TextField(
-                    key: const Key('routine-description-field'),
-                    controller: _descriptionController,
-                    enabled: !viewModel.isSaving,
-                    minLines: 3,
-                    maxLines: 5,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration: const InputDecoration(
-                      labelText: 'Descripción (opcional)',
-                      hintText: 'Añade una descripción breve si es necesaria.',
-                      alignLabelWithHint: true,
-                      prefixIcon: Icon(Icons.description_outlined),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            _SectionCard(
-              title: 'Programación',
-              subtitle: 'La hora y la frecuencia son opcionales.',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _TimePickerCard(
-                    value: viewModel.selectedTime,
-                    enabled: !viewModel.isSaving,
-                    onPressed: () {
-                      _pickTime(viewModel);
-                    },
-                    onClear: viewModel.selectedTime == null
-                        ? null
-                        : viewModel.clearTime,
-                  ),
-
-                  if (viewModel.errorFor('scheduledTime') != null) ...[
-                    const SizedBox(height: 8),
-                    _FieldError(message: viewModel.errorFor('scheduledTime')!),
-                  ],
-
-                  const SizedBox(height: 22),
-
-                  Text(
-                    'Frecuencia',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-
-                  const SizedBox(height: 4),
-
-                  Text(
-                    'Selecciona una frecuencia solo cuando aplique.',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      ChoiceChip(
-                        key: const Key('routine-recurrence-none'),
-                        selected: viewModel.selectedRecurrence == null,
-                        showCheckmark: false,
-                        onSelected: viewModel.isSaving
-                            ? null
-                            : (_) {
-                                viewModel.setRecurrence(null);
-                              },
-                        label: const Text('Sin recurrencia'),
-                      ),
-                      ChoiceChip(
-                        key: const Key('routine-recurrence-daily'),
-                        selected: viewModel.selectedRecurrence == 'diaria',
-                        showCheckmark: false,
-                        onSelected: viewModel.isSaving
-                            ? null
-                            : (_) {
-                                viewModel.setRecurrence('diaria');
-                              },
-                        label: const Text('Diaria'),
-                      ),
-                      ChoiceChip(
-                        key: const Key('routine-recurrence-weekly'),
-                        selected: viewModel.selectedRecurrence == 'semanal',
-                        showCheckmark: false,
-                        onSelected: viewModel.isSaving
-                            ? null
-                            : (_) {
-                                viewModel.setRecurrence('semanal');
-                              },
-                        label: const Text('Semanal'),
-                      ),
-                      ChoiceChip(
-                        key: const Key('routine-recurrence-monthly'),
-                        selected: viewModel.selectedRecurrence == 'mensual',
-                        showCheckmark: false,
-                        onSelected: viewModel.isSaving
-                            ? null
-                            : (_) {
-                                viewModel.setRecurrence('mensual');
-                              },
-                        label: const Text('Mensual'),
-                      ),
-                    ],
-                  ),
-
-                  if (viewModel.errorFor('recurrence') != null) ...[
-                    const SizedBox(height: 8),
-                    _FieldError(message: viewModel.errorFor('recurrence')!),
-                  ],
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            const _PrivacyCard(),
-
-            if (viewModel.errorMessage != null) ...[
-              const SizedBox(height: 16),
-              _GeneralErrorCard(message: viewModel.errorMessage!),
-            ],
-
-            const SizedBox(height: 24),
-
-            FilledButton.icon(
-              key: const Key('routine-save-button'),
-              onPressed: viewModel.isSaving ? null : () => _save(viewModel),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(56),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
                 ),
               ),
-              icon: viewModel.isSaving
-                  ? SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: colorScheme.onPrimary,
-                      ),
-                    )
-                  : Icon(
-                      viewModel.isEditing
-                          ? Icons.save_outlined
-                          : Icons.add_task_rounded,
+              const SizedBox(height: 16),
+              _SectionCard(
+                title: 'Descripción (opcional)',
+                subtitle:
+                    'Añade información descriptiva '
+                    'solo si es necesaria.',
+                child: TextField(
+                  key: const Key('routine-description-field'),
+                  controller: _descriptionController,
+                  enabled: !viewModel.isSaving,
+                  minLines: 3,
+                  maxLines: 5,
+                  textCapitalization: TextCapitalization.sentences,
+                  textInputAction: TextInputAction.newline,
+                  decoration: const InputDecoration(
+                    hintText: 'Escribe una descripción breve',
+                    hintMaxLines: 2,
+                    prefixIcon: Icon(Icons.description_outlined),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _SectionCard(
+                title: 'Programación (opcional)',
+                subtitle:
+                    'Puedes añadir una hora y una '
+                    'frecuencia si aplican a esta rutina.',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _TimePickerButton(
+                      key: const Key('routine-time-picker'),
+                      value: viewModel.selectedTime,
+                      onPressed: viewModel.isSaving
+                          ? null
+                          : () {
+                              _pickTime(viewModel);
+                            },
                     ),
-              label: Text(
-                viewModel.isSaving
-                    ? 'Guardando...'
-                    : viewModel.isEditing
-                    ? 'Guardar cambios'
-                    : 'Crear rutina',
+                    if (viewModel.selectedTime != null) ...[
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          key: const Key('routine-clear-time'),
+                          onPressed: viewModel.isSaving
+                              ? null
+                              : viewModel.clearTime,
+                          icon: const Icon(Icons.close_rounded, size: 18),
+                          label: const Text('Quitar hora'),
+                        ),
+                      ),
+                    ],
+                    if (_showValidationMessages &&
+                        viewModel.errorFor('scheduledTime') != null) ...[
+                      const SizedBox(height: 8),
+                      _FieldError(
+                        message: viewModel.errorFor('scheduledTime')!,
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    Text(
+                      'Frecuencia (opcional)',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Selecciona una frecuencia '
+                      'solo si aplica. Toca de nuevo '
+                      'la opción seleccionada para quitarla.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        ChoiceChip(
+                          key: const Key('routine-recurrence-daily'),
+                          selected: viewModel.selectedRecurrence == 'diaria',
+                          showCheckmark: false,
+                          onSelected: viewModel.isSaving
+                              ? null
+                              : (selected) {
+                                  viewModel.setRecurrence(
+                                    selected ? 'diaria' : null,
+                                  );
+                                },
+                          label: const Text('Diaria'),
+                        ),
+                        ChoiceChip(
+                          key: const Key('routine-recurrence-weekly'),
+                          selected: viewModel.selectedRecurrence == 'semanal',
+                          showCheckmark: false,
+                          onSelected: viewModel.isSaving
+                              ? null
+                              : (selected) {
+                                  viewModel.setRecurrence(
+                                    selected ? 'semanal' : null,
+                                  );
+                                },
+                          label: const Text('Semanal'),
+                        ),
+                        ChoiceChip(
+                          key: const Key('routine-recurrence-monthly'),
+                          selected: viewModel.selectedRecurrence == 'mensual',
+                          showCheckmark: false,
+                          onSelected: viewModel.isSaving
+                              ? null
+                              : (selected) {
+                                  viewModel.setRecurrence(
+                                    selected ? 'mensual' : null,
+                                  );
+                                },
+                          label: const Text('Mensual'),
+                        ),
+                      ],
+                    ),
+                    if (_showValidationMessages &&
+                        viewModel.errorFor('recurrence') != null) ...[
+                      const SizedBox(height: 10),
+                      _FieldError(message: viewModel.errorFor('recurrence')!),
+                    ],
+                  ],
+                ),
               ),
-            ),
-
-            const SizedBox(height: 12),
-
-            Text(
-              'Los campos marcados con * son obligatorios.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
+              if (_showValidationMessages &&
+                  viewModel.errorMessage != null) ...[
+                const SizedBox(height: 16),
+                _GeneralErrorCard(message: viewModel.errorMessage!),
+              ],
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                key: const Key('routine-save-button'),
+                onPressed: viewModel.isSaving
+                    ? null
+                    : () {
+                        _save(viewModel);
+                      },
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(56),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                icon: viewModel.isSaving
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: colorScheme.onPrimary,
+                        ),
+                      )
+                    : const Icon(Icons.check_circle_outline_rounded),
+                label: Text(
+                  viewModel.isSaving
+                      ? viewModel.isEditing
+                            ? 'Guardando cambios...'
+                            : 'Guardando...'
+                      : viewModel.isEditing
+                      ? 'Guardar cambios'
+                      : 'Guardar rutina',
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -348,7 +419,6 @@ class _RoutineFormContentState extends State<_RoutineFormContent> {
     }
 
     final hour = int.tryParse(parts[0]);
-
     final minute = int.tryParse(parts[1]);
 
     if (hour == null || minute == null) {
@@ -360,9 +430,9 @@ class _RoutineFormContentState extends State<_RoutineFormContent> {
 }
 
 class _IntroCard extends StatelessWidget {
-  const _IntroCard({required this.editing});
+  const _IntroCard({required this.isEditing});
 
-  final bool editing;
+  final bool isEditing;
 
   @override
   Widget build(BuildContext context) {
@@ -370,6 +440,7 @@ class _IntroCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return Container(
+      key: const Key('routine-intro-card'),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colorScheme.primaryContainer.withValues(alpha: 0.45),
@@ -388,16 +459,16 @@ class _IntroCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(
-                  editing ? Icons.edit_rounded : Icons.add_task_rounded,
+                  Icons.event_repeat_outlined,
                   color: colorScheme.onPrimary,
                 ),
               ),
-
               const SizedBox(width: 14),
-
               Expanded(
                 child: Text(
-                  editing ? 'Actualizar rutina' : 'Crear rutina',
+                  isEditing
+                      ? 'Actualizar registro de rutina'
+                      : 'Registro de rutina',
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -405,19 +476,38 @@ class _IntroCard extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(height: 14),
-
           Text(
-            editing
-                ? 'Actualiza los datos de la rutina '
-                      'que necesites cambiar.'
-                : 'Define una actividad cotidiana '
-                      'para organizar la rutina del perfil activo.',
+            isEditing
+                ? 'Revisa y modifica únicamente '
+                      'la información necesaria de la rutina.'
+                : 'Define una actividad habitual '
+                      'para organizar las rutinas '
+                      'del seguimiento actual.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: colorScheme.onSurfaceVariant,
               height: 1.4,
             ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.shield_outlined, size: 20, color: colorScheme.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  isEditing
+                      ? 'Los cambios se aplicarán a la '
+                            'rutina del seguimiento actual.'
+                      : 'La rutina se guardará en el '
+                            'seguimiento actual.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -430,11 +520,13 @@ class _SectionCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.child,
+    this.requiredField = false,
   });
 
   final String title;
   final String subtitle;
   final Widget child;
+  final bool requiredField;
 
   @override
   Widget build(BuildContext context) {
@@ -448,24 +540,46 @@ class _SectionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                if (requiredField)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      'Obligatorio',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+              ],
             ),
-
-            const SizedBox(height: 4),
-
+            const SizedBox(height: 5),
             Text(
               subtitle,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
+                height: 1.35,
               ),
             ),
-
-            const SizedBox(height: 18),
-
+            const SizedBox(height: 16),
             child,
           ],
         ),
@@ -474,103 +588,76 @@ class _SectionCard extends StatelessWidget {
   }
 }
 
-class _TimePickerCard extends StatelessWidget {
-  const _TimePickerCard({
+class _TimePickerButton extends StatelessWidget {
+  const _TimePickerButton({
     required this.value,
-    required this.enabled,
     required this.onPressed,
-    required this.onClear,
+    super.key,
   });
 
   final String? value;
-  final bool enabled;
-  final VoidCallback onPressed;
-  final VoidCallback? onClear;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        border: Border.all(color: colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.schedule_outlined, color: colorScheme.primary),
-
-          const SizedBox(width: 12),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Hora programada', style: theme.textTheme.labelLarge),
-
-                const SizedBox(height: 3),
-
-                Text(
-                  value ?? 'Sin hora definida',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: value == null
-                        ? colorScheme.onSurfaceVariant
-                        : colorScheme.onSurface,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          if (onClear != null)
-            IconButton(
-              tooltip: 'Quitar hora',
-              onPressed: enabled ? onClear : null,
-              icon: const Icon(Icons.close_rounded),
-            ),
-
-          TextButton(
-            key: const Key('routine-time-picker'),
-            onPressed: enabled ? onPressed : null,
-            child: Text(value == null ? 'Añadir' : 'Cambiar'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PrivacyCard extends StatelessWidget {
-  const _PrivacyCard();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Container(
-      key: const Key('routine-profile-message'),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colorScheme.secondaryContainer.withValues(alpha: 0.45),
+    return Material(
+      color: colorScheme.surfaceContainerLow.withValues(alpha: 0.72),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onPressed,
         borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.shield_outlined, color: colorScheme.primary),
-
-          const SizedBox(width: 10),
-
-          Expanded(
-            child: Text(
-              'La rutina se guardará en el perfil activo.',
-              style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 78),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: colorScheme.outlineVariant.withValues(alpha: 0.62),
             ),
           ),
-        ],
+          child: Row(
+            children: [
+              Icon(
+                Icons.schedule_outlined,
+                size: 22,
+                color: colorScheme.primary,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Hora programada',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      value ?? 'Sin hora',
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: value == null
+                            ? colorScheme.onSurfaceVariant
+                            : colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -589,9 +676,7 @@ class _FieldError extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(Icons.error_outline, size: 17, color: colorScheme.error),
-
         const SizedBox(width: 6),
-
         Expanded(
           child: Text(
             message,
@@ -623,9 +708,7 @@ class _GeneralErrorCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(Icons.error_outline, color: colorScheme.onErrorContainer),
-
           const SizedBox(width: 10),
-
           Expanded(
             child: Text(
               message,

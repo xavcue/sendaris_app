@@ -10,7 +10,6 @@ void main() {
       anonymousId: 'anonimo-test',
       name: 'Preparar mochila',
       recurrence: 'diaria',
-      isActive: true,
     );
 
     test('delega la creación al servicio remoto', () async {
@@ -49,19 +48,19 @@ void main() {
       expect(service.updatedRoutine, same(routine));
     });
 
-    test('delega la desactivación sin eliminar la rutina', () async {
+    test('delega la eliminación al servicio remoto', () async {
       final service = _FakeRoutineRemoteService();
 
       final repository = FirebaseRoutineRepository(service);
 
-      await repository.deactivateRoutine(
+      await repository.deleteRoutine(
         anonymousId: 'anonimo-test',
         routineId: 'routine-test-id',
       );
 
-      expect(service.deactivatedAnonymousId, 'anonimo-test');
+      expect(service.deletedAnonymousId, 'anonimo-test');
 
-      expect(service.deactivatedRoutineId, 'routine-test-id');
+      expect(service.deletedRoutineId, 'routine-test-id');
     });
   });
 }
@@ -74,9 +73,8 @@ class _FakeRoutineRemoteService implements RoutineRemoteService {
   Routine? createdRoutine;
   Routine? updatedRoutine;
 
-  String? deactivatedAnonymousId;
-
-  String? deactivatedRoutineId;
+  String? deletedAnonymousId;
+  String? deletedRoutineId;
 
   @override
   Future<void> createRoutine(Routine routine) async {
@@ -94,12 +92,11 @@ class _FakeRoutineRemoteService implements RoutineRemoteService {
   }
 
   @override
-  Future<void> deactivateRoutine({
+  Future<void> deleteRoutine({
     required String anonymousId,
     required String routineId,
   }) async {
-    deactivatedAnonymousId = anonymousId;
-
-    deactivatedRoutineId = routineId;
+    deletedAnonymousId = anonymousId;
+    deletedRoutineId = routineId;
   }
 }

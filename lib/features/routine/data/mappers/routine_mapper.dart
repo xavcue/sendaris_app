@@ -7,14 +7,10 @@ abstract final class RoutineMapper {
     'descripcion',
     'horaProgramada',
     'recurrencia',
-    'activa',
   };
 
   static Map<String, dynamic> toFirestore(Routine routine) {
-    final data = <String, dynamic>{
-      'nombre': routine.name,
-      'activa': routine.isActive,
-    };
+    final data = <String, dynamic>{'nombre': routine.name};
 
     final description = routine.description;
 
@@ -44,19 +40,19 @@ abstract final class RoutineMapper {
   }) {
     final keys = data.keys.toSet();
 
-    if (!keys.contains('nombre') ||
-        !keys.contains('activa') ||
-        !allowedFields.containsAll(keys)) {
+    if (!keys.contains('nombre') || !allowedFields.containsAll(keys)) {
       throw const FormatException(
         'La rutina contiene una estructura no permitida.',
       );
     }
 
     final rawName = data['nombre'];
+
     final rawDescription = data['descripcion'];
+
     final rawScheduledTime = data['horaProgramada'];
+
     final rawRecurrence = data['recurrencia'];
-    final rawIsActive = data['activa'];
 
     if (rawName is! String || rawName.trim().isEmpty) {
       throw const FormatException('El nombre de la rutina no es válido.');
@@ -75,10 +71,6 @@ abstract final class RoutineMapper {
 
     if (rawRecurrence != null && rawRecurrence is! String) {
       throw const FormatException('La recurrencia de la rutina no es válida.');
-    }
-
-    if (rawIsActive is! bool) {
-      throw const FormatException('El estado de la rutina no es válido.');
     }
 
     final scheduledTime = rawScheduledTime as String?;
@@ -105,7 +97,6 @@ abstract final class RoutineMapper {
       description: (rawDescription as String?)?.trim(),
       scheduledTime: scheduledTime,
       recurrence: recurrence,
-      isActive: rawIsActive,
     );
   }
 }

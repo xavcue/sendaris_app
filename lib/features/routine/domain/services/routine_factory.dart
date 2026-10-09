@@ -43,7 +43,6 @@ class RoutineFactory {
       description: normalizedDescription,
       scheduledTime: normalizedScheduledTime,
       recurrence: normalizedRecurrence,
-      isActive: true,
     );
   }
 

@@ -30,7 +30,6 @@ void main() {
         routineId: routineId,
         anonymousId: anonymousId,
         name: 'Rutina de prueba',
-        isActive: true,
       ),
     ]);
 
@@ -84,7 +83,7 @@ class _FakeRoutineRepository implements RoutineRepository {
   Future<void> updateRoutine(Routine routine) async {}
 
   @override
-  Future<void> deactivateRoutine({
+  Future<void> deleteRoutine({
     required String anonymousId,
     required String routineId,
   }) async {}

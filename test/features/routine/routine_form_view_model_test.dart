@@ -18,6 +18,8 @@ void main() {
         anonymousId: 'anonimo-test',
       );
 
+      addTearDown(viewModel.dispose);
+
       viewModel.setTime(hour: 20, minute: 15);
 
       viewModel.setRecurrence('diaria');
@@ -47,6 +49,8 @@ void main() {
         anonymousId: 'anonimo-test',
       );
 
+      addTearDown(viewModel.dispose);
+
       final routine = await viewModel.save(name: '   ', description: '');
 
       expect(routine, isNull);
@@ -65,7 +69,6 @@ void main() {
         name: 'Preparar mochila',
         scheduledTime: '20:00',
         recurrence: 'diaria',
-        isActive: true,
       );
 
       final viewModel = RoutineFormViewModel(
@@ -74,6 +77,8 @@ void main() {
         anonymousId: 'anonimo-test',
         initialRoutine: existing,
       );
+
+      addTearDown(viewModel.dispose);
 
       viewModel.setTime(hour: 19, minute: 30);
 
@@ -126,7 +131,7 @@ class _FakeRoutineRepository implements RoutineRepository {
   }
 
   @override
-  Future<void> deactivateRoutine({
+  Future<void> deleteRoutine({
     required String anonymousId,
     required String routineId,
   }) async {}

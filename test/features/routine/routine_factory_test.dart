@@ -7,7 +7,7 @@ void main() {
   group('RoutineFactory', () {
     const factory = RoutineFactory(_FakeRoutineIdGenerator());
 
-    test('crea una rutina válida asociada al seguimiento anónimo', () {
+    test('crea una rutina válida asociada al seguimiento', () {
       final routine = factory.create(
         anonymousId: '550e8400-e29b-41d4-a716-446655440000',
         name: 'Preparar mochila',
@@ -24,8 +24,6 @@ void main() {
       expect(routine.scheduledTime, '08:00');
 
       expect(routine.recurrence, 'diaria');
-
-      expect(routine.isActive, isTrue);
     });
 
     test('permite una recurrencia semanal', () {

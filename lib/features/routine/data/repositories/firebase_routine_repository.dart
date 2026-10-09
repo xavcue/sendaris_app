@@ -70,24 +70,24 @@ class FirebaseRoutineRepository implements RoutineRepository {
   }
 
   @override
-  Future<void> deactivateRoutine({
+  Future<void> deleteRoutine({
     required String anonymousId,
     required String routineId,
   }) async {
     try {
-      await _remoteService.deactivateRoutine(
+      await _remoteService.deleteRoutine(
         anonymousId: anonymousId,
         routineId: routineId,
       );
     } on StateError {
       throw const RoutineFailure(
-        'Debes iniciar sesión antes de desactivar una rutina.',
+        'Debes iniciar sesión antes de eliminar una rutina.',
       );
     } on FirebaseException catch (error) {
-      throw RoutineFailure(_safeWriteMessage(error.code));
+      throw RoutineFailure(_safeDeletionMessage(error.code));
     } catch (_) {
       throw const RoutineFailure(
-        'No fue posible desactivar la rutina. '
+        'No fue posible eliminar la rutina. '
         'Inténtalo nuevamente.',
       );
     }
@@ -127,6 +127,26 @@ class FirebaseRoutineRepository implements RoutineRepository {
 
       default:
         return 'No fue posible cargar las rutinas. '
+            'Inténtalo nuevamente.';
+    }
+  }
+
+  String _safeDeletionMessage(String code) {
+    switch (code) {
+      case 'permission-denied':
+      case 'unauthenticated':
+        return 'No tienes autorización para eliminar esta rutina.';
+
+      case 'not-found':
+        return 'La rutina ya no se encuentra disponible.';
+
+      case 'unavailable':
+      case 'network-request-failed':
+        return 'No fue posible eliminar la rutina. '
+            'Verifica tu conexión.';
+
+      default:
+        return 'No fue posible eliminar la rutina. '
             'Inténtalo nuevamente.';
     }
   }

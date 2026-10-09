@@ -32,13 +32,6 @@ void main() {
               routineId: 'rutina-activa',
               anonymousId: 'anonimo-test',
               name: 'Preparar mochila',
-              isActive: true,
-            ),
-            Routine(
-              routineId: 'rutina-inactiva',
-              anonymousId: 'anonimo-test',
-              name: 'Rutina desactivada',
-              isActive: false,
             ),
           ],
         ),
@@ -56,8 +49,6 @@ void main() {
       );
 
       expect(find.text('Preparar mochila'), findsOneWidget);
-
-      expect(find.text('Rutina desactivada'), findsNothing);
 
       expect(find.textContaining('seguimiento anónimo'), findsNothing);
 
@@ -112,7 +103,6 @@ void main() {
             routineId: 'rutina-test',
             anonymousId: 'anonimo-test',
             name: 'Preparar mochila',
-            isActive: true,
           ),
         ],
       ),
@@ -159,7 +149,7 @@ class _FakeRoutineRepository implements RoutineRepository {
   Future<void> updateRoutine(Routine routine) async {}
 
   @override
-  Future<void> deactivateRoutine({
+  Future<void> deleteRoutine({
     required String anonymousId,
     required String routineId,
   }) async {}

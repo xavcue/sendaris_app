@@ -77,10 +77,7 @@ class RoutineStatusFormViewModel extends ChangeNotifier {
       );
 
       final activeRoutines = routines
-          .where(
-            (routine) =>
-                routine.isActive && routine.anonymousId == _anonymousId,
-          )
+          .where((routine) => routine.anonymousId == _anonymousId)
           .toList();
 
       activeRoutines.sort(
@@ -177,10 +174,8 @@ class RoutineStatusFormViewModel extends ChangeNotifier {
     var hasValidationError = false;
 
     if (routineId == null ||
-        !_activeRoutines.any(
-          (routine) => routine.routineId == routineId && routine.isActive,
-        )) {
-      _routineError = 'Selecciona una rutina activa.';
+        !_activeRoutines.any((routine) => routine.routineId == routineId)) {
+      _routineError = 'Selecciona una rutina.';
 
       hasValidationError = true;
     }

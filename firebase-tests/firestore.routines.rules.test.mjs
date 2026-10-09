@@ -65,7 +65,6 @@ function validRoutineData({
     descripcion: 'Revisar los materiales necesarios.',
     horaProgramada: '20:00',
     recurrencia: 'diaria',
-    activa: true,
     ...overrides,
   };
 }
@@ -124,7 +123,6 @@ test(
     await assertSucceeds(
       setDoc(reference, {
         nombre: 'Cena',
-        activa: true,
       }),
     );
   },
@@ -381,101 +379,6 @@ test(
     assert.equal(
       snapshot.data().recurrencia,
       'semanal',
-    );
-  },
-);
-
-test(
-  'el propietario puede desactivar una rutina sin eliminarla',
-  async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
-
-    const anonymousId =
-      '550e8400-e29b-41d4-a716-446655440000';
-
-    await createActiveTrackingProfile({
-      db,
-      uid: 'usuario-a',
-      anonymousId,
-    });
-
-    const reference = doc(
-      db,
-      `usuarios/usuario-a/seguimientos/${anonymousId}/rutinas/rutina-10`,
-    );
-
-    await setDoc(
-      reference,
-      validRoutineData(),
-    );
-
-    await assertSucceeds(
-      updateDoc(
-        reference,
-        {
-          activa: false,
-        },
-      ),
-    );
-
-    const snapshot = await assertSucceeds(
-      getDoc(reference),
-    );
-
-    assert.equal(
-      snapshot.exists(),
-      true,
-    );
-
-    assert.equal(
-      snapshot.data().activa,
-      false,
-    );
-  },
-);
-
-test(
-  'una rutina desactivada no puede reactivarse sin una historia que lo autorice',
-  async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
-
-    const anonymousId =
-      '550e8400-e29b-41d4-a716-446655440000';
-
-    await createActiveTrackingProfile({
-      db,
-      uid: 'usuario-a',
-      anonymousId,
-    });
-
-    const reference = doc(
-      db,
-      `usuarios/usuario-a/seguimientos/${anonymousId}/rutinas/rutina-11`,
-    );
-
-    await setDoc(
-      reference,
-      validRoutineData(),
-    );
-
-    await updateDoc(
-      reference,
-      {
-        activa: false,
-      },
-    );
-
-    await assertFails(
-      updateDoc(
-        reference,
-        {
-          activa: true,
-        },
-      ),
     );
   },
 );

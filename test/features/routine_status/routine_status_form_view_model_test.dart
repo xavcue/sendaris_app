@@ -25,32 +25,23 @@ void main() {
       );
     }
 
-    test('recupera solo rutinas activas del seguimiento actual', () async {
+    test('recupera únicamente las rutinas del seguimiento actual y las ordena por nombre', () async {
       final viewModel = createViewModel(
         routines: const [
           Routine(
             routineId: 'rutina-b',
             anonymousId: anonymousId,
             name: 'Cena',
-            isActive: true,
-          ),
-          Routine(
-            routineId: 'rutina-inactiva',
-            anonymousId: anonymousId,
-            name: 'Dormir',
-            isActive: false,
           ),
           Routine(
             routineId: 'rutina-a',
             anonymousId: anonymousId,
             name: 'Alistarse',
-            isActive: true,
           ),
           Routine(
             routineId: 'rutina-otro',
             anonymousId: 'otro-anonimo',
             name: 'Otra rutina',
-            isActive: true,
           ),
         ],
       );
@@ -84,7 +75,6 @@ void main() {
             routineId: 'rutina-test',
             anonymousId: anonymousId,
             name: 'Preparar mochila',
-            isActive: true,
           ),
         ],
         statusRepository: repository,
@@ -144,7 +134,7 @@ class _FakeRoutineRepository implements RoutineRepository {
   Future<void> updateRoutine(Routine routine) async {}
 
   @override
-  Future<void> deactivateRoutine({
+  Future<void> deleteRoutine({
     required String anonymousId,
     required String routineId,
   }) async {}

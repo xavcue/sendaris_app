@@ -7,7 +7,7 @@ abstract interface class RoutineRepository {
 
   Future<void> updateRoutine(Routine routine);
 
-  Future<void> deactivateRoutine({
+  Future<void> deleteRoutine({
     required String anonymousId,
     required String routineId,
   });
