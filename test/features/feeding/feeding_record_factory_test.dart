@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sendaris/features/feeding/domain/exceptions/feeding_validation_failure.dart';
 import 'package:sendaris/features/feeding/domain/models/feeding_category.dart';
+import 'package:sendaris/features/feeding/domain/models/feeding_record.dart';
 import 'package:sendaris/features/feeding/domain/services/feeding_record_factory.dart';
 import 'package:sendaris/features/feeding/domain/services/feeding_record_id_generator.dart';
 
@@ -118,6 +119,69 @@ void main() {
           ),
         ),
       );
+    });
+
+    test(
+      'actualiza los campos editables preservando la identidad y creación',
+      () {
+        final current = FeedingRecord(
+          recordId: 'alimentacion-existente',
+          anonymousId: 'seguimiento-actual',
+          date: DateTime(2026, 9, 10),
+          category: FeedingCategory.breakfast,
+          observation: 'Observación inicial.',
+          createdAt: DateTime.utc(2026, 9, 10, 12),
+          updatedAt: DateTime.utc(2026, 9, 10, 12),
+        );
+
+        final updated = factory.update(
+          currentRecord: current,
+          date: DateTime(2026, 9, 12, 18, 30),
+          category: FeedingCategory.lunch,
+          observation: '  Observación actualizada.  ',
+          updatedAt: DateTime.utc(2026, 9, 12, 20),
+        );
+
+        expect(updated.recordId, current.recordId);
+
+        expect(updated.anonymousId, current.anonymousId);
+
+        expect(updated.createdAt, current.createdAt);
+
+        expect(updated.date, DateTime(2026, 9, 12));
+
+        expect(updated.category, FeedingCategory.lunch);
+
+        expect(updated.observation, 'Observación actualizada.');
+
+        expect(updated.updatedAt, DateTime.utc(2026, 9, 12, 20));
+      },
+    );
+
+    test('actualizar permite retirar la observación opcional', () {
+      final current = FeedingRecord(
+        recordId: 'alimentacion-existente',
+        anonymousId: 'seguimiento-actual',
+        date: DateTime(2026, 9, 10),
+        category: FeedingCategory.breakfast,
+        observation: 'Observación inicial.',
+        createdAt: DateTime.utc(2026, 9, 10, 12),
+        updatedAt: DateTime.utc(2026, 9, 10, 12),
+      );
+
+      final updated = factory.update(
+        currentRecord: current,
+        date: DateTime(2026, 9, 10),
+        category: FeedingCategory.breakfast,
+        observation: '   ',
+        updatedAt: DateTime.utc(2026, 9, 10, 13),
+      );
+
+      expect(updated.observation, isNull);
+
+      expect(updated.recordId, current.recordId);
+
+      expect(updated.createdAt, current.createdAt);
     });
   });
 }

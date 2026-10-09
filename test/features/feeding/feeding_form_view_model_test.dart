@@ -10,7 +10,6 @@ import 'package:sendaris/features/feeding/presentation/viewmodels/feeding_form_v
 void main() {
   group('FeedingFormViewModel', () {
     late _FakeFeedingRepository repository;
-
     late FeedingFormViewModel viewModel;
 
     setUp(() {
@@ -32,20 +31,56 @@ void main() {
       expect(viewModel.selectedDate, DateTime(2026, 9, 10));
     });
 
+    test('sin fecha inicial comienza sin fecha seleccionada', () {
+      final freshViewModel = FeedingFormViewModel(
+        repository,
+        const FeedingRecordFactory(_FakeFeedingRecordIdGenerator()),
+        anonymousId: 'anonimo-2',
+      );
+
+      expect(freshViewModel.selectedDate, isNull);
+
+      freshViewModel.dispose();
+    });
+
     test('inicia sin una categoría seleccionada', () {
       expect(viewModel.selectedCategory, isNull);
     });
 
-    test('permite seleccionar una categoría general', () {
+    test('permite seleccionar y deseleccionar una categoría', () {
       viewModel.setCategory(FeedingCategory.lunch);
 
       expect(viewModel.selectedCategory, FeedingCategory.lunch);
+
+      viewModel.setCategory(FeedingCategory.lunch);
+
+      expect(viewModel.selectedCategory, isNull);
     });
 
     test('permite actualizar la fecha', () {
       viewModel.setDate(DateTime(2026, 9, 11, 23, 30));
 
       expect(viewModel.selectedDate, DateTime(2026, 9, 11));
+    });
+
+    test('exige seleccionar una fecha antes de guardar', () async {
+      final freshViewModel = FeedingFormViewModel(
+        repository,
+        const FeedingRecordFactory(_FakeFeedingRecordIdGenerator()),
+        anonymousId: 'anonimo-2',
+      );
+
+      freshViewModel.setCategory(FeedingCategory.breakfast);
+
+      final result = await freshViewModel.save(observation: '');
+
+      expect(result, false);
+
+      expect(freshViewModel.errorFor('date'), 'Selecciona una fecha.');
+
+      expect(repository.savedRecords, isEmpty);
+
+      freshViewModel.dispose();
     });
 
     test('exige seleccionar una categoría antes de guardar', () async {
@@ -87,6 +122,8 @@ void main() {
         'Registro de alimentación guardado correctamente.',
       );
 
+      expect(viewModel.selectedDate, isNull);
+
       expect(viewModel.selectedCategory, isNull);
     });
 
@@ -114,6 +151,26 @@ void main() {
         expect(viewModel.errorFor('category'), isNull);
       },
     );
+
+    test('elimina el error de fecha al seleccionar una fecha válida', () async {
+      final freshViewModel = FeedingFormViewModel(
+        repository,
+        const FeedingRecordFactory(_FakeFeedingRecordIdGenerator()),
+        anonymousId: 'anonimo-2',
+      );
+
+      freshViewModel.setCategory(FeedingCategory.lunch);
+
+      await freshViewModel.save(observation: '');
+
+      expect(freshViewModel.errorFor('date'), isNotNull);
+
+      freshViewModel.setDate(DateTime(2026, 9, 21));
+
+      expect(freshViewModel.errorFor('date'), isNull);
+
+      freshViewModel.dispose();
+    });
 
     test('presenta un error controlado cuando falla el repositorio', () async {
       repository.failure = const FeedingFailure(

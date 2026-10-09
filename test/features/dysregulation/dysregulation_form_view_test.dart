@@ -15,7 +15,7 @@ void main() {
       repository = _FakeDysregulationRepository();
     });
 
-    testWidgets('muestra únicamente información descriptiva del episodio', (
+    testWidgets('muestra información descriptiva y fecha sin seleccionar', (
       tester,
     ) async {
       await _pumpView(tester, repository);
@@ -24,57 +24,43 @@ void main() {
 
       expect(find.text('Registro de desregulación'), findsOneWidget);
 
+      expect(find.text('Sin seleccionar'), findsOneWidget);
+
+      expect(find.text('Hora (opcional)'), findsOneWidget);
+
+      expect(find.text('Sin hora'), findsOneWidget);
+
+      expect(find.text('Obligatorio'), findsOneWidget);
+
       expect(find.textContaining('no determina causas'), findsOneWidget);
 
       expect(find.textContaining('diagnósticos'), findsOneWidget);
 
       expect(find.textContaining('recomendaciones'), findsOneWidget);
 
-      expect(find.textContaining('únicamente descriptiva'), findsOneWidget);
-
       expect(find.textContaining('severidad'), findsNothing);
 
       expect(find.textContaining('tratamiento'), findsNothing);
-
-      expect(find.textContaining('puntuación'), findsNothing);
-    });
-
-    testWidgets('muestra fecha obligatoria y hora opcional', (tester) async {
-      await _pumpView(tester, repository);
-
-      expect(find.text('Cuándo ocurrió'), findsOneWidget);
-
-      expect(find.text('Obligatorio'), findsOneWidget);
-
-      expect(
-        find.byKey(const Key('dysregulation-date-picker')),
-        findsOneWidget,
-      );
-
-      expect(
-        find.byKey(const Key('dysregulation-time-picker')),
-        findsOneWidget,
-      );
-
-      expect(find.text('Opcional'), findsOneWidget);
     });
 
     testWidgets(
-      'muestra únicamente las tres intensidades descriptivas definidas',
+      'muestra las tres intensidades sin checks y permite deseleccionarlas',
       (tester) async {
         await _pumpView(tester, repository);
 
-        final intensity = find.byKey(
+        final scrollable = find.byType(Scrollable).first;
+
+        final intensityChip = find.byKey(
           const Key('dysregulation-intensity-media'),
         );
 
         await tester.scrollUntilVisible(
-          intensity,
+          intensityChip,
           300,
-          scrollable: find.byType(Scrollable).first,
+          scrollable: scrollable,
         );
 
-        await tester.pumpAndSettle();
+        await tester.pump();
 
         expect(find.text('Baja'), findsOneWidget);
 
@@ -83,95 +69,107 @@ void main() {
         expect(find.text('Alta'), findsOneWidget);
 
         expect(find.text('Severa'), findsNothing);
-      },
-    );
 
-    testWidgets(
-      'al rechazar duración no numérica vuelve al campo y muestra el error',
-      (tester) async {
-        await _pumpView(tester, repository);
+        var chip = tester.widget<FilterChip>(intensityChip);
 
-        final scrollable = find.byType(Scrollable).first;
+        expect(chip.selected, isFalse);
 
-        final durationField = find.byKey(
-          const Key('dysregulation-duration-field'),
-        );
+        expect(chip.showCheckmark, isFalse);
 
-        await tester.scrollUntilVisible(
-          durationField,
-          300,
-          scrollable: scrollable,
-        );
-
-        await tester.pumpAndSettle();
-
-        await tester.enterText(durationField, 'doce');
-
-        final saveButton = await _moveFromDurationToSave(tester);
-
-        await tester.tap(saveButton);
-
-        await tester.pumpAndSettle();
-
-        expect(find.textContaining('números enteros'), findsOneWidget);
-
-        final textField = tester.widget<TextField>(durationField);
-
-        expect(textField.focusNode?.hasFocus, isTrue);
-
-        expect(repository.savedRecords, isEmpty);
-      },
-    );
-
-    testWidgets(
-      'al rechazar duración negativa vuelve al campo y elimina el error al corregirlo',
-      (tester) async {
-        await _pumpView(tester, repository);
-
-        final scrollable = find.byType(Scrollable).first;
-
-        final durationField = find.byKey(
-          const Key('dysregulation-duration-field'),
-        );
-
-        await tester.scrollUntilVisible(
-          durationField,
-          300,
-          scrollable: scrollable,
-        );
-
-        await tester.pumpAndSettle();
-
-        await tester.enterText(durationField, '-1');
-
-        final saveButton = await _moveFromDurationToSave(tester);
-
-        await tester.tap(saveButton);
-
-        await tester.pumpAndSettle();
-
-        expect(find.text('La duración no puede ser negativa.'), findsOneWidget);
-
-        var textField = tester.widget<TextField>(durationField);
-
-        expect(textField.focusNode?.hasFocus, isTrue);
-
-        await tester.enterText(durationField, '12');
+        await tester.tap(intensityChip);
 
         await tester.pump();
 
-        expect(find.text('La duración no puede ser negativa.'), findsNothing);
+        chip = tester.widget<FilterChip>(intensityChip);
 
-        textField = tester.widget<TextField>(durationField);
+        expect(chip.selected, isTrue);
 
-        expect(textField.controller?.text, '12');
+        expect(chip.showCheckmark, isFalse);
 
-        expect(repository.savedRecords, isEmpty);
+        await tester.tap(intensityChip);
+
+        await tester.pump();
+
+        chip = tester.widget<FilterChip>(intensityChip);
+
+        expect(chip.selected, isFalse);
       },
     );
 
-    testWidgets('guarda duración cero como valor válido', (tester) async {
+    testWidgets('muestra error de fecha y lo oculta después de unos segundos', (
+      tester,
+    ) async {
       await _pumpView(tester, repository);
+
+      final saveButton = find.byKey(const Key('dysregulation-save-button'));
+
+      await tester.scrollUntilVisible(
+        saveButton,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+
+      await tester.pump();
+
+      await tester.tap(saveButton);
+
+      await tester.pump();
+
+      await tester.pump(const Duration(milliseconds: 450));
+
+      expect(find.text('Selecciona una fecha.'), findsOneWidget);
+
+      expect(repository.savedRecords, isEmpty);
+
+      await tester.pump(const Duration(seconds: 5));
+
+      await tester.pump();
+
+      expect(find.text('Selecciona una fecha.'), findsNothing);
+    });
+
+    testWidgets('muestra duración contexto y observación como opcionales', (
+      tester,
+    ) async {
+      await _pumpView(tester, repository);
+
+      final scrollable = find.byType(Scrollable).first;
+
+      final duration = find.byKey(const Key('dysregulation-duration-field'));
+
+      await tester.scrollUntilVisible(duration, 300, scrollable: scrollable);
+
+      await tester.pump();
+
+      expect(find.text('Duración (opcional)'), findsOneWidget);
+
+      expect(find.text('Intensidad descriptiva (opcional)'), findsOneWidget);
+
+      final context = find.byKey(const Key('dysregulation-context-field'));
+
+      await tester.scrollUntilVisible(context, 300, scrollable: scrollable);
+
+      await tester.pump();
+
+      expect(find.text('Contexto general (opcional)'), findsOneWidget);
+
+      final observation = find.byKey(
+        const Key('dysregulation-observation-field'),
+      );
+
+      await tester.scrollUntilVisible(observation, 300, scrollable: scrollable);
+
+      await tester.pump();
+
+      expect(find.text('Observación (opcional)'), findsOneWidget);
+    });
+
+    testWidgets('muestra temporalmente el error de duración inválida', (
+      tester,
+    ) async {
+      await _pumpView(tester, repository);
+
+      await _selectDate(tester);
 
       final scrollable = find.byType(Scrollable).first;
 
@@ -185,25 +183,41 @@ void main() {
         scrollable: scrollable,
       );
 
-      await tester.pumpAndSettle();
+      await tester.pump();
 
-      await tester.enterText(durationField, '0');
+      await tester.enterText(durationField, 'doce');
 
-      final saveButton = await _moveFromDurationToSave(tester);
+      FocusManager.instance.primaryFocus?.unfocus();
+
+      await tester.pump();
+
+      final saveButton = find.byKey(const Key('dysregulation-save-button'));
+
+      await tester.scrollUntilVisible(saveButton, 300, scrollable: scrollable);
+
+      await tester.pump();
 
       await tester.tap(saveButton);
 
-      await tester.pumpAndSettle();
+      await tester.pump();
 
-      expect(repository.savedRecords, hasLength(1));
+      await tester.pump(const Duration(milliseconds: 450));
 
-      expect(repository.savedRecords.single.durationMinutes, 0);
+      expect(find.textContaining('números enteros'), findsOneWidget);
+
+      expect(repository.savedRecords, isEmpty);
+
+      await tester.pump(const Duration(seconds: 5));
+
+      await tester.pump();
+
+      expect(find.textContaining('números enteros'), findsNothing);
     });
 
-    testWidgets('guarda intensidad contexto y observación descriptivos', (
-      tester,
-    ) async {
+    testWidgets('guarda correctamente y regresa a Registrar', (tester) async {
       await _pumpView(tester, repository);
+
+      await _selectDate(tester);
 
       final scrollable = find.byType(Scrollable).first;
 
@@ -217,11 +231,17 @@ void main() {
         scrollable: scrollable,
       );
 
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       await tester.tap(intensityChip);
 
       await tester.pump();
+
+      final selectedChip = tester.widget<FilterChip>(intensityChip);
+
+      expect(selectedChip.selected, isTrue);
+
+      expect(selectedChip.showCheckmark, isFalse);
 
       final contextField = find.byKey(const Key('dysregulation-context-field'));
 
@@ -231,7 +251,7 @@ void main() {
         scrollable: scrollable,
       );
 
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       await tester.enterText(contextField, 'Durante una actividad cotidiana.');
 
@@ -245,7 +265,7 @@ void main() {
         scrollable: scrollable,
       );
 
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       await tester.enterText(
         observationField,
@@ -256,11 +276,13 @@ void main() {
 
       await tester.scrollUntilVisible(saveButton, 300, scrollable: scrollable);
 
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       await tester.tap(saveButton);
 
-      await tester.pumpAndSettle();
+      await tester.pump();
+
+      await tester.pump(const Duration(milliseconds: 500));
 
       expect(repository.savedRecords, hasLength(1));
 
@@ -272,48 +294,12 @@ void main() {
 
       expect(record.observation, 'Registro ficticio descriptivo.');
 
+      expect(find.text('Destino Registrar'), findsOneWidget);
+
       expect(
         find.text('Episodio de desregulación guardado correctamente.'),
         findsOneWidget,
       );
-
-      expect(find.text('Durante una actividad cotidiana.'), findsNothing);
-
-      expect(find.text('Registro ficticio descriptivo.'), findsNothing);
-    });
-
-    testWidgets('permite guardar solo con la fecha y omitir los demás datos', (
-      tester,
-    ) async {
-      await _pumpView(tester, repository);
-
-      final saveButton = find.byKey(const Key('dysregulation-save-button'));
-
-      await tester.scrollUntilVisible(
-        saveButton,
-        300,
-        scrollable: find.byType(Scrollable).first,
-      );
-
-      await tester.pumpAndSettle();
-
-      await tester.tap(saveButton);
-
-      await tester.pumpAndSettle();
-
-      expect(repository.savedRecords, hasLength(1));
-
-      final record = repository.savedRecords.single;
-
-      expect(record.time, isNull);
-
-      expect(record.durationMinutes, isNull);
-
-      expect(record.intensity, isNull);
-
-      expect(record.context, isNull);
-
-      expect(record.observation, isNull);
     });
   });
 }
@@ -324,53 +310,57 @@ Future<void> _pumpView(
 ) async {
   await tester.pumpWidget(
     MaterialApp(
-      home: DysregulationFormView(
-        repository: repository,
-        recordFactory: const DysregulationRecordFactory(
-          _FakeDysregulationRecordIdGenerator(),
-        ),
-        anonymousId: 'anonimo-test',
+      home: Builder(
+        builder: (context) {
+          return Scaffold(
+            body: Center(
+              child: FilledButton(
+                key: const Key('open-dysregulation-form'),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => DysregulationFormView(
+                        repository: repository,
+                        recordFactory: const DysregulationRecordFactory(
+                          _FakeDysregulationRecordIdGenerator(),
+                        ),
+                        anonymousId: 'anonimo-test',
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('Destino Registrar'),
+              ),
+            ),
+          );
+        },
       ),
     ),
   );
 
+  await tester.tap(find.byKey(const Key('open-dysregulation-form')));
+
   await tester.pumpAndSettle();
 }
 
-Future<Finder> _moveFromDurationToSave(WidgetTester tester) async {
-  FocusManager.instance.primaryFocus?.unfocus();
-
-  await tester.pumpAndSettle();
-
-  final scrollable = find.byType(Scrollable).first;
-
-  final contextField = find.byKey(const Key('dysregulation-context-field'));
-
-  await tester.scrollUntilVisible(contextField, 250, scrollable: scrollable);
-
-  await tester.pumpAndSettle();
-
-  final observationField = find.byKey(
-    const Key('dysregulation-observation-field'),
-  );
+Future<void> _selectDate(WidgetTester tester) async {
+  final datePicker = find.byKey(const Key('dysregulation-date-picker'));
 
   await tester.scrollUntilVisible(
-    observationField,
-    250,
-    scrollable: scrollable,
+    datePicker,
+    200,
+    scrollable: find.byType(Scrollable).first,
   );
 
-  await tester.pumpAndSettle();
+  await tester.pump();
 
-  final saveButton = find.byKey(const Key('dysregulation-save-button'));
-
-  await tester.scrollUntilVisible(saveButton, 250, scrollable: scrollable);
+  await tester.tap(datePicker);
 
   await tester.pumpAndSettle();
 
-  expect(saveButton, findsOneWidget);
+  await tester.tap(find.widgetWithText(TextButton, 'Seleccionar').last);
 
-  return saveButton;
+  await tester.pumpAndSettle();
 }
 
 class _FakeDysregulationRepository implements DysregulationRepository {

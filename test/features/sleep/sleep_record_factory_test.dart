@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sendaris/features/sleep/domain/exceptions/sleep_validation_failure.dart';
+import 'package:sendaris/features/sleep/domain/models/sleep_record.dart';
 import 'package:sendaris/features/sleep/domain/services/sleep_record_factory.dart';
 import 'package:sendaris/features/sleep/domain/services/sleep_record_id_generator.dart';
 
@@ -88,6 +89,74 @@ void main() {
       );
 
       expect(record.eventDateTime, DateTime(2026, 9, 9, 20, 30));
+    });
+
+    test('actualiza sueño conservando identidad y fecha de creación', () {
+      final current = SleepRecord(
+        recordId: 'sueno-existente',
+        anonymousId: 'seguimiento-1',
+        date: DateTime(2026, 9, 20),
+        startTime: '22:00',
+        endTime: '06:00',
+        durationMinutes: 480,
+        observation: 'Antes',
+        createdAt: DateTime.utc(2026, 9, 21, 8),
+        updatedAt: DateTime.utc(2026, 9, 21, 8),
+      );
+
+      final updated = factory.update(
+        currentRecord: current,
+        date: DateTime(2026, 9, 22),
+        startTime: '23:00',
+        endTime: '07:30',
+        observation: 'Después',
+        updatedAt: DateTime.utc(2026, 9, 23, 9),
+      );
+
+      expect(updated.recordId, current.recordId);
+
+      expect(updated.anonymousId, current.anonymousId);
+
+      expect(updated.createdAt, current.createdAt);
+
+      expect(updated.updatedAt, DateTime.utc(2026, 9, 23, 9));
+
+      expect(updated.date, DateTime(2026, 9, 22));
+
+      expect(updated.startTime, '23:00');
+
+      expect(updated.endTime, '07:30');
+
+      expect(updated.durationMinutes, 510);
+
+      expect(updated.observation, 'Después');
+    });
+
+    test('actualización normaliza observación vacía y recalcula duración', () {
+      final current = SleepRecord(
+        recordId: 'sueno-existente',
+        anonymousId: 'seguimiento-1',
+        date: DateTime(2026, 9, 20),
+        startTime: '22:00',
+        endTime: '06:00',
+        durationMinutes: 480,
+        observation: 'Observación previa',
+        createdAt: DateTime.utc(2026, 9, 21, 8),
+        updatedAt: DateTime.utc(2026, 9, 21, 8),
+      );
+
+      final updated = factory.update(
+        currentRecord: current,
+        date: DateTime(2026, 9, 20),
+        startTime: '21:30',
+        endTime: '05:30',
+        observation: '   ',
+        updatedAt: DateTime.utc(2026, 9, 22, 8),
+      );
+
+      expect(updated.durationMinutes, 480);
+
+      expect(updated.observation, isNull);
     });
 
     test('rechaza horas iguales', () {

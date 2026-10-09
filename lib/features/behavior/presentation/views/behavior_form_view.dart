@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../domain/models/behavior_category.dart';
 import '../../domain/models/behavior_intensity.dart';
+import '../../domain/models/behavior_record.dart';
 import '../../domain/repositories/behavior_repository.dart';
 import '../../domain/services/behavior_record_factory.dart';
 import '../viewmodels/behavior_form_view_model.dart';
@@ -12,12 +15,14 @@ class BehaviorFormView extends StatelessWidget {
     required this.repository,
     required this.recordFactory,
     required this.anonymousId,
+    this.initialRecord,
     super.key,
   });
 
   final BehaviorRepository repository;
   final BehaviorRecordFactory recordFactory;
   final String anonymousId;
+  final BehaviorRecord? initialRecord;
 
   @override
   Widget build(BuildContext context) {
@@ -26,30 +31,62 @@ class BehaviorFormView extends StatelessWidget {
         repository,
         recordFactory,
         anonymousId: anonymousId,
+        initialRecord: initialRecord,
       ),
-      child: const _BehaviorFormContent(),
+      child: _BehaviorFormContent(initialRecord: initialRecord),
     );
   }
 }
 
 class _BehaviorFormContent extends StatefulWidget {
-  const _BehaviorFormContent();
+  const _BehaviorFormContent({required this.initialRecord});
+
+  final BehaviorRecord? initialRecord;
 
   @override
   State<_BehaviorFormContent> createState() => _BehaviorFormContentState();
 }
 
 class _BehaviorFormContentState extends State<_BehaviorFormContent> {
+  static const Duration _validationMessageDuration = Duration(seconds: 4);
+
+  final GlobalKey _dateSectionKey = GlobalKey();
+
   final GlobalKey _categorySectionKey = GlobalKey();
 
-  final TextEditingController _durationController = TextEditingController();
+  late final TextEditingController _durationController;
 
-  final TextEditingController _contextController = TextEditingController();
+  late final TextEditingController _contextController;
 
-  final TextEditingController _observationController = TextEditingController();
+  late final TextEditingController _observationController;
+
+  Timer? _validationMessageTimer;
+
+  bool _showValidationMessages = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    final initialRecord = widget.initialRecord;
+
+    _durationController = TextEditingController(
+      text: initialRecord?.durationMinutes?.toString() ?? '',
+    );
+
+    _contextController = TextEditingController(
+      text: initialRecord?.context ?? '',
+    );
+
+    _observationController = TextEditingController(
+      text: initialRecord?.observation ?? '',
+    );
+  }
 
   @override
   void dispose() {
+    _validationMessageTimer?.cancel();
+
     _durationController.dispose();
     _contextController.dispose();
     _observationController.dispose();
@@ -57,10 +94,30 @@ class _BehaviorFormContentState extends State<_BehaviorFormContent> {
     super.dispose();
   }
 
+  void _showErrorsTemporarily() {
+    _validationMessageTimer?.cancel();
+
+    if (!_showValidationMessages) {
+      setState(() {
+        _showValidationMessages = true;
+      });
+    }
+
+    _validationMessageTimer = Timer(_validationMessageDuration, () {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _showValidationMessages = false;
+      });
+    });
+  }
+
   Future<void> _pickDate(BehaviorFormViewModel viewModel) async {
     final selected = await showDatePicker(
       context: context,
-      initialDate: viewModel.selectedDate,
+      initialDate: viewModel.selectedDate ?? DateTime.now(),
       firstDate: DateTime(1900),
       lastDate: DateTime(2100),
       helpText: 'Seleccionar fecha',
@@ -92,6 +149,8 @@ class _BehaviorFormContentState extends State<_BehaviorFormContent> {
   Future<void> _save(BehaviorFormViewModel viewModel) async {
     FocusManager.instance.primaryFocus?.unfocus();
 
+    final isEditing = viewModel.isEditing;
+
     final success = await viewModel.save(
       durationText: _durationController.text,
       context: _contextController.text,
@@ -103,38 +162,59 @@ class _BehaviorFormContentState extends State<_BehaviorFormContent> {
     }
 
     if (!success) {
-      if (viewModel.errorFor('category') != null) {
-        final categoryContext = _categorySectionKey.currentContext;
+      _showErrorsTemporarily();
 
-        if (categoryContext != null && categoryContext.mounted) {
-          await Scrollable.ensureVisible(
-            categoryContext,
-            duration: const Duration(milliseconds: 350),
-            curve: Curves.easeOutCubic,
-            alignment: 0.15,
-          );
-        }
+      BuildContext? targetContext;
+
+      if (viewModel.errorFor('date') != null) {
+        targetContext = _dateSectionKey.currentContext;
+      } else if (viewModel.errorFor('category') != null) {
+        targetContext = _categorySectionKey.currentContext;
+      }
+
+      if (targetContext != null && targetContext.mounted) {
+        await Scrollable.ensureVisible(
+          targetContext,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOutCubic,
+          alignment: 0.15,
+        );
       }
 
       return;
     }
 
-    _durationController.clear();
-    _contextController.clear();
-    _observationController.clear();
+    _validationMessageTimer?.cancel();
 
-    if (!mounted) {
-      return;
+    if (!isEditing) {
+      _durationController.clear();
+      _contextController.clear();
+      _observationController.clear();
     }
 
-    ScaffoldMessenger.of(context)
+    final messenger = ScaffoldMessenger.of(context);
+
+    final successMessage =
+        viewModel.successMessage ??
+        (isEditing
+            ? 'Conducta actualizada correctamente.'
+            : 'Conducta guardada correctamente.');
+
+    messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        const SnackBar(
-          content: Text('Conducta guardada correctamente.'),
+        SnackBar(
+          content: Text(successMessage),
           behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
         ),
       );
+
+    if (isEditing) {
+      Navigator.of(context).pop(true);
+    } else {
+      Navigator.of(context).pop();
+    }
   }
 
   @override
@@ -142,11 +222,17 @@ class _BehaviorFormContentState extends State<_BehaviorFormContent> {
     final viewModel = context.watch<BehaviorFormViewModel>();
 
     final theme = Theme.of(context);
+
     final colorScheme = theme.colorScheme;
 
+    final isEditing = viewModel.isEditing;
+
     return Scaffold(
+      key: Key(isEditing ? 'behavior-edit-view' : 'behavior-create-view'),
       appBar: AppBar(
-        title: const Text('Registrar conducta'),
+        title: Text(
+          isEditing ? 'Editar registro de conducta' : 'Registrar conducta',
+        ),
         backgroundColor: theme.scaffoldBackgroundColor,
         foregroundColor: colorScheme.onSurface,
         elevation: 0,
@@ -158,64 +244,73 @@ class _BehaviorFormContentState extends State<_BehaviorFormContent> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
           children: [
-            _IntroCard(colorScheme: colorScheme),
-
+            _IntroCard(colorScheme: colorScheme, isEditing: isEditing),
             const SizedBox(height: 20),
-
-            _SectionCard(
-              title: 'Cuándo ocurrió',
-              subtitle:
-                  'Registra la fecha y, si la '
-                  'conoces, también la hora.',
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _PickerButton(
-                          key: const Key('behavior-date-picker'),
-                          icon: Icons.calendar_today_outlined,
-                          label: 'Fecha',
-                          value: _formatDate(viewModel.selectedDate),
-                          onPressed: viewModel.isSaving
-                              ? null
-                              : () => _pickDate(viewModel),
+            KeyedSubtree(
+              key: _dateSectionKey,
+              child: _SectionCard(
+                title: 'Cuándo ocurrió',
+                subtitle:
+                    'Selecciona la fecha del registro. '
+                    'La hora es opcional.',
+                requiredField: true,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _PickerButton(
+                            key: const Key('behavior-date-picker'),
+                            icon: Icons.calendar_today_outlined,
+                            label: 'Fecha',
+                            value: viewModel.selectedDate == null
+                                ? 'Sin seleccionar'
+                                : _formatDate(viewModel.selectedDate!),
+                            onPressed: viewModel.isSaving
+                                ? null
+                                : () {
+                                    _pickDate(viewModel);
+                                  },
+                          ),
                         ),
-                      ),
-
-                      const SizedBox(width: 12),
-
-                      Expanded(
-                        child: _PickerButton(
-                          key: const Key('behavior-time-picker'),
-                          icon: Icons.schedule_outlined,
-                          label: 'Hora',
-                          value: viewModel.selectedTime ?? 'Opcional',
-                          onPressed: viewModel.isSaving
-                              ? null
-                              : () => _pickTime(viewModel),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _PickerButton(
+                            key: const Key('behavior-time-picker'),
+                            icon: Icons.schedule_outlined,
+                            label: 'Hora (opcional)',
+                            value: viewModel.selectedTime ?? 'Sin hora',
+                            onPressed: viewModel.isSaving
+                                ? null
+                                : () {
+                                    _pickTime(viewModel);
+                                  },
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-
-                  if (viewModel.selectedTime != null)
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton.icon(
-                        onPressed: viewModel.isSaving
-                            ? null
-                            : viewModel.clearTime,
-                        icon: const Icon(Icons.close, size: 18),
-                        label: const Text('Quitar hora'),
-                      ),
+                      ],
                     ),
-                ],
+                    if (_showValidationMessages &&
+                        viewModel.errorFor('date') != null) ...[
+                      const SizedBox(height: 8),
+                      _FieldError(message: viewModel.errorFor('date')!),
+                    ],
+                    if (viewModel.selectedTime != null)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          onPressed: viewModel.isSaving
+                              ? null
+                              : viewModel.clearTime,
+                          icon: const Icon(Icons.close_rounded, size: 18),
+                          label: const Text('Quitar hora'),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
-
             const SizedBox(height: 16),
-
             KeyedSubtree(
               key: _categorySectionKey,
               child: _SectionCard(
@@ -237,34 +332,27 @@ class _BehaviorFormContentState extends State<_BehaviorFormContent> {
                               'behavior-category-'
                               '${category.code}',
                             ),
-
                             selected: viewModel.selectedCategory == category,
-
                             showCheckmark: false,
-
                             onSelected: viewModel.isSaving
                                 ? null
                                 : (_) {
                                     viewModel.setCategory(category);
                                   },
-
                             label: Text(category.label),
                           ),
                       ],
                     ),
-
-                    if (viewModel.errorFor('category') != null) ...[
+                    if (_showValidationMessages &&
+                        viewModel.errorFor('category') != null) ...[
                       const SizedBox(height: 8),
-
                       _FieldError(message: viewModel.errorFor('category')!),
                     ],
                   ],
                 ),
               ),
             ),
-
             const SizedBox(height: 16),
-
             _SectionCard(
               title: 'Detalles del registro',
               subtitle:
@@ -284,12 +372,12 @@ class _BehaviorFormContentState extends State<_BehaviorFormContent> {
                       hintText: 'Ej. 12',
                       suffixText: 'min',
                       prefixIcon: const Icon(Icons.timer_outlined),
-                      errorText: viewModel.errorFor('durationMinutes'),
+                      errorText: _showValidationMessages
+                          ? viewModel.errorFor('durationMinutes')
+                          : null,
                     ),
                   ),
-
                   const SizedBox(height: 20),
-
                   Text(
                     'Intensidad descriptiva '
                     '(opcional)',
@@ -297,9 +385,7 @@ class _BehaviorFormContentState extends State<_BehaviorFormContent> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-
                   const SizedBox(height: 4),
-
                   Text(
                     'Describe la intensidad '
                     'observada; no corresponde '
@@ -308,9 +394,7 @@ class _BehaviorFormContentState extends State<_BehaviorFormContent> {
                       color: colorScheme.onSurfaceVariant,
                     ),
                   ),
-
                   const SizedBox(height: 10),
-
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
@@ -335,20 +419,14 @@ class _BehaviorFormContentState extends State<_BehaviorFormContent> {
                 ],
               ),
             ),
-
             const SizedBox(height: 16),
-
             Card(
               margin: EdgeInsets.zero,
               clipBehavior: Clip.antiAlias,
               child: ExpansionTile(
                 key: const Key('behavior-optional-details'),
-
-                // Evita las líneas superior e inferior
-                // que Material 3 agrega al expandir.
                 shape: const RoundedRectangleBorder(),
                 collapsedShape: const RoundedRectangleBorder(),
-
                 leading: const Icon(Icons.notes_outlined),
                 title: const Text('Detalles opcionales'),
                 subtitle: const Text('Contexto y observaciones'),
@@ -357,7 +435,7 @@ class _BehaviorFormContentState extends State<_BehaviorFormContent> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Contexto',
+                      'Contexto (opcional)',
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
@@ -367,7 +445,8 @@ class _BehaviorFormContentState extends State<_BehaviorFormContent> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Describe brevemente dónde o en qué situación ocurrió.',
+                      'Describe brevemente dónde '
+                      'o en qué situación ocurrió.',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                       ),
@@ -391,7 +470,7 @@ class _BehaviorFormContentState extends State<_BehaviorFormContent> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Observación',
+                      'Observación (opcional)',
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
@@ -401,7 +480,8 @@ class _BehaviorFormContentState extends State<_BehaviorFormContent> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Añade información descriptiva solo si es necesaria.',
+                      'Añade información descriptiva '
+                      'solo si es necesaria.',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                       ),
@@ -424,18 +504,18 @@ class _BehaviorFormContentState extends State<_BehaviorFormContent> {
                 ],
               ),
             ),
-
-            if (viewModel.errorMessage != null) ...[
+            if (_showValidationMessages && viewModel.errorMessage != null) ...[
               const SizedBox(height: 16),
-
               _GeneralErrorCard(message: viewModel.errorMessage!),
             ],
-
             const SizedBox(height: 24),
-
             FilledButton.icon(
               key: const Key('behavior-save-button'),
-              onPressed: viewModel.isSaving ? null : () => _save(viewModel),
+              onPressed: viewModel.isSaving
+                  ? null
+                  : () {
+                      _save(viewModel);
+                    },
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(56),
                 shape: RoundedRectangleBorder(
@@ -451,20 +531,19 @@ class _BehaviorFormContentState extends State<_BehaviorFormContent> {
                         color: colorScheme.onPrimary,
                       ),
                     )
-                  : const Icon(Icons.check_circle_outline),
+                  : Icon(
+                      isEditing
+                          ? Icons.save_outlined
+                          : Icons.check_circle_outline,
+                    ),
               label: Text(
-                viewModel.isSaving ? 'Guardando...' : 'Guardar conducta',
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            Text(
-              'Los campos marcados con * '
-              'son obligatorios.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
+                viewModel.isSaving
+                    ? isEditing
+                          ? 'Guardando cambios...'
+                          : 'Guardando...'
+                    : isEditing
+                    ? 'Guardar cambios'
+                    : 'Guardar conducta',
               ),
             ),
           ],
@@ -485,6 +564,7 @@ class _BehaviorFormContentState extends State<_BehaviorFormContent> {
     }
 
     final hour = int.tryParse(parts[0]);
+
     final minute = int.tryParse(parts[1]);
 
     if (hour == null || minute == null) {
@@ -517,9 +597,10 @@ class _BehaviorFormContentState extends State<_BehaviorFormContent> {
 }
 
 class _IntroCard extends StatelessWidget {
-  const _IntroCard({required this.colorScheme});
+  const _IntroCard({required this.colorScheme, required this.isEditing});
 
   final ColorScheme colorScheme;
+  final bool isEditing;
 
   @override
   Widget build(BuildContext context) {
@@ -544,16 +625,16 @@ class _IntroCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(
-                  Icons.edit_note_rounded,
+                  isEditing ? Icons.edit_outlined : Icons.edit_note_rounded,
                   color: colorScheme.onPrimary,
                 ),
               ),
-
               const SizedBox(width: 14),
-
               Expanded(
                 child: Text(
-                  'Conducta observada',
+                  isEditing
+                      ? 'Actualizar registro de conducta'
+                      : 'Registro de conducta',
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -561,33 +642,33 @@ class _IntroCard extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(height: 14),
-
           Text(
-            'Añade información descriptiva '
-            'sobre la conducta observada. '
-            'Puedes omitir los detalles que '
-            'no apliquen.',
+            isEditing
+                ? 'Revisa y modifica únicamente '
+                      'la información necesaria del registro.'
+                : 'Añade información descriptiva '
+                      'sobre la conducta observada. '
+                      'Puedes omitir los detalles que '
+                      'no apliquen.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: colorScheme.onSurfaceVariant,
               height: 1.4,
             ),
           ),
-
           const SizedBox(height: 14),
-
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(Icons.shield_outlined, size: 20, color: colorScheme.primary),
-
               const SizedBox(width: 8),
-
               Expanded(
                 child: Text(
-                  'La información se guardará '
-                  'en el perfil activo.',
+                  isEditing
+                      ? 'Los cambios se aplicarán al '
+                            'registro del seguimiento actual.'
+                      : 'La información se guardará '
+                            'en el seguimiento actual.',
                   style: theme.textTheme.bodySmall,
                 ),
               ),
@@ -615,6 +696,7 @@ class _SectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     final colorScheme = theme.colorScheme;
 
     return Card(
@@ -629,17 +711,33 @@ class _SectionCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    requiredField ? '$title *' : title,
+                    title,
                     style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
+                if (requiredField)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      'Obligatorio',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
               ],
             ),
-
-            const SizedBox(height: 4),
-
+            const SizedBox(height: 5),
             Text(
               subtitle,
               style: theme.textTheme.bodySmall?.copyWith(
@@ -647,9 +745,7 @@ class _SectionCard extends StatelessWidget {
                 height: 1.35,
               ),
             ),
-
-            const SizedBox(height: 18),
-
+            const SizedBox(height: 16),
             child,
           ],
         ),
@@ -675,42 +771,53 @@ class _PickerButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     final colorScheme = theme.colorScheme;
 
-    return InkWell(
-      onTap: onPressed,
+    return Material(
+      color: colorScheme.surfaceContainerLow.withValues(alpha: 0.72),
       borderRadius: BorderRadius.circular(16),
-      child: Ink(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          border: Border.all(color: colorScheme.outlineVariant),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, size: 20, color: colorScheme.primary),
-
-            const SizedBox(height: 10),
-
-            Text(
-              label,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 78),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: colorScheme.outlineVariant.withValues(alpha: 0.62),
             ),
-
-            const SizedBox(height: 2),
-
-            Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 22, color: colorScheme.primary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      value,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -729,14 +836,13 @@ class _FieldError extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(Icons.error_outline, size: 18, color: colorScheme.error),
-
+        Icon(Icons.error_outline_rounded, size: 18, color: colorScheme.error),
         const SizedBox(width: 6),
-
         Expanded(
           child: Text(
             message,
-            style: TextStyle(color: colorScheme.error, fontSize: 12),
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: colorScheme.error),
           ),
         ),
       ],
@@ -751,25 +857,30 @@ class _GeneralErrorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+
+    final colorScheme = theme.colorScheme;
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: colorScheme.errorContainer,
-        borderRadius: BorderRadius.circular(14),
+        color: colorScheme.errorContainer.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.error_outline, color: colorScheme.onErrorContainer),
-
+          Icon(
+            Icons.error_outline_rounded,
+            color: colorScheme.onErrorContainer,
+          ),
           const SizedBox(width: 10),
-
           Expanded(
             child: Text(
               message,
-              style: TextStyle(color: colorScheme.onErrorContainer),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onErrorContainer,
+              ),
             ),
           ),
         ],

@@ -53,6 +53,52 @@ class BehaviorRecordFactory {
     );
   }
 
+  BehaviorRecord update({
+    required BehaviorRecord currentRecord,
+    required DateTime date,
+    required BehaviorCategory category,
+    String? time,
+    int? durationMinutes,
+    BehaviorIntensity? intensity,
+    String? context,
+    String? observation,
+    DateTime? updatedAt,
+  }) {
+    final normalizedAnonymousId = currentRecord.anonymousId.trim();
+
+    final normalizedTime = _normalizeOptionalText(time);
+
+    final normalizedContext = _normalizeOptionalText(context);
+
+    final normalizedObservation = _normalizeOptionalText(observation);
+
+    final errors = BehaviorRecordValidator.validate(
+      anonymousId: normalizedAnonymousId,
+      time: normalizedTime,
+      durationMinutes: durationMinutes,
+    );
+
+    if (errors.isNotEmpty) {
+      throw BehaviorValidationFailure(errors);
+    }
+
+    final timestamp = (updatedAt ?? DateTime.now()).toUtc();
+
+    return BehaviorRecord(
+      recordId: currentRecord.recordId,
+      anonymousId: normalizedAnonymousId,
+      date: DateTime(date.year, date.month, date.day),
+      time: normalizedTime,
+      category: category,
+      durationMinutes: durationMinutes,
+      intensity: intensity,
+      context: normalizedContext,
+      observation: normalizedObservation,
+      createdAt: currentRecord.createdAt.toUtc(),
+      updatedAt: timestamp,
+    );
+  }
+
   String? _normalizeOptionalText(String? value) {
     if (value == null) {
       return null;

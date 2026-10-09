@@ -8,15 +8,15 @@ import 'package:sendaris/features/atypical_situation/presentation/viewmodels/aty
 
 void main() {
   group('AtypicalSituationFormViewModel', () {
-    test('inicia con la fecha normalizada y sin categoría', () {
-      final repository = _FakeAtypicalSituationRepository();
+    late _FakeAtypicalSituationRepository repository;
 
-      const factory = AtypicalSituationRecordFactory(_FakeRecordIdGenerator());
+    setUp(() {
+      repository = _FakeAtypicalSituationRepository();
+    });
 
-      final viewModel = AtypicalSituationFormViewModel(
+    test('normaliza la fecha inicial y comienza sin categoría', () {
+      final viewModel = _createViewModel(
         repository,
-        factory,
-        anonymousId: 'anonimo-test',
         initialDate: DateTime(2026, 9, 7, 23, 45),
       );
 
@@ -25,63 +25,101 @@ void main() {
       expect(viewModel.selectedCategory, isNull);
 
       expect(viewModel.isSaving, isFalse);
+
+      viewModel.dispose();
     });
 
-    test('permite seleccionar fecha y categoría', () {
-      final repository = _FakeAtypicalSituationRepository();
+    test('sin fecha inicial comienza sin fecha seleccionada', () {
+      final viewModel = _createViewModel(repository);
 
-      const factory = AtypicalSituationRecordFactory(_FakeRecordIdGenerator());
+      expect(viewModel.selectedDate, isNull);
 
-      final viewModel = AtypicalSituationFormViewModel(
-        repository,
-        factory,
-        anonymousId: 'anonimo-test',
-      );
+      viewModel.dispose();
+    });
 
-      viewModel.selectDate(DateTime(2026, 9, 5, 18, 30));
+    test('permite seleccionar una fecha', () {
+      final viewModel = _createViewModel(repository);
+
+      viewModel.selectDate(DateTime(2026, 9, 21, 18, 30));
+
+      expect(viewModel.selectedDate, DateTime(2026, 9, 21));
+
+      viewModel.dispose();
+    });
+
+    test('permite seleccionar y deseleccionar una categoría', () {
+      final viewModel = _createViewModel(repository);
 
       viewModel.selectCategory(AtypicalSituationCategory.environmentChange);
-
-      expect(viewModel.selectedDate, DateTime(2026, 9, 5));
 
       expect(
         viewModel.selectedCategory,
         AtypicalSituationCategory.environmentChange,
       );
+
+      viewModel.selectCategory(AtypicalSituationCategory.environmentChange);
+
+      expect(viewModel.selectedCategory, isNull);
+
+      viewModel.dispose();
     });
 
-    test('rechaza guardado sin categoría ni descripción', () async {
-      final repository = _FakeAtypicalSituationRepository();
-
-      const factory = AtypicalSituationRecordFactory(_FakeRecordIdGenerator());
-
-      final viewModel = AtypicalSituationFormViewModel(
-        repository,
-        factory,
-        anonymousId: 'anonimo-test',
-      );
+    test('rechaza guardado sin fecha categoría ni descripción', () async {
+      final viewModel = _createViewModel(repository);
 
       final result = await viewModel.save(observation: '   ');
 
       expect(result, isFalse);
 
-      expect(viewModel.errorFor('category'), isNotNull);
+      expect(viewModel.errorFor('date'), 'Selecciona una fecha.');
 
-      expect(viewModel.errorFor('observation'), isNotNull);
+      expect(
+        viewModel.errorFor('category'),
+        'Selecciona una categoría para continuar.',
+      );
 
-      expect(repository.savedRecord, isNull);
+      expect(
+        viewModel.errorFor('observation'),
+        'Describe brevemente lo ocurrido.',
+      );
+
+      expect(repository.savedRecords, isEmpty);
+
+      viewModel.dispose();
     });
 
-    test('guarda una situación válida', () async {
-      final repository = _FakeAtypicalSituationRepository();
+    test('seleccionar la fecha elimina su error', () async {
+      final viewModel = _createViewModel(repository);
 
-      const factory = AtypicalSituationRecordFactory(_FakeRecordIdGenerator());
+      await viewModel.save(observation: '');
 
-      final viewModel = AtypicalSituationFormViewModel(
+      expect(viewModel.errorFor('date'), isNotNull);
+
+      viewModel.selectDate(DateTime(2026, 9, 21));
+
+      expect(viewModel.errorFor('date'), isNull);
+
+      viewModel.dispose();
+    });
+
+    test('seleccionar una categoría elimina su error', () async {
+      final viewModel = _createViewModel(repository);
+
+      await viewModel.save(observation: '');
+
+      expect(viewModel.errorFor('category'), isNotNull);
+
+      viewModel.selectCategory(AtypicalSituationCategory.unexpectedEvent);
+
+      expect(viewModel.errorFor('category'), isNull);
+
+      viewModel.dispose();
+    });
+
+    test('guarda una situación válida y normaliza la descripción', () async {
+      final viewModel = _createViewModel(
         repository,
-        factory,
-        anonymousId: 'anonimo-test',
-        initialDate: DateTime(2026, 9, 6),
+        initialDate: DateTime(2026, 9, 21),
       );
 
       viewModel.selectCategory(AtypicalSituationCategory.unexpectedEvent);
@@ -92,31 +130,45 @@ void main() {
 
       expect(result, isTrue);
 
-      expect(repository.savedRecord, isNotNull);
+      expect(repository.savedRecords, hasLength(1));
 
-      expect(repository.savedRecord!.anonymousId, 'anonimo-test');
+      final record = repository.savedRecords.single;
 
-      expect(
-        repository.savedRecord!.category,
-        AtypicalSituationCategory.unexpectedEvent,
-      );
+      expect(record.anonymousId, 'anonimo-test');
 
-      expect(
-        repository.savedRecord!.observation,
-        'La actividad prevista fue suspendida.',
-      );
+      expect(record.date, DateTime(2026, 9, 21));
 
-      expect(repository.savedRecord!.date, DateTime(2026, 9, 6));
+      expect(record.category, AtypicalSituationCategory.unexpectedEvent);
+
+      expect(record.observation, 'La actividad prevista fue suspendida.');
+
+      expect(viewModel.selectedDate, isNull);
+
+      expect(viewModel.selectedCategory, isNull);
+
+      viewModel.dispose();
     });
   });
 }
 
+AtypicalSituationFormViewModel _createViewModel(
+  _FakeAtypicalSituationRepository repository, {
+  DateTime? initialDate,
+}) {
+  return AtypicalSituationFormViewModel(
+    repository,
+    const AtypicalSituationRecordFactory(_FakeRecordIdGenerator()),
+    anonymousId: 'anonimo-test',
+    initialDate: initialDate,
+  );
+}
+
 class _FakeAtypicalSituationRepository implements AtypicalSituationRepository {
-  AtypicalSituationRecord? savedRecord;
+  final List<AtypicalSituationRecord> savedRecords = [];
 
   @override
   Future<void> saveAtypicalSituation(AtypicalSituationRecord record) async {
-    savedRecord = record;
+    savedRecords.add(record);
   }
 
   @override

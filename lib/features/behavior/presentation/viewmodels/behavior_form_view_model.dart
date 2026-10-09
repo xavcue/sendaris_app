@@ -4,6 +4,8 @@ import '../../domain/exceptions/behavior_failure.dart';
 import '../../domain/exceptions/behavior_validation_failure.dart';
 import '../../domain/models/behavior_category.dart';
 import '../../domain/models/behavior_intensity.dart';
+import '../../domain/models/behavior_record.dart';
+import '../../domain/repositories/behavior_management_repository.dart';
 import '../../domain/repositories/behavior_repository.dart';
 import '../../domain/services/behavior_record_factory.dart';
 
@@ -13,14 +15,25 @@ class BehaviorFormViewModel extends ChangeNotifier {
     this._recordFactory, {
     required this.anonymousId,
     DateTime? initialDate,
-  }) : _selectedDate = _dateOnly(initialDate ?? DateTime.now());
+    BehaviorRecord? initialRecord,
+  }) : _initialRecord = initialRecord,
+       _selectedDate = initialRecord != null
+           ? _dateOnly(initialRecord.date)
+           : initialDate == null
+           ? null
+           : _dateOnly(initialDate),
+       _selectedTime = initialRecord?.time,
+       _selectedCategory = initialRecord?.category,
+       _selectedIntensity = initialRecord?.intensity;
 
   final BehaviorRepository _repository;
   final BehaviorRecordFactory _recordFactory;
 
+  final BehaviorRecord? _initialRecord;
+
   final String anonymousId;
 
-  DateTime _selectedDate;
+  DateTime? _selectedDate;
   String? _selectedTime;
   BehaviorCategory? _selectedCategory;
   BehaviorIntensity? _selectedIntensity;
@@ -32,7 +45,7 @@ class BehaviorFormViewModel extends ChangeNotifier {
 
   Map<String, String> _fieldErrors = const {};
 
-  DateTime get selectedDate => _selectedDate;
+  DateTime? get selectedDate => _selectedDate;
 
   String? get selectedTime => _selectedTime;
 
@@ -42,11 +55,25 @@ class BehaviorFormViewModel extends ChangeNotifier {
 
   bool get isSaving => _isSaving;
 
+  bool get isEditing => _initialRecord != null;
+
   String? get errorMessage => _errorMessage;
 
   String? get successMessage => _successMessage;
 
   Map<String, String> get fieldErrors => Map.unmodifiable(_fieldErrors);
+
+  String get initialDurationText {
+    return _initialRecord?.durationMinutes?.toString() ?? '';
+  }
+
+  String get initialContext {
+    return _initialRecord?.context ?? '';
+  }
+
+  String get initialObservation {
+    return _initialRecord?.observation ?? '';
+  }
 
   String? errorFor(String field) {
     return _fieldErrors[field];
@@ -54,7 +81,10 @@ class BehaviorFormViewModel extends ChangeNotifier {
 
   void setDate(DateTime date) {
     _selectedDate = _dateOnly(date);
+
+    _removeFieldError('date');
     _clearGeneralMessages();
+
     notifyListeners();
   }
 
@@ -75,6 +105,7 @@ class BehaviorFormViewModel extends ChangeNotifier {
     }
 
     _selectedTime = null;
+
     _removeFieldError('time');
     _clearGeneralMessages();
 
@@ -82,8 +113,14 @@ class BehaviorFormViewModel extends ChangeNotifier {
   }
 
   void setCategory(BehaviorCategory category) {
-    _selectedCategory = category;
-    _removeFieldError('category');
+    if (_selectedCategory == category) {
+      _selectedCategory = null;
+    } else {
+      _selectedCategory = category;
+
+      _removeFieldError('category');
+    }
+
     _clearGeneralMessages();
 
     notifyListeners();
@@ -114,6 +151,12 @@ class BehaviorFormViewModel extends ChangeNotifier {
     _errorMessage = null;
     _successMessage = null;
 
+    final date = _selectedDate;
+
+    if (date == null) {
+      _fieldErrors = {..._fieldErrors, 'date': 'Selecciona una fecha.'};
+    }
+
     final normalizedDuration = durationText.trim();
 
     int? durationMinutes;
@@ -142,16 +185,49 @@ class BehaviorFormViewModel extends ChangeNotifier {
 
     if (_fieldErrors.isNotEmpty) {
       notifyListeners();
+
       return false;
     }
 
     _isSaving = true;
+
     notifyListeners();
 
     try {
+      final currentRecord = _initialRecord;
+
+      if (currentRecord != null) {
+        final managementRepository = _repository;
+
+        if (managementRepository is! BehaviorManagementRepository) {
+          _errorMessage =
+              'No fue posible actualizar la conducta. '
+              'Inténtalo nuevamente.';
+
+          return false;
+        }
+
+        final updatedRecord = _recordFactory.update(
+          currentRecord: currentRecord,
+          date: date!,
+          time: _selectedTime,
+          category: category!,
+          durationMinutes: durationMinutes,
+          intensity: _selectedIntensity,
+          context: context,
+          observation: observation,
+        );
+
+        await managementRepository.updateBehavior(updatedRecord);
+
+        _successMessage = 'Conducta actualizada correctamente.';
+
+        return true;
+      }
+
       final record = _recordFactory.create(
         anonymousId: anonymousId,
-        date: _selectedDate,
+        date: date!,
         time: _selectedTime,
         category: category!,
         durationMinutes: durationMinutes,
@@ -176,18 +252,22 @@ class BehaviorFormViewModel extends ChangeNotifier {
 
       return false;
     } catch (_) {
-      _errorMessage =
-          'No fue posible guardar la conducta. '
-          'Inténtalo nuevamente.';
+      _errorMessage = isEditing
+          ? 'No fue posible actualizar la conducta. '
+                'Inténtalo nuevamente.'
+          : 'No fue posible guardar la conducta. '
+                'Inténtalo nuevamente.';
 
       return false;
     } finally {
       _isSaving = false;
+
       notifyListeners();
     }
   }
 
   void _prepareNextRecord() {
+    _selectedDate = null;
     _selectedTime = null;
     _selectedCategory = null;
     _selectedIntensity = null;

@@ -41,6 +41,38 @@ class FeedingRecordFactory {
     );
   }
 
+  FeedingRecord update({
+    required FeedingRecord currentRecord,
+    required DateTime date,
+    required FeedingCategory category,
+    String? observation,
+    DateTime? updatedAt,
+  }) {
+    final normalizedAnonymousId = currentRecord.anonymousId.trim();
+
+    final normalizedObservation = _normalizeOptionalText(observation);
+
+    final errors = FeedingRecordValidator.validate(
+      anonymousId: normalizedAnonymousId,
+    );
+
+    if (errors.isNotEmpty) {
+      throw FeedingValidationFailure(errors);
+    }
+
+    final timestamp = (updatedAt ?? DateTime.now()).toUtc();
+
+    return FeedingRecord(
+      recordId: currentRecord.recordId,
+      anonymousId: normalizedAnonymousId,
+      date: DateTime(date.year, date.month, date.day),
+      category: category,
+      observation: normalizedObservation,
+      createdAt: currentRecord.createdAt,
+      updatedAt: timestamp,
+    );
+  }
+
   String? _normalizeOptionalText(String? value) {
     if (value == null) {
       return null;

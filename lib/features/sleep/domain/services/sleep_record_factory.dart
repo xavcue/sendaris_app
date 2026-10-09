@@ -55,6 +55,50 @@ class SleepRecordFactory {
     );
   }
 
+  SleepRecord update({
+    required SleepRecord currentRecord,
+    required DateTime date,
+    required String startTime,
+    required String endTime,
+    String? observation,
+    DateTime? updatedAt,
+  }) {
+    final normalizedStartTime = startTime.trim();
+
+    final normalizedEndTime = endTime.trim();
+
+    final normalizedObservation = _normalizeOptionalText(observation);
+
+    final errors = SleepRecordValidator.validate(
+      anonymousId: currentRecord.anonymousId,
+      startTime: normalizedStartTime,
+      endTime: normalizedEndTime,
+    );
+
+    if (errors.isNotEmpty) {
+      throw SleepValidationFailure(errors);
+    }
+
+    final durationMinutes = SleepDurationCalculator.calculate(
+      startTime: normalizedStartTime,
+      endTime: normalizedEndTime,
+    );
+
+    final timestamp = (updatedAt ?? DateTime.now()).toUtc();
+
+    return SleepRecord(
+      recordId: currentRecord.recordId,
+      anonymousId: currentRecord.anonymousId,
+      date: DateTime(date.year, date.month, date.day),
+      startTime: normalizedStartTime,
+      endTime: normalizedEndTime,
+      durationMinutes: durationMinutes,
+      observation: normalizedObservation,
+      createdAt: currentRecord.createdAt,
+      updatedAt: timestamp,
+    );
+  }
+
   String? _normalizeOptionalText(String? value) {
     if (value == null) {
       return null;

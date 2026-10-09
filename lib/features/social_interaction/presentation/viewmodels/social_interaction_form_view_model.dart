@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import '../../domain/exceptions/social_interaction_failure.dart';
 import '../../domain/exceptions/social_interaction_validation_failure.dart';
 import '../../domain/models/social_interaction_category.dart';
+import '../../domain/models/social_interaction_record.dart';
+import '../../domain/repositories/social_interaction_management_repository.dart';
 import '../../domain/repositories/social_interaction_repository.dart';
 import '../../domain/services/social_interaction_record_factory.dart';
 
@@ -12,28 +14,46 @@ class SocialInteractionFormViewModel extends ChangeNotifier {
     this._recordFactory, {
     required this.anonymousId,
     DateTime? initialDate,
-  }) : _selectedDate = _dateOnly(initialDate ?? DateTime.now());
+    SocialInteractionRecord? initialRecord,
+  }) : _initialRecord = initialRecord,
+       _selectedDate = initialRecord != null
+           ? _dateOnly(initialRecord.date)
+           : initialDate == null
+           ? null
+           : _dateOnly(initialDate),
+       _selectedCategory = initialRecord?.category;
 
   final SocialInteractionRepository _repository;
+
   final SocialInteractionRecordFactory _recordFactory;
 
   final String anonymousId;
 
-  DateTime _selectedDate;
+  final SocialInteractionRecord? _initialRecord;
+
+  DateTime? _selectedDate;
+
   SocialInteractionCategory? _selectedCategory;
 
   bool _isSaving = false;
 
   String? _errorMessage;
+
   String? _successMessage;
 
   Map<String, String> _fieldErrors = const {};
 
-  DateTime get selectedDate => _selectedDate;
+  DateTime? get selectedDate => _selectedDate;
 
   SocialInteractionCategory? get selectedCategory => _selectedCategory;
 
   bool get isSaving => _isSaving;
+
+  bool get isEditing => _initialRecord != null;
+
+  String get initialContext => _initialRecord?.context ?? '';
+
+  String get initialObservation => _initialRecord?.observation ?? '';
 
   String? get errorMessage => _errorMessage;
 
@@ -48,15 +68,21 @@ class SocialInteractionFormViewModel extends ChangeNotifier {
   void setDate(DateTime date) {
     _selectedDate = _dateOnly(date);
 
+    _removeFieldError('date');
+
     _clearGeneralMessages();
 
     notifyListeners();
   }
 
   void setCategory(SocialInteractionCategory category) {
-    _selectedCategory = category;
+    if (_selectedCategory == category) {
+      _selectedCategory = null;
+    } else {
+      _selectedCategory = category;
 
-    _removeFieldError('category');
+      _removeFieldError('category');
+    }
 
     _clearGeneralMessages();
 
@@ -75,7 +101,12 @@ class SocialInteractionFormViewModel extends ChangeNotifier {
     _errorMessage = null;
     _successMessage = null;
 
+    final date = _selectedDate;
     final category = _selectedCategory;
+
+    if (date == null) {
+      _fieldErrors = {..._fieldErrors, 'date': 'Selecciona una fecha.'};
+    }
 
     if (category == null) {
       _fieldErrors = {
@@ -86,27 +117,58 @@ class SocialInteractionFormViewModel extends ChangeNotifier {
 
     if (_fieldErrors.isNotEmpty) {
       notifyListeners();
+
       return false;
     }
 
     _isSaving = true;
+
     notifyListeners();
 
     try {
-      final record = _recordFactory.create(
-        anonymousId: anonymousId,
-        date: _selectedDate,
+      final currentRecord = _initialRecord;
+
+      if (currentRecord == null) {
+        final record = _recordFactory.create(
+          anonymousId: anonymousId,
+          date: date!,
+          category: category!,
+          context: context,
+          observation: observation,
+        );
+
+        await _repository.saveSocialInteraction(record);
+
+        _successMessage =
+            'Registro de interacción social guardado correctamente.';
+
+        _prepareNextRecord();
+
+        return true;
+      }
+
+      final managementRepository = _repository;
+
+      if (managementRepository is! SocialInteractionManagementRepository) {
+        _errorMessage =
+            'No fue posible actualizar el registro de interacción social. '
+            'Inténtalo nuevamente.';
+
+        return false;
+      }
+
+      final updatedRecord = _recordFactory.update(
+        currentRecord: currentRecord,
+        date: date!,
         category: category!,
         context: context,
         observation: observation,
       );
 
-      await _repository.saveSocialInteraction(record);
+      await managementRepository.updateSocialInteraction(updatedRecord);
 
       _successMessage =
-          'Registro de interacción social guardado correctamente.';
-
-      _prepareNextRecord();
+          'Registro de interacción social actualizado correctamente.';
 
       return true;
     } on SocialInteractionValidationFailure catch (failure) {
@@ -118,19 +180,25 @@ class SocialInteractionFormViewModel extends ChangeNotifier {
 
       return false;
     } catch (_) {
-      _errorMessage =
-          'No fue posible guardar el registro de interacción social. '
-          'Inténtalo nuevamente.';
+      _errorMessage = isEditing
+          ? 'No fue posible actualizar el registro de interacción social. '
+                'Inténtalo nuevamente.'
+          : 'No fue posible guardar el registro de interacción social. '
+                'Inténtalo nuevamente.';
 
       return false;
     } finally {
       _isSaving = false;
+
       notifyListeners();
     }
   }
 
   void _prepareNextRecord() {
+    _selectedDate = null;
+
     _selectedCategory = null;
+
     _fieldErrors = {};
   }
 
@@ -148,6 +216,7 @@ class SocialInteractionFormViewModel extends ChangeNotifier {
 
   void _clearGeneralMessages() {
     _errorMessage = null;
+
     _successMessage = null;
   }
 

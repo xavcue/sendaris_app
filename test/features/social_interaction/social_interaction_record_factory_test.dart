@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sendaris/features/social_interaction/domain/exceptions/social_interaction_validation_failure.dart';
 import 'package:sendaris/features/social_interaction/domain/models/social_interaction_category.dart';
+import 'package:sendaris/features/social_interaction/domain/models/social_interaction_record.dart';
 import 'package:sendaris/features/social_interaction/domain/services/social_interaction_record_factory.dart';
 import 'package:sendaris/features/social_interaction/domain/services/social_interaction_record_id_generator.dart';
 
@@ -105,6 +106,56 @@ void main() {
       expect(record.date, DateTime(2026, 9, 11));
     });
 
+    test(
+      'actualiza el registro conservando identificadores y fecha de creación',
+      () {
+        final currentRecord = _record();
+
+        final updated = factory.update(
+          currentRecord: currentRecord,
+          date: DateTime(2026, 9, 15, 20, 30),
+          category: SocialInteractionCategory.sharedActivity,
+          context: '  Actividad grupal  ',
+          observation: '  Participación descriptiva.  ',
+          updatedAt: DateTime.utc(2026, 9, 16, 10),
+        );
+
+        expect(updated.recordId, 'interaccion-1');
+
+        expect(updated.anonymousId, 'seguimiento-actual');
+
+        expect(updated.createdAt, DateTime.utc(2026, 9, 11, 18));
+
+        expect(updated.updatedAt, DateTime.utc(2026, 9, 16, 10));
+
+        expect(updated.date, DateTime(2026, 9, 15));
+
+        expect(updated.category, SocialInteractionCategory.sharedActivity);
+
+        expect(updated.context, 'Actividad grupal');
+
+        expect(updated.observation, 'Participación descriptiva.');
+      },
+    );
+
+    test(
+      'permite retirar contexto y observación durante una actualización',
+      () {
+        final updated = factory.update(
+          currentRecord: _record(),
+          date: DateTime(2026, 9, 11),
+          category: SocialInteractionCategory.socialExchange,
+          context: '   ',
+          observation: '',
+          updatedAt: DateTime.utc(2026, 9, 12),
+        );
+
+        expect(updated.context, isNull);
+
+        expect(updated.observation, isNull);
+      },
+    );
+
     test('rechaza un perfil activo vacío', () {
       expect(
         () => factory.create(
@@ -139,4 +190,17 @@ void main() {
       );
     });
   });
+}
+
+SocialInteractionRecord _record() {
+  return SocialInteractionRecord(
+    recordId: 'interaccion-1',
+    anonymousId: 'seguimiento-actual',
+    date: DateTime(2026, 9, 11),
+    category: SocialInteractionCategory.socialExchange,
+    context: 'Actividad recreativa',
+    observation: 'Registro ficticio.',
+    createdAt: DateTime.utc(2026, 9, 11, 18),
+    updatedAt: DateTime.utc(2026, 9, 11, 18),
+  );
 }

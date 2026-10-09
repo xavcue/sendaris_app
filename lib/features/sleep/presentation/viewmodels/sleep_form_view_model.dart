@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 
 import '../../domain/exceptions/sleep_failure.dart';
 import '../../domain/exceptions/sleep_validation_failure.dart';
+import '../../domain/models/sleep_record.dart';
+import '../../domain/repositories/sleep_management_repository.dart';
 import '../../domain/repositories/sleep_repository.dart';
 import '../../domain/services/sleep_duration_calculator.dart';
 import '../../domain/services/sleep_record_factory.dart';
@@ -12,14 +14,24 @@ class SleepFormViewModel extends ChangeNotifier {
     this._recordFactory, {
     required this.anonymousId,
     DateTime? initialDate,
-  }) : _selectedDate = _dateOnly(initialDate ?? DateTime.now());
+    SleepRecord? initialRecord,
+  }) : _initialRecord = initialRecord,
+       _selectedDate = initialRecord != null
+           ? _dateOnly(initialRecord.date)
+           : initialDate == null
+           ? null
+           : _dateOnly(initialDate),
+       _startTime = initialRecord?.startTime,
+       _endTime = initialRecord?.endTime;
 
   final SleepRepository _repository;
   final SleepRecordFactory _recordFactory;
 
+  final SleepRecord? _initialRecord;
+
   final String anonymousId;
 
-  DateTime _selectedDate;
+  DateTime? _selectedDate;
 
   String? _startTime;
   String? _endTime;
@@ -31,11 +43,15 @@ class SleepFormViewModel extends ChangeNotifier {
 
   Map<String, String> _fieldErrors = const {};
 
-  DateTime get selectedDate => _selectedDate;
+  bool get isEditing => _initialRecord != null;
+
+  DateTime? get selectedDate => _selectedDate;
 
   String? get startTime => _startTime;
 
   String? get endTime => _endTime;
+
+  String get initialObservation => _initialRecord?.observation ?? '';
 
   bool get isSaving => _isSaving;
 
@@ -47,6 +63,7 @@ class SleepFormViewModel extends ChangeNotifier {
 
   int? get durationMinutes {
     final startTime = _startTime;
+
     final endTime = _endTime;
 
     if (startTime == null || endTime == null) {
@@ -71,6 +88,7 @@ class SleepFormViewModel extends ChangeNotifier {
     }
 
     final hours = minutes ~/ 60;
+
     final remainingMinutes = minutes % 60;
 
     if (hours == 0) {
@@ -91,6 +109,7 @@ class SleepFormViewModel extends ChangeNotifier {
   void setDate(DateTime date) {
     _selectedDate = _dateOnly(date);
 
+    _removeFieldError('date');
     _clearGeneralMessages();
 
     notifyListeners();
@@ -129,8 +148,15 @@ class SleepFormViewModel extends ChangeNotifier {
     _errorMessage = null;
     _successMessage = null;
 
+    final date = _selectedDate;
+
     final startTime = _startTime;
+
     final endTime = _endTime;
+
+    if (date == null) {
+      _fieldErrors = {..._fieldErrors, 'date': 'Selecciona una fecha.'};
+    }
 
     if (startTime == null) {
       _fieldErrors = {
@@ -148,16 +174,46 @@ class SleepFormViewModel extends ChangeNotifier {
 
     if (_fieldErrors.isNotEmpty) {
       notifyListeners();
+
       return false;
     }
 
     _isSaving = true;
+
     notifyListeners();
 
     try {
+      final currentRecord = _initialRecord;
+
+      if (currentRecord != null) {
+        final currentRepository = _repository;
+
+        if (currentRepository is! SleepManagementRepository) {
+          _errorMessage =
+              'No fue posible actualizar el registro de sueño. '
+              'Inténtalo nuevamente.';
+
+          return false;
+        }
+
+        final updatedRecord = _recordFactory.update(
+          currentRecord: currentRecord,
+          date: date!,
+          startTime: startTime!,
+          endTime: endTime!,
+          observation: observation,
+        );
+
+        await currentRepository.updateSleep(updatedRecord);
+
+        _successMessage = 'Registro de sueño actualizado correctamente.';
+
+        return true;
+      }
+
       final record = _recordFactory.create(
         anonymousId: anonymousId,
-        date: _selectedDate,
+        date: date!,
         startTime: startTime!,
         endTime: endTime!,
         observation: observation,
@@ -179,18 +235,22 @@ class SleepFormViewModel extends ChangeNotifier {
 
       return false;
     } catch (_) {
-      _errorMessage =
-          'No fue posible guardar el registro de sueño. '
-          'Inténtalo nuevamente.';
+      _errorMessage = isEditing
+          ? 'No fue posible actualizar el registro de sueño. '
+                'Inténtalo nuevamente.'
+          : 'No fue posible guardar el registro de sueño. '
+                'Inténtalo nuevamente.';
 
       return false;
     } finally {
       _isSaving = false;
+
       notifyListeners();
     }
   }
 
   void _prepareNextRecord() {
+    _selectedDate = null;
     _startTime = null;
     _endTime = null;
     _fieldErrors = {};
@@ -198,6 +258,7 @@ class SleepFormViewModel extends ChangeNotifier {
 
   void _removeEqualTimesErrorIfResolved() {
     final startTime = _startTime;
+
     final endTime = _endTime;
 
     if (startTime == null || endTime == null || startTime == endTime) {

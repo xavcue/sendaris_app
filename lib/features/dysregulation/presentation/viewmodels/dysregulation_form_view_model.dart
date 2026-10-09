@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import '../../domain/exceptions/dysregulation_failure.dart';
 import '../../domain/exceptions/dysregulation_validation_failure.dart';
 import '../../domain/models/dysregulation_intensity.dart';
+import '../../domain/models/dysregulation_record.dart';
+import '../../domain/repositories/dysregulation_management_repository.dart';
 import '../../domain/repositories/dysregulation_repository.dart';
 import '../../domain/services/dysregulation_record_factory.dart';
 
@@ -12,14 +14,23 @@ class DysregulationFormViewModel extends ChangeNotifier {
     this._recordFactory, {
     required this.anonymousId,
     DateTime? initialDate,
-  }) : _selectedDate = _dateOnly(initialDate ?? DateTime.now());
+    DysregulationRecord? initialRecord,
+  }) : _initialRecord = initialRecord,
+       _selectedDate = initialRecord != null
+           ? _dateOnly(initialRecord.date)
+           : initialDate == null
+           ? null
+           : _dateOnly(initialDate),
+       _selectedTime = initialRecord?.time,
+       _selectedIntensity = initialRecord?.intensity;
 
   final DysregulationRepository _repository;
   final DysregulationRecordFactory _recordFactory;
+  final DysregulationRecord? _initialRecord;
 
   final String anonymousId;
 
-  DateTime _selectedDate;
+  DateTime? _selectedDate;
   String? _selectedTime;
   DysregulationIntensity? _selectedIntensity;
 
@@ -30,13 +41,25 @@ class DysregulationFormViewModel extends ChangeNotifier {
 
   Map<String, String> _fieldErrors = const {};
 
-  DateTime get selectedDate => _selectedDate;
+  DateTime? get selectedDate => _selectedDate;
 
   String? get selectedTime => _selectedTime;
 
   DysregulationIntensity? get selectedIntensity => _selectedIntensity;
 
   bool get isSaving => _isSaving;
+
+  bool get isEditing => _initialRecord != null;
+
+  String get initialDurationText {
+    final duration = _initialRecord?.durationMinutes;
+
+    return duration?.toString() ?? '';
+  }
+
+  String get initialContext => _initialRecord?.context ?? '';
+
+  String get initialObservation => _initialRecord?.observation ?? '';
 
   String? get errorMessage => _errorMessage;
 
@@ -51,6 +74,8 @@ class DysregulationFormViewModel extends ChangeNotifier {
   void setDate(DateTime date) {
     _selectedDate = _dateOnly(date);
 
+    _removeFieldError('date');
+
     _clearGeneralMessages();
 
     notifyListeners();
@@ -62,6 +87,7 @@ class DysregulationFormViewModel extends ChangeNotifier {
         '${minute.toString().padLeft(2, '0')}';
 
     _removeFieldError('time');
+
     _clearGeneralMessages();
 
     notifyListeners();
@@ -75,6 +101,7 @@ class DysregulationFormViewModel extends ChangeNotifier {
     _selectedTime = null;
 
     _removeFieldError('time');
+
     _clearGeneralMessages();
 
     notifyListeners();
@@ -134,8 +161,15 @@ class DysregulationFormViewModel extends ChangeNotifier {
     }
 
     _fieldErrors = {};
+
     _errorMessage = null;
     _successMessage = null;
+
+    final date = _selectedDate;
+
+    if (date == null) {
+      _fieldErrors = {..._fieldErrors, 'date': 'Selecciona una fecha.'};
+    }
 
     final normalizedDuration = durationText.trim();
 
@@ -165,9 +199,42 @@ class DysregulationFormViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final record = _recordFactory.create(
-        anonymousId: anonymousId,
-        date: _selectedDate,
+      final currentRecord = _initialRecord;
+
+      if (currentRecord == null) {
+        final record = _recordFactory.create(
+          anonymousId: anonymousId,
+          date: date!,
+          time: _selectedTime,
+          durationMinutes: durationMinutes,
+          intensity: _selectedIntensity,
+          context: context,
+          observation: observation,
+        );
+
+        await _repository.saveDysregulation(record);
+
+        _successMessage = 'Episodio de desregulación guardado correctamente.';
+
+        _prepareNextRecord();
+
+        return true;
+      }
+
+      final managementRepository = _repository;
+
+      if (managementRepository is! DysregulationManagementRepository) {
+        _errorMessage =
+            'No fue posible actualizar el registro '
+            'de desregulación. '
+            'Inténtalo nuevamente.';
+
+        return false;
+      }
+
+      final updatedRecord = _recordFactory.update(
+        currentRecord: currentRecord,
+        date: date!,
         time: _selectedTime,
         durationMinutes: durationMinutes,
         intensity: _selectedIntensity,
@@ -175,11 +242,9 @@ class DysregulationFormViewModel extends ChangeNotifier {
         observation: observation,
       );
 
-      await _repository.saveDysregulation(record);
+      await managementRepository.updateDysregulation(updatedRecord);
 
-      _successMessage = 'Episodio de desregulación guardado correctamente.';
-
-      _prepareNextRecord();
+      _successMessage = 'Registro de desregulación actualizado correctamente.';
 
       return true;
     } on DysregulationValidationFailure catch (failure) {
@@ -191,10 +256,13 @@ class DysregulationFormViewModel extends ChangeNotifier {
 
       return false;
     } catch (_) {
-      _errorMessage =
-          'No fue posible guardar el episodio '
-          'de desregulación. '
-          'Inténtalo nuevamente.';
+      _errorMessage = isEditing
+          ? 'No fue posible actualizar el registro '
+                'de desregulación. '
+                'Inténtalo nuevamente.'
+          : 'No fue posible guardar el episodio '
+                'de desregulación. '
+                'Inténtalo nuevamente.';
 
       return false;
     } finally {
@@ -205,6 +273,7 @@ class DysregulationFormViewModel extends ChangeNotifier {
   }
 
   void _prepareNextRecord() {
+    _selectedDate = null;
     _selectedTime = null;
     _selectedIntensity = null;
     _fieldErrors = {};

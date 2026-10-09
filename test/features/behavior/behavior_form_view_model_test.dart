@@ -37,6 +37,7 @@ void main() {
     );
 
     expect(success, true);
+
     expect(repository.savedRecords.length, 1);
 
     final record = repository.savedRecords.single;
@@ -46,6 +47,7 @@ void main() {
     expect(record.category, BehaviorCategory.repetitiveBehavior);
 
     expect(record.time, '14:30');
+
     expect(record.durationMinutes, 12);
 
     expect(record.intensity, BehaviorIntensity.medium);
@@ -63,6 +65,16 @@ void main() {
     expect(viewModel.errorFor('category'), isNotNull);
 
     expect(repository.savedRecords, isEmpty);
+  });
+
+  test('permite deseleccionar una categoría seleccionada', () {
+    viewModel.setCategory(BehaviorCategory.repetitiveBehavior);
+
+    expect(viewModel.selectedCategory, BehaviorCategory.repetitiveBehavior);
+
+    viewModel.setCategory(BehaviorCategory.repetitiveBehavior);
+
+    expect(viewModel.selectedCategory, isNull);
   });
 
   test('rechaza una duración no numérica', () async {
@@ -126,8 +138,11 @@ void main() {
     );
 
     expect(success, true);
+
     expect(viewModel.selectedCategory, isNull);
+
     expect(viewModel.selectedTime, isNull);
+
     expect(viewModel.selectedIntensity, isNull);
   });
 }

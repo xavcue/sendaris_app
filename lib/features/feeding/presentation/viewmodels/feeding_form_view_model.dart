@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import '../../domain/exceptions/feeding_failure.dart';
 import '../../domain/exceptions/feeding_validation_failure.dart';
 import '../../domain/models/feeding_category.dart';
+import '../../domain/models/feeding_record.dart';
+import '../../domain/repositories/feeding_management_repository.dart';
 import '../../domain/repositories/feeding_repository.dart';
 import '../../domain/services/feeding_record_factory.dart';
 
@@ -12,14 +14,23 @@ class FeedingFormViewModel extends ChangeNotifier {
     this._recordFactory, {
     required this.anonymousId,
     DateTime? initialDate,
-  }) : _selectedDate = _dateOnly(initialDate ?? DateTime.now());
+    FeedingRecord? initialRecord,
+  }) : _initialRecord = initialRecord,
+       _selectedDate = initialRecord != null
+           ? _dateOnly(initialRecord.date)
+           : initialDate == null
+           ? null
+           : _dateOnly(initialDate),
+       _selectedCategory = initialRecord?.category;
 
   final FeedingRepository _repository;
   final FeedingRecordFactory _recordFactory;
 
   final String anonymousId;
 
-  DateTime _selectedDate;
+  final FeedingRecord? _initialRecord;
+
+  DateTime? _selectedDate;
   FeedingCategory? _selectedCategory;
 
   bool _isSaving = false;
@@ -29,11 +40,15 @@ class FeedingFormViewModel extends ChangeNotifier {
 
   Map<String, String> _fieldErrors = const {};
 
-  DateTime get selectedDate => _selectedDate;
+  DateTime? get selectedDate => _selectedDate;
 
   FeedingCategory? get selectedCategory => _selectedCategory;
 
   bool get isSaving => _isSaving;
+
+  bool get isEditing => _initialRecord != null;
+
+  String get initialObservation => _initialRecord?.observation ?? '';
 
   String? get errorMessage => _errorMessage;
 
@@ -48,15 +63,20 @@ class FeedingFormViewModel extends ChangeNotifier {
   void setDate(DateTime date) {
     _selectedDate = _dateOnly(date);
 
+    _removeFieldError('date');
     _clearGeneralMessages();
 
     notifyListeners();
   }
 
   void setCategory(FeedingCategory category) {
-    _selectedCategory = category;
+    if (_selectedCategory == category) {
+      _selectedCategory = null;
+    } else {
+      _selectedCategory = category;
 
-    _removeFieldError('category');
+      _removeFieldError('category');
+    }
 
     _clearGeneralMessages();
 
@@ -72,7 +92,12 @@ class FeedingFormViewModel extends ChangeNotifier {
     _errorMessage = null;
     _successMessage = null;
 
+    final date = _selectedDate;
     final category = _selectedCategory;
+
+    if (date == null) {
+      _fieldErrors = {..._fieldErrors, 'date': 'Selecciona una fecha.'};
+    }
 
     if (category == null) {
       _fieldErrors = {
@@ -83,25 +108,54 @@ class FeedingFormViewModel extends ChangeNotifier {
 
     if (_fieldErrors.isNotEmpty) {
       notifyListeners();
+
       return false;
     }
 
     _isSaving = true;
+
     notifyListeners();
 
     try {
-      final record = _recordFactory.create(
-        anonymousId: anonymousId,
-        date: _selectedDate,
+      final currentRecord = _initialRecord;
+
+      if (currentRecord == null) {
+        final record = _recordFactory.create(
+          anonymousId: anonymousId,
+          date: date!,
+          category: category!,
+          observation: observation,
+        );
+
+        await _repository.saveFeeding(record);
+
+        _successMessage = 'Registro de alimentación guardado correctamente.';
+
+        _prepareNextRecord();
+
+        return true;
+      }
+
+      final managementRepository = _repository;
+
+      if (managementRepository is! FeedingManagementRepository) {
+        _errorMessage =
+            'No fue posible actualizar el registro de alimentación. '
+            'Inténtalo nuevamente.';
+
+        return false;
+      }
+
+      final updatedRecord = _recordFactory.update(
+        currentRecord: currentRecord,
+        date: date!,
         category: category!,
         observation: observation,
       );
 
-      await _repository.saveFeeding(record);
+      await managementRepository.updateFeeding(updatedRecord);
 
-      _successMessage = 'Registro de alimentación guardado correctamente.';
-
-      _prepareNextRecord();
+      _successMessage = 'Registro de alimentación actualizado correctamente.';
 
       return true;
     } on FeedingValidationFailure catch (failure) {
@@ -113,18 +167,22 @@ class FeedingFormViewModel extends ChangeNotifier {
 
       return false;
     } catch (_) {
-      _errorMessage =
-          'No fue posible guardar el registro de alimentación. '
-          'Inténtalo nuevamente.';
+      _errorMessage = isEditing
+          ? 'No fue posible actualizar el registro de alimentación. '
+                'Inténtalo nuevamente.'
+          : 'No fue posible guardar el registro de alimentación. '
+                'Inténtalo nuevamente.';
 
       return false;
     } finally {
       _isSaving = false;
+
       notifyListeners();
     }
   }
 
   void _prepareNextRecord() {
+    _selectedDate = null;
     _selectedCategory = null;
     _fieldErrors = {};
   }
