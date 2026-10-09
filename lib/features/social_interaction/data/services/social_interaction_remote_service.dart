@@ -7,3 +7,13 @@ abstract interface class SocialInteractionRemoteService {
     required String anonymousId,
   });
 }
+
+abstract interface class SocialInteractionManagementRemoteService
+    implements SocialInteractionRemoteService {
+  Future<void> updateSocialInteraction(SocialInteractionRecord record);
+
+  Future<void> deleteSocialInteraction({
+    required String anonymousId,
+    required String recordId,
+  });
+}

@@ -6,7 +6,8 @@ import '../../domain/models/dysregulation_record.dart';
 import '../mappers/dysregulation_record_mapper.dart';
 import 'dysregulation_remote_service.dart';
 
-class FirestoreDysregulationService implements DysregulationRemoteService {
+class FirestoreDysregulationService
+    implements DysregulationManagementRemoteService {
   FirestoreDysregulationService(this._firestore, this._firebaseAuth);
 
   final FirebaseFirestore _firestore;
@@ -14,24 +15,7 @@ class FirestoreDysregulationService implements DysregulationRemoteService {
 
   @override
   Future<void> saveDysregulation(DysregulationRecord record) async {
-    final uid = _requireAuthenticatedUid();
-
-    final path = TrackingFirestorePaths.trackingRecordDocument(
-      uid: uid,
-      anonymousId: record.anonymousId,
-      recordId: record.recordId,
-    );
-
-    await _firestore
-        .doc(path)
-        .set(
-          DysregulationRecordMapper.toFirestore(
-            record: record,
-            operationUid: uid,
-          ),
-        );
-
-    await _firestore.waitForPendingWrites();
+    await _writeDysregulation(record);
   }
 
   @override
@@ -60,6 +44,50 @@ class FirestoreDysregulationService implements DysregulationRemoteService {
           ),
         )
         .toList(growable: false);
+  }
+
+  @override
+  Future<void> updateDysregulation(DysregulationRecord record) async {
+    await _writeDysregulation(record);
+  }
+
+  @override
+  Future<void> deleteDysregulation({
+    required String anonymousId,
+    required String recordId,
+  }) async {
+    final uid = _requireAuthenticatedUid();
+
+    final path = TrackingFirestorePaths.trackingRecordDocument(
+      uid: uid,
+      anonymousId: anonymousId,
+      recordId: recordId,
+    );
+
+    await _firestore.doc(path).delete();
+
+    await _firestore.waitForPendingWrites();
+  }
+
+  Future<void> _writeDysregulation(DysregulationRecord record) async {
+    final uid = _requireAuthenticatedUid();
+
+    final path = TrackingFirestorePaths.trackingRecordDocument(
+      uid: uid,
+      anonymousId: record.anonymousId,
+      recordId: record.recordId,
+    );
+
+    await _firestore
+        .doc(path)
+        .set(
+          DysregulationRecordMapper.toFirestore(
+            record: record,
+            operationUid: uid,
+          ),
+        );
+
+    await _firestore.waitForPendingWrites();
   }
 
   String _requireAuthenticatedUid() {

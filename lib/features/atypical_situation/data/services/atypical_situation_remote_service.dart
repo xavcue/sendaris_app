@@ -7,3 +7,13 @@ abstract interface class AtypicalSituationRemoteService {
     required String anonymousId,
   });
 }
+
+abstract interface class AtypicalSituationManagementRemoteService
+    implements AtypicalSituationRemoteService {
+  Future<void> updateAtypicalSituation(AtypicalSituationRecord record);
+
+  Future<void> deleteAtypicalSituation({
+    required String anonymousId,
+    required String recordId,
+  });
+}

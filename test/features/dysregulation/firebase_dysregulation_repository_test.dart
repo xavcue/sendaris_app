@@ -8,12 +8,12 @@ import 'package:sendaris/features/dysregulation/domain/models/dysregulation_reco
 
 void main() {
   group('FirebaseDysregulationRepository', () {
-    late _FakeDysregulationRemoteService service;
+    late _FakeDysregulationManagementRemoteService service;
 
     late FirebaseDysregulationRepository repository;
 
     setUp(() {
-      service = _FakeDysregulationRemoteService();
+      service = _FakeDysregulationManagementRemoteService();
 
       repository = FirebaseDysregulationRepository(service);
     });
@@ -44,8 +44,26 @@ void main() {
       expect(recovered.single.context, 'Actividad cotidiana');
     });
 
-    test('convierte falta de sesión '
-        'en error controlado', () async {
+    test('actualiza un registro mediante el servicio', () async {
+      final record = _createRecord(updatedAt: DateTime.utc(2026, 9, 16, 20));
+
+      await repository.updateDysregulation(record);
+
+      expect(service.updatedRecords, [record]);
+    });
+
+    test('elimina un registro mediante el servicio', () async {
+      await repository.deleteDysregulation(
+        anonymousId: 'anonimo-1',
+        recordId: 'desregulacion-1',
+      );
+
+      expect(service.deletedRecords, [
+        (anonymousId: 'anonimo-1', recordId: 'desregulacion-1'),
+      ]);
+    });
+
+    test('convierte falta de sesión en error controlado', () async {
       service.error = StateError('Internal auth error');
 
       expect(
@@ -60,8 +78,7 @@ void main() {
       );
     });
 
-    test('no expone permission-denied '
-        'de Firebase', () async {
+    test('no expone permission-denied de Firebase al guardar', () async {
       service.error = FirebaseException(
         plugin: 'cloud_firestore',
         code: 'permission-denied',
@@ -80,8 +97,7 @@ void main() {
       );
     });
 
-    test('un error de red no se presenta '
-        'como guardado exitoso', () async {
+    test('un error de red no se presenta como guardado exitoso', () async {
       service.error = FirebaseException(
         plugin: 'cloud_firestore',
         code: 'unavailable',
@@ -99,25 +115,75 @@ void main() {
       );
     });
 
-    test('un documento inválido al recuperar '
-        'se presenta como error controlado', () async {
-      service.error = const FormatException('Documento inválido');
+    test(
+      'permission-denied al actualizar se presenta como error controlado',
+      () async {
+        service.error = FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'permission-denied',
+        );
 
-      expect(
-        () => repository.recoverDysregulations(anonymousId: 'anonimo-1'),
-        throwsA(
-          isA<DysregulationFailure>().having(
-            (failure) => failure.message,
-            'message',
-            contains('No fue posible cargar'),
+        expect(
+          () => repository.updateDysregulation(_createRecord()),
+          throwsA(
+            isA<DysregulationFailure>().having(
+              (failure) => failure.message,
+              'message',
+              'No tienes autorización para actualizar '
+                  'este registro de desregulación.',
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
+
+    test(
+      'un error de red al eliminar se presenta como error controlado',
+      () async {
+        service.error = FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'unavailable',
+        );
+
+        expect(
+          () => repository.deleteDysregulation(
+            anonymousId: 'anonimo-1',
+            recordId: 'desregulacion-1',
+          ),
+          throwsA(
+            isA<DysregulationFailure>().having(
+              (failure) => failure.message,
+              'message',
+              'No fue posible eliminar el registro '
+                  'de desregulación. '
+                  'Verifica tu conexión.',
+            ),
+          ),
+        );
+      },
+    );
+
+    test(
+      'un documento inválido al recuperar se presenta como error controlado',
+      () async {
+        service.error = const FormatException('Documento inválido');
+
+        expect(
+          () => repository.recoverDysregulations(anonymousId: 'anonimo-1'),
+          throwsA(
+            isA<DysregulationFailure>().having(
+              (failure) => failure.message,
+              'message',
+              contains('No fue posible cargar'),
+            ),
+          ),
+        );
+      },
+    );
   });
 }
 
-DysregulationRecord _createRecord() {
+DysregulationRecord _createRecord({DateTime? updatedAt}) {
   return DysregulationRecord(
     recordId: 'desregulacion-1',
     anonymousId: 'anonimo-1',
@@ -128,12 +194,17 @@ DysregulationRecord _createRecord() {
     context: 'Actividad cotidiana',
     observation: 'Registro ficticio.',
     createdAt: DateTime.utc(2026, 9, 15, 20),
-    updatedAt: DateTime.utc(2026, 9, 15, 20),
+    updatedAt: updatedAt ?? DateTime.utc(2026, 9, 15, 20),
   );
 }
 
-class _FakeDysregulationRemoteService implements DysregulationRemoteService {
+class _FakeDysregulationManagementRemoteService
+    implements DysregulationManagementRemoteService {
   final List<DysregulationRecord> savedRecords = [];
+
+  final List<DysregulationRecord> updatedRecords = [];
+
+  final List<({String anonymousId, String recordId})> deletedRecords = [];
 
   List<DysregulationRecord> recordsToRecover = [];
 
@@ -161,5 +232,30 @@ class _FakeDysregulationRemoteService implements DysregulationRemoteService {
     }
 
     return List.unmodifiable(recordsToRecover);
+  }
+
+  @override
+  Future<void> updateDysregulation(DysregulationRecord record) async {
+    final currentError = error;
+
+    if (currentError != null) {
+      throw currentError;
+    }
+
+    updatedRecords.add(record);
+  }
+
+  @override
+  Future<void> deleteDysregulation({
+    required String anonymousId,
+    required String recordId,
+  }) async {
+    final currentError = error;
+
+    if (currentError != null) {
+      throw currentError;
+    }
+
+    deletedRecords.add((anonymousId: anonymousId, recordId: recordId));
   }
 }

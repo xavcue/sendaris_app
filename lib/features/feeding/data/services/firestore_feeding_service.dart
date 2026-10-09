@@ -6,11 +6,10 @@ import '../../domain/models/feeding_record.dart';
 import '../mappers/feeding_record_mapper.dart';
 import 'feeding_remote_service.dart';
 
-class FirestoreFeedingService implements FeedingRemoteService {
+class FirestoreFeedingService implements FeedingManagementRemoteService {
   FirestoreFeedingService(this._firestore, this._firebaseAuth);
 
   final FirebaseFirestore _firestore;
-
   final FirebaseAuth _firebaseAuth;
 
   @override
@@ -58,6 +57,43 @@ class FirestoreFeedingService implements FeedingRemoteService {
           ),
         )
         .toList(growable: false);
+  }
+
+  @override
+  Future<void> updateFeeding(FeedingRecord record) async {
+    final uid = _requireAuthenticatedUid();
+
+    final path = TrackingFirestorePaths.trackingRecordDocument(
+      uid: uid,
+      anonymousId: record.anonymousId,
+      recordId: record.recordId,
+    );
+
+    await _firestore
+        .doc(path)
+        .set(
+          FeedingRecordMapper.toFirestore(record: record, operationUid: uid),
+        );
+
+    await _firestore.waitForPendingWrites();
+  }
+
+  @override
+  Future<void> deleteFeeding({
+    required String anonymousId,
+    required String recordId,
+  }) async {
+    final uid = _requireAuthenticatedUid();
+
+    final path = TrackingFirestorePaths.trackingRecordDocument(
+      uid: uid,
+      anonymousId: anonymousId,
+      recordId: recordId,
+    );
+
+    await _firestore.doc(path).delete();
+
+    await _firestore.waitForPendingWrites();
   }
 
   String _requireAuthenticatedUid() {

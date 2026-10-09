@@ -9,6 +9,7 @@ import 'package:sendaris/features/behavior/domain/models/behavior_record.dart';
 void main() {
   group('FirebaseBehaviorRepository', () {
     late _FakeBehaviorRemoteService service;
+
     late FirebaseBehaviorRepository repository;
 
     setUp(() {
@@ -41,6 +42,28 @@ void main() {
       expect(recovered.first.category, record.category);
     });
 
+    test('actualiza una conducta mediante el servicio remoto', () async {
+      final record = _createRecord(updatedAt: DateTime.utc(2026, 9, 6, 18));
+
+      await repository.updateBehavior(record);
+
+      expect(service.updatedRecords, [record]);
+    });
+
+    test(
+      'elimina la conducta solicitada mediante el servicio remoto',
+      () async {
+        await repository.deleteBehavior(
+          anonymousId: 'anonimo-1',
+          recordId: 'registro-1',
+        );
+
+        expect(service.deletedRecords, [
+          (anonymousId: 'anonimo-1', recordId: 'registro-1'),
+        ]);
+      },
+    );
+
     test('convierte falta de sesión en error controlado', () async {
       service.error = StateError('Internal auth error');
 
@@ -56,7 +79,7 @@ void main() {
       );
     });
 
-    test('no expone permission-denied de Firebase', () async {
+    test('no expone permission-denied al guardar', () async {
       service.error = FirebaseException(
         plugin: 'cloud_firestore',
         code: 'permission-denied',
@@ -69,6 +92,45 @@ void main() {
             (failure) => failure.message,
             'message',
             'No tienes autorización para guardar esta conducta.',
+          ),
+        ),
+      );
+    });
+
+    test('no expone permission-denied al actualizar', () async {
+      service.error = FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'permission-denied',
+      );
+
+      expect(
+        () => repository.updateBehavior(_createRecord()),
+        throwsA(
+          isA<BehaviorFailure>().having(
+            (failure) => failure.message,
+            'message',
+            'No tienes autorización para actualizar esta conducta.',
+          ),
+        ),
+      );
+    });
+
+    test('no expone permission-denied al eliminar', () async {
+      service.error = FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'permission-denied',
+      );
+
+      expect(
+        () => repository.deleteBehavior(
+          anonymousId: 'anonimo-1',
+          recordId: 'registro-1',
+        ),
+        throwsA(
+          isA<BehaviorFailure>().having(
+            (failure) => failure.message,
+            'message',
+            'No tienes autorización para eliminar esta conducta.',
           ),
         ),
       );
@@ -94,19 +156,23 @@ void main() {
   });
 }
 
-BehaviorRecord _createRecord() {
+BehaviorRecord _createRecord({DateTime? updatedAt}) {
   return BehaviorRecord(
     recordId: 'registro-1',
     anonymousId: 'anonimo-1',
     date: DateTime(2026, 9, 5),
     category: BehaviorCategory.repetitiveBehavior,
     createdAt: DateTime.utc(2026, 9, 5, 18),
-    updatedAt: DateTime.utc(2026, 9, 5, 18),
+    updatedAt: updatedAt ?? DateTime.utc(2026, 9, 5, 18),
   );
 }
 
-class _FakeBehaviorRemoteService implements BehaviorRemoteService {
+class _FakeBehaviorRemoteService implements BehaviorManagementRemoteService {
   final List<BehaviorRecord> savedRecords = [];
+
+  final List<BehaviorRecord> updatedRecords = [];
+
+  final List<({String anonymousId, String recordId})> deletedRecords = [];
 
   List<BehaviorRecord> recordsToRecover = [];
 
@@ -114,11 +180,7 @@ class _FakeBehaviorRemoteService implements BehaviorRemoteService {
 
   @override
   Future<void> saveBehavior(BehaviorRecord record) async {
-    final currentError = error;
-
-    if (currentError != null) {
-      throw currentError;
-    }
+    _throwIfNeeded();
 
     savedRecords.add(record);
   }
@@ -127,12 +189,33 @@ class _FakeBehaviorRemoteService implements BehaviorRemoteService {
   Future<List<BehaviorRecord>> recoverBehaviors({
     required String anonymousId,
   }) async {
+    _throwIfNeeded();
+
+    return List.unmodifiable(recordsToRecover);
+  }
+
+  @override
+  Future<void> updateBehavior(BehaviorRecord record) async {
+    _throwIfNeeded();
+
+    updatedRecords.add(record);
+  }
+
+  @override
+  Future<void> deleteBehavior({
+    required String anonymousId,
+    required String recordId,
+  }) async {
+    _throwIfNeeded();
+
+    deletedRecords.add((anonymousId: anonymousId, recordId: recordId));
+  }
+
+  void _throwIfNeeded() {
     final currentError = error;
 
     if (currentError != null) {
       throw currentError;
     }
-
-    return List.unmodifiable(recordsToRecover);
   }
 }

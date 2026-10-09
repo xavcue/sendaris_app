@@ -6,7 +6,7 @@ import '../../domain/models/behavior_record.dart';
 import '../mappers/behavior_record_mapper.dart';
 import 'behavior_remote_service.dart';
 
-class FirestoreBehaviorService implements BehaviorRemoteService {
+class FirestoreBehaviorService implements BehaviorManagementRemoteService {
   FirestoreBehaviorService(this._firestore, this._firebaseAuth);
 
   final FirebaseFirestore _firestore;
@@ -14,6 +14,15 @@ class FirestoreBehaviorService implements BehaviorRemoteService {
 
   @override
   Future<void> saveBehavior(BehaviorRecord record) async {
+    await _writeBehavior(record);
+  }
+
+  @override
+  Future<void> updateBehavior(BehaviorRecord record) async {
+    await _writeBehavior(record);
+  }
+
+  Future<void> _writeBehavior(BehaviorRecord record) async {
     final uid = _requireAuthenticatedUid();
 
     final path = TrackingFirestorePaths.trackingRecordDocument(
@@ -57,6 +66,24 @@ class FirestoreBehaviorService implements BehaviorRemoteService {
           ),
         )
         .toList(growable: false);
+  }
+
+  @override
+  Future<void> deleteBehavior({
+    required String anonymousId,
+    required String recordId,
+  }) async {
+    final uid = _requireAuthenticatedUid();
+
+    final path = TrackingFirestorePaths.trackingRecordDocument(
+      uid: uid,
+      anonymousId: anonymousId,
+      recordId: recordId,
+    );
+
+    await _firestore.doc(path).delete();
+
+    await _firestore.waitForPendingWrites();
   }
 
   String _requireAuthenticatedUid() {

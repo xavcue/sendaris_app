@@ -47,6 +47,25 @@ void main() {
       expect(recovered.single.context, 'Actividad recreativa');
     });
 
+    test('actualiza un registro mediante el servicio', () async {
+      final record = _createRecord(updatedAt: DateTime.utc(2026, 9, 12, 10));
+
+      await repository.updateSocialInteraction(record);
+
+      expect(service.updatedRecords, [record]);
+    });
+
+    test('elimina un registro mediante el servicio', () async {
+      await repository.deleteSocialInteraction(
+        anonymousId: 'anonimo-1',
+        recordId: 'interaccion-1',
+      );
+
+      expect(service.deletedRecords, [
+        (anonymousId: 'anonimo-1', recordId: 'interaccion-1'),
+      ]);
+    });
+
     test('convierte falta de sesión en error controlado', () async {
       service.error = StateError('Internal auth error');
 
@@ -74,7 +93,8 @@ void main() {
           isA<SocialInteractionFailure>().having(
             (failure) => failure.message,
             'message',
-            'No tienes autorización para guardar este registro de interacción social.',
+            'No tienes autorización para guardar '
+                'este registro de interacción social.',
           ),
         ),
       );
@@ -97,10 +117,56 @@ void main() {
         ),
       );
     });
+
+    test(
+      'convierte un error de actualización en un mensaje controlado',
+      () async {
+        service.error = FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'permission-denied',
+        );
+
+        expect(
+          () => repository.updateSocialInteraction(_createRecord()),
+          throwsA(
+            isA<SocialInteractionFailure>().having(
+              (failure) => failure.message,
+              'message',
+              'No tienes autorización para actualizar '
+                  'este registro de interacción social.',
+            ),
+          ),
+        );
+      },
+    );
+
+    test(
+      'convierte un error de eliminación en un mensaje controlado',
+      () async {
+        service.error = FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'unavailable',
+        );
+
+        expect(
+          () => repository.deleteSocialInteraction(
+            anonymousId: 'anonimo-1',
+            recordId: 'interaccion-1',
+          ),
+          throwsA(
+            isA<SocialInteractionFailure>().having(
+              (failure) => failure.message,
+              'message',
+              contains('Verifica tu conexión'),
+            ),
+          ),
+        );
+      },
+    );
   });
 }
 
-SocialInteractionRecord _createRecord() {
+SocialInteractionRecord _createRecord({DateTime? updatedAt}) {
   return SocialInteractionRecord(
     recordId: 'interaccion-1',
     anonymousId: 'anonimo-1',
@@ -109,13 +175,17 @@ SocialInteractionRecord _createRecord() {
     context: 'Actividad recreativa',
     observation: 'Registro ficticio.',
     createdAt: DateTime.utc(2026, 9, 11, 20),
-    updatedAt: DateTime.utc(2026, 9, 11, 20),
+    updatedAt: updatedAt ?? DateTime.utc(2026, 9, 11, 20),
   );
 }
 
 class _FakeSocialInteractionRemoteService
-    implements SocialInteractionRemoteService {
+    implements SocialInteractionManagementRemoteService {
   final List<SocialInteractionRecord> savedRecords = [];
+
+  final List<SocialInteractionRecord> updatedRecords = [];
+
+  final List<({String anonymousId, String recordId})> deletedRecords = [];
 
   List<SocialInteractionRecord> recordsToRecover = [];
 
@@ -123,11 +193,7 @@ class _FakeSocialInteractionRemoteService
 
   @override
   Future<void> saveSocialInteraction(SocialInteractionRecord record) async {
-    final currentError = error;
-
-    if (currentError != null) {
-      throw currentError;
-    }
+    _throwIfNeeded();
 
     savedRecords.add(record);
   }
@@ -136,12 +202,33 @@ class _FakeSocialInteractionRemoteService
   Future<List<SocialInteractionRecord>> recoverSocialInteractions({
     required String anonymousId,
   }) async {
+    _throwIfNeeded();
+
+    return List.unmodifiable(recordsToRecover);
+  }
+
+  @override
+  Future<void> updateSocialInteraction(SocialInteractionRecord record) async {
+    _throwIfNeeded();
+
+    updatedRecords.add(record);
+  }
+
+  @override
+  Future<void> deleteSocialInteraction({
+    required String anonymousId,
+    required String recordId,
+  }) async {
+    _throwIfNeeded();
+
+    deletedRecords.add((anonymousId: anonymousId, recordId: recordId));
+  }
+
+  void _throwIfNeeded() {
     final currentError = error;
 
     if (currentError != null) {
       throw currentError;
     }
-
-    return List.unmodifiable(recordsToRecover);
   }
 }
