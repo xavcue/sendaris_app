@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../../../app/animation/animated_entrance.dart';
 import '../../../../app/animation/animated_pressable_scale.dart';
+import '../../../../app/router/app_routes.dart';
 import '../../../../app/theme/ambient_background.dart';
 import '../../../../app/theme/sendaris_section_label.dart';
 import '../../../../app/theme/theme_mode_controller.dart';
@@ -41,34 +42,8 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
     super.dispose();
   }
 
-  Future<void> _openRegister() async {
-    await context.push<void>('/register');
-
-    if (!mounted) {
-      return;
-    }
-
-    _ambientBackgroundController.replay();
-  }
-
-  Future<void> _openRoutines() async {
-    await context.push<void>('/routines');
-
-    if (!mounted) {
-      return;
-    }
-
-    _ambientBackgroundController.replay();
-  }
-
-  Future<void> _openHistory() async {
-    await context.push<void>('/history');
-
-    if (!mounted) {
-      return;
-    }
-
-    _ambientBackgroundController.replay();
+  void _openRoutines() {
+    context.go(AppRoutes.routines);
   }
 
   Future<void> _openFrequencies() async {
@@ -542,63 +517,6 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
         ),
         const SizedBox(height: 14),
 
-        // Nuevo registro.
-        AnimatedEntrance(
-          delay: const Duration(milliseconds: 240),
-          duration: const Duration(milliseconds: 460),
-          beginScale: 0.99,
-          child: AnimatedPressableScale(
-            child: Card(
-              key: const Key('home-new-register-action'),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(22),
-                onTap: _openRegister,
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          color: colorScheme.primaryContainer.withValues(
-                            alpha: isDark ? 0.42 : 0.72,
-                          ),
-                          borderRadius: BorderRadius.circular(17),
-                        ),
-                        child: Icon(
-                          Icons.add_rounded,
-                          color: colorScheme.primary,
-                          size: 28,
-                        ),
-                      ),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Nuevo registro',
-                              style: theme.textTheme.titleMedium,
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              'Añade información al seguimiento actual.',
-                              style: theme.textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                      ),
-                      _ArrowCircle(colorScheme: colorScheme),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-
         // Rutinas.
         AnimatedEntrance(
           delay: const Duration(milliseconds: 320),
@@ -659,63 +577,6 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
           child: SendarisSectionLabel(label: 'Seguimiento'),
         ),
         const SizedBox(height: 14),
-
-        // Historial.
-        AnimatedEntrance(
-          delay: const Duration(milliseconds: 450),
-          duration: const Duration(milliseconds: 470),
-          beginScale: 0.99,
-          child: AnimatedPressableScale(
-            child: Card(
-              key: const Key('home-history-action'),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(22),
-                onTap: _openHistory,
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          color: colorScheme.primaryContainer.withValues(
-                            alpha: isDark ? 0.36 : 0.62,
-                          ),
-                          borderRadius: BorderRadius.circular(17),
-                        ),
-                        child: Icon(
-                          Icons.history_rounded,
-                          color: colorScheme.primary,
-                          size: 27,
-                        ),
-                      ),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Historial',
-                              style: theme.textTheme.titleMedium,
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              'Consulta los registros del seguimiento actual.',
-                              style: theme.textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                      ),
-                      _ArrowCircle(colorScheme: colorScheme),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
 
         // Frecuencias.
         AnimatedEntrance(

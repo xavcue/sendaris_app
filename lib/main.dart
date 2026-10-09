@@ -26,8 +26,6 @@ import 'features/feeding/data/services/firestore_feeding_service.dart';
 import 'features/feeding/data/services/uuid_feeding_record_id_generator.dart';
 import 'features/feeding/domain/services/feeding_record_factory.dart';
 import 'features/frequency/data/repositories/composite_frequency_repository.dart';
-import 'features/history/data/repositories/firebase_history_repository.dart';
-import 'features/history/data/services/firestore_history_service.dart';
 import 'features/routine/data/repositories/firebase_routine_repository.dart';
 import 'features/routine/data/services/firestore_routine_service.dart';
 import 'features/routine/data/services/uuid_routine_id_generator.dart';
@@ -131,10 +129,6 @@ Future<void> main() async {
     UuidDysregulationRecordIdGenerator(),
   );
 
-  final historyService = FirestoreHistoryService(firestore, firebaseAuth);
-
-  final historyRepository = FirebaseHistoryRepository(historyService);
-
   final routineService = FirestoreRoutineService(firestore, firebaseAuth);
 
   final routineRepository = FirebaseRoutineRepository(routineService);
@@ -201,7 +195,6 @@ Future<void> main() async {
       socialInteractionRecordFactory: socialInteractionRecordFactory,
       dysregulationRepository: dysregulationRepository,
       dysregulationRecordFactory: dysregulationRecordFactory,
-      historyRepository: historyRepository,
       frequencyRepository: frequencyRepository,
       durationRepository: durationRepository,
       routineRepository: routineRepository,
