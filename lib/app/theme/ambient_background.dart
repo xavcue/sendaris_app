@@ -15,7 +15,9 @@ class AmbientBackground extends StatefulWidget {
   });
 
   final Widget child;
+
   final AmbientBackgroundController? controller;
+
   final bool compact;
 
   @override
@@ -25,6 +27,7 @@ class AmbientBackground extends StatefulWidget {
 class _AmbientBackgroundState extends State<AmbientBackground>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+
   late final Animation<double> _animation;
 
   bool _started = false;
@@ -74,6 +77,7 @@ class _AmbientBackgroundState extends State<AmbientBackground>
 
     if (disableAnimations) {
       _controller.value = 1;
+
       return;
     }
 
@@ -90,6 +94,7 @@ class _AmbientBackgroundState extends State<AmbientBackground>
 
     if (disableAnimations) {
       _controller.value = 1;
+
       return;
     }
 
@@ -121,7 +126,6 @@ class _AmbientBackgroundState extends State<AmbientBackground>
       fit: StackFit.expand,
       children: [
         ColoredBox(color: theme.colorScheme.surface),
-
         RepaintBoundary(
           child: IgnorePointer(
             child: AnimatedBuilder(
@@ -139,7 +143,6 @@ class _AmbientBackgroundState extends State<AmbientBackground>
             ),
           ),
         ),
-
         widget.child,
       ],
     );
@@ -155,8 +158,11 @@ class _AmbientMeshPainter extends CustomPainter {
   });
 
   final double progress;
+
   final Brightness brightness;
+
   final Color primary;
+
   final bool compact;
 
   double _lerp(double begin, double end) {
@@ -195,13 +201,22 @@ class _AmbientMeshPainter extends CustomPainter {
       )
       ..close();
 
+    if (isDark) {
+      final paint = Paint()
+        ..color = const Color(0xFF0A211D).withValues(alpha: 0.74);
+
+      canvas.drawPath(path, paint);
+
+      return;
+    }
+
     final paint = Paint()
       ..shader = LinearGradient(
         begin: Alignment.topRight,
         end: Alignment.bottomLeft,
         colors: [
-          primary.withValues(alpha: isDark ? 0.21 : 0.18),
-          const Color(0xFF72BFB5).withValues(alpha: isDark ? 0.12 : 0.13),
+          primary.withValues(alpha: 0.18),
+          const Color(0xFF72BFB5).withValues(alpha: 0.13),
           primary.withValues(alpha: 0),
         ],
         stops: const [0, 0.58, 1],
@@ -242,14 +257,23 @@ class _AmbientMeshPainter extends CustomPainter {
       )
       ..close();
 
+    if (isDark) {
+      final paint = Paint()
+        ..color = const Color(0xFF071713).withValues(alpha: 0.62);
+
+      canvas.drawPath(path, paint);
+
+      return;
+    }
+
     final paint = Paint()
       ..shader = LinearGradient(
         begin: Alignment.centerLeft,
         end: Alignment.centerRight,
         colors: [
           const Color(0xFF83C9BF).withValues(alpha: 0),
-          const Color(0xFF83C9BF).withValues(alpha: isDark ? 0.085 : 0.075),
-          primary.withValues(alpha: isDark ? 0.075 : 0.055),
+          const Color(0xFF83C9BF).withValues(alpha: 0.075),
+          primary.withValues(alpha: 0.055),
           primary.withValues(alpha: 0),
         ],
         stops: const [0, 0.30, 0.70, 1],
@@ -275,13 +299,22 @@ class _AmbientMeshPainter extends CustomPainter {
       ..lineTo(-100, size.height + 100)
       ..close();
 
+    if (isDark) {
+      final paint = Paint()
+        ..color = const Color(0xFF06130F).withValues(alpha: 0.58);
+
+      canvas.drawPath(path, paint);
+
+      return;
+    }
+
     final paint = Paint()
       ..shader = LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: [
-          const Color(0xFF709C96).withValues(alpha: isDark ? 0.075 : 0.055),
-          primary.withValues(alpha: isDark ? 0.10 : 0.065),
+          const Color(0xFF709C96).withValues(alpha: 0.055),
+          primary.withValues(alpha: 0.065),
           primary.withValues(alpha: 0),
         ],
       ).createShader(Offset.zero & size);

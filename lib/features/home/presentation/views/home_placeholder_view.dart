@@ -7,7 +7,6 @@ import '../../../../app/animation/animated_pressable_scale.dart';
 import '../../../../app/router/app_routes.dart';
 import '../../../../app/theme/ambient_background.dart';
 import '../../../../app/theme/sendaris_section_label.dart';
-import '../../../../app/theme/theme_mode_controller.dart';
 import '../../../auth/presentation/viewmodels/auth_view_model.dart';
 import '../../../tracking/domain/models/anonymous_tracking_profile.dart';
 import '../../../tracking/presentation/viewmodels/tracking_view_model.dart';
@@ -101,12 +100,6 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
     _ambientBackgroundController.replay();
   }
 
-  void _toggleTheme(Brightness brightness) {
-    final controller = context.read<ThemeModeController?>();
-
-    controller?.toggle(brightness);
-  }
-
   @override
   Widget build(BuildContext context) {
     final trackingViewModel = context.watch<TrackingViewModel>();
@@ -114,8 +107,6 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-
-    final themeModeController = context.read<ThemeModeController?>();
 
     return AmbientBackground(
       controller: _ambientBackgroundController,
@@ -152,41 +143,26 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
             ],
           ),
           actions: [
-            if (themeModeController != null)
-              Padding(
-                padding: const EdgeInsets.only(right: 4),
-                child: IconButton(
-                  tooltip: isDark ? 'Usar modo claro' : 'Usar modo oscuro',
-                  style: IconButton.styleFrom(
-                    backgroundColor: colorScheme.surface.withValues(
-                      alpha: isDark ? 0.72 : 0.68,
-                    ),
-                    foregroundColor: colorScheme.onSurface,
-                    side: BorderSide(
-                      color: colorScheme.outlineVariant.withValues(alpha: 0.56),
-                    ),
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: IconButton(
+                key: const Key('home-settings-action'),
+                tooltip: 'Ajustes',
+                style: IconButton.styleFrom(
+                  backgroundColor: colorScheme.surface.withValues(
+                    alpha: isDark ? 0.72 : 0.68,
                   ),
-                  onPressed: () {
-                    _toggleTheme(theme.brightness);
-                  },
-                  icon: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 250),
-                    transitionBuilder: (child, animation) {
-                      return FadeTransition(
-                        opacity: animation,
-                        child: ScaleTransition(scale: animation, child: child),
-                      );
-                    },
-                    child: Icon(
-                      isDark
-                          ? Icons.light_mode_rounded
-                          : Icons.dark_mode_rounded,
-                      key: ValueKey<bool>(isDark),
-                      size: 20,
-                    ),
+                  foregroundColor: colorScheme.onSurface,
+                  side: BorderSide(
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.56),
                   ),
                 ),
+                onPressed: () {
+                  context.push(AppRoutes.settings);
+                },
+                icon: const Icon(Icons.settings_outlined, size: 20),
               ),
+            ),
             Padding(
               padding: const EdgeInsets.only(right: 12),
               child: IconButton(
