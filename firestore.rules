@@ -863,6 +863,56 @@ service cloud.firestore {
         );
     }
 
+    function hasValidRoutineStatusUpdateTopLevelFields(uid) {
+      return request.resource.data.keys().hasAll([
+          'tipoRegistro',
+          'fechaEvento',
+          'fechaCreacion',
+          'fechaActualizacion',
+          'uidOperacion',
+          'datos'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'tipoRegistro',
+          'fechaEvento',
+          'fechaCreacion',
+          'fechaActualizacion',
+          'uidOperacion',
+          'datos'
+        ])
+        && resource.data.tipoRegistro == 'estadoRutina'
+        && request.resource.data.tipoRegistro == 'estadoRutina'
+        && request.resource.data.fechaEvento is timestamp
+        && request.resource.data.fechaCreacion is timestamp
+        && request.resource.data.fechaCreacion
+          == resource.data.fechaCreacion
+        && request.resource.data.fechaActualizacion is timestamp
+        && request.resource.data.fechaActualizacion
+          > resource.data.fechaActualizacion
+        && request.resource.data.uidOperacion is string
+        && request.resource.data.uidOperacion == uid
+        && request.resource.data.uidOperacion
+          == request.auth.uid
+        && request.resource.data.datos is map;
+    }
+
+    function isValidRoutineStatusUpdate(
+      uid,
+      idAnonimo
+    ) {
+      return hasValidRoutineStatusUpdateTopLevelFields(uid)
+        && hasValidRoutineStatusDataFields()
+        && hasValidRoutineStatusDate()
+        && hasValidRoutineStatusRoutineId()
+        && hasValidRoutineStatusValue()
+        && hasValidOptionalRoutineStatusObservation()
+        && routineExists(
+          uid,
+          idAnonimo,
+          request.resource.data.datos.idRutina
+        );
+    }
+
     function hasValidAtypicalSituationTopLevelFields(uid) {
       return request.resource.data.keys().hasAll([
           'tipoRegistro',
@@ -1083,6 +1133,10 @@ service cloud.firestore {
               || isValidFeedingUpdate(uid)
               || isValidSocialInteractionUpdate(uid)
               || isValidDysregulationUpdate(uid)
+              || isValidRoutineStatusUpdate(
+                uid,
+                idAnonimo
+              )
               || isValidAtypicalSituationUpdate(uid)
             );
 

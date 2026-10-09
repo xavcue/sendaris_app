@@ -6,7 +6,7 @@ abstract final class RoutineStatusRecordValidator {
     final errors = <String, String>{};
 
     if (anonymousId.trim().isEmpty) {
-      errors['anonymousId'] = 'No hay un perfil activo disponible.';
+      errors['anonymousId'] = 'No hay un seguimiento actual disponible.';
     }
 
     if (routineId.trim().isEmpty) {

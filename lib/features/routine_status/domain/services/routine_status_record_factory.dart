@@ -46,6 +46,43 @@ class RoutineStatusRecordFactory {
     );
   }
 
+  RoutineStatusRecord update({
+    required RoutineStatusRecord currentRecord,
+    required String routineId,
+    required DateTime date,
+    required RoutineStatus status,
+    String? observation,
+    DateTime? updatedAt,
+  }) {
+    final normalizedAnonymousId = currentRecord.anonymousId.trim();
+
+    final normalizedRoutineId = routineId.trim();
+
+    final normalizedObservation = _normalizeOptionalText(observation);
+
+    final errors = RoutineStatusRecordValidator.validate(
+      anonymousId: normalizedAnonymousId,
+      routineId: normalizedRoutineId,
+    );
+
+    if (errors.isNotEmpty) {
+      throw RoutineStatusValidationFailure(errors);
+    }
+
+    final timestamp = (updatedAt ?? DateTime.now()).toUtc();
+
+    return RoutineStatusRecord(
+      recordId: currentRecord.recordId,
+      anonymousId: normalizedAnonymousId,
+      routineId: normalizedRoutineId,
+      date: DateTime(date.year, date.month, date.day),
+      status: status,
+      observation: normalizedObservation,
+      createdAt: currentRecord.createdAt,
+      updatedAt: timestamp,
+    );
+  }
+
   String? _normalizeOptionalText(String? value) {
     if (value == null) {
       return null;

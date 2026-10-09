@@ -7,3 +7,13 @@ abstract interface class RoutineStatusRemoteService {
     required String anonymousId,
   });
 }
+
+abstract interface class RoutineStatusManagementRemoteService
+    implements RoutineStatusRemoteService {
+  Future<void> updateRoutineStatus(RoutineStatusRecord record);
+
+  Future<void> deleteRoutineStatus({
+    required String anonymousId,
+    required String recordId,
+  });
+}
