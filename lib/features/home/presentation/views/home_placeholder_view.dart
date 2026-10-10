@@ -7,7 +7,6 @@ import '../../../../app/animation/animated_pressable_scale.dart';
 import '../../../../app/router/app_routes.dart';
 import '../../../../app/theme/ambient_background.dart';
 import '../../../../app/theme/sendaris_section_label.dart';
-import '../../../auth/presentation/viewmodels/auth_view_model.dart';
 import '../../../tracking/domain/models/anonymous_tracking_profile.dart';
 import '../../../tracking/presentation/viewmodels/tracking_view_model.dart';
 
@@ -144,7 +143,7 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
           ),
           actions: [
             Padding(
-              padding: const EdgeInsets.only(right: 4),
+              padding: const EdgeInsets.only(right: 12),
               child: IconButton(
                 key: const Key('home-settings-action'),
                 tooltip: 'Ajustes',
@@ -161,40 +160,6 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                   context.push(AppRoutes.settings);
                 },
                 icon: const Icon(Icons.settings_outlined, size: 20),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: IconButton(
-                tooltip: 'Cerrar sesión',
-                style: IconButton.styleFrom(
-                  backgroundColor: colorScheme.surface.withValues(
-                    alpha: isDark ? 0.72 : 0.68,
-                  ),
-                  foregroundColor: colorScheme.onSurface,
-                  side: BorderSide(
-                    color: colorScheme.outlineVariant.withValues(alpha: 0.56),
-                  ),
-                ),
-                onPressed: trackingViewModel.isLoading
-                    ? null
-                    : () async {
-                        final authViewModel = context.read<AuthViewModel>();
-
-                        final success = await authViewModel.signOut();
-
-                        if (!success && context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                authViewModel.errorMessage ??
-                                    'No fue posible cerrar la sesión.',
-                              ),
-                            ),
-                          );
-                        }
-                      },
-                icon: const Icon(Icons.logout_rounded, size: 20),
               ),
             ),
           ],

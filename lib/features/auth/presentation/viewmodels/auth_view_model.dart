@@ -18,7 +18,9 @@ class AuthViewModel extends ChangeNotifier {
   late final StreamSubscription<bool> _authSubscription;
 
   bool _isAuthenticated;
+
   bool _isLoading = false;
+
   String? _errorMessage;
 
   bool get isAuthenticated => _isAuthenticated;
@@ -32,11 +34,14 @@ class AuthViewModel extends ChangeNotifier {
 
     if (normalizedEmail.isEmpty || password.isEmpty) {
       _errorMessage = 'Ingresa tu correo y contraseña.';
+
       notifyListeners();
+
       return false;
     }
 
     _setLoading(true);
+
     _errorMessage = null;
 
     try {
@@ -45,9 +50,13 @@ class AuthViewModel extends ChangeNotifier {
       return true;
     } on AuthFailure catch (error) {
       _errorMessage = error.message;
+
       return false;
     } catch (_) {
-      _errorMessage = 'No fue posible iniciar sesión. Inténtalo nuevamente.';
+      _errorMessage =
+          'No fue posible iniciar sesión. '
+          'Inténtalo nuevamente.';
+
       return false;
     } finally {
       _setLoading(false);
@@ -56,16 +65,126 @@ class AuthViewModel extends ChangeNotifier {
 
   Future<bool> signOut() async {
     _setLoading(true);
+
     _errorMessage = null;
 
     try {
       await _repository.signOut();
+
+      _handleAuthenticationChange(false);
+
       return true;
     } on AuthFailure catch (error) {
       _errorMessage = error.message;
+
       return false;
     } catch (_) {
-      _errorMessage = 'No fue posible cerrar la sesión. Inténtalo nuevamente.';
+      _errorMessage =
+          'No fue posible cerrar la sesión. '
+          'Inténtalo nuevamente.';
+
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<bool> reauthenticateWithPassword({required String password}) async {
+    if (!_isAuthenticated) {
+      _errorMessage =
+          'Debes iniciar sesión nuevamente '
+          'antes de continuar.';
+
+      notifyListeners();
+
+      return false;
+    }
+
+    if (password.isEmpty) {
+      _errorMessage = 'Ingresa tu contraseña para continuar.';
+
+      notifyListeners();
+
+      return false;
+    }
+
+    if (_repository is! AuthAccountManagementRepository) {
+      _errorMessage =
+          'No fue posible confirmar tu identidad. '
+          'Inténtalo nuevamente.';
+
+      notifyListeners();
+
+      return false;
+    }
+
+    final accountRepository = _repository as AuthAccountManagementRepository;
+
+    _setLoading(true);
+
+    _errorMessage = null;
+
+    try {
+      await accountRepository.reauthenticateWithPassword(password: password);
+
+      return true;
+    } on AuthFailure catch (error) {
+      _errorMessage = error.message;
+
+      return false;
+    } catch (_) {
+      _errorMessage =
+          'No fue posible confirmar tu identidad. '
+          'Inténtalo nuevamente.';
+
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<bool> deleteCurrentAccount() async {
+    if (!_isAuthenticated) {
+      _errorMessage =
+          'Debes iniciar sesión nuevamente '
+          'antes de eliminar la cuenta.';
+
+      notifyListeners();
+
+      return false;
+    }
+
+    if (_repository is! AuthAccountManagementRepository) {
+      _errorMessage =
+          'No fue posible eliminar la cuenta. '
+          'Inténtalo nuevamente.';
+
+      notifyListeners();
+
+      return false;
+    }
+
+    final accountRepository = _repository as AuthAccountManagementRepository;
+
+    _setLoading(true);
+
+    _errorMessage = null;
+
+    try {
+      await accountRepository.deleteCurrentAccount();
+
+      _handleAuthenticationChange(false);
+
+      return true;
+    } on AuthFailure catch (error) {
+      _errorMessage = error.message;
+
+      return false;
+    } catch (_) {
+      _errorMessage =
+          'No fue posible eliminar la cuenta. '
+          'Inténtalo nuevamente.';
+
       return false;
     } finally {
       _setLoading(false);
@@ -78,6 +197,7 @@ class AuthViewModel extends ChangeNotifier {
     }
 
     _errorMessage = null;
+
     notifyListeners();
   }
 
@@ -87,6 +207,7 @@ class AuthViewModel extends ChangeNotifier {
     }
 
     _isAuthenticated = isAuthenticated;
+
     notifyListeners();
   }
 
@@ -96,12 +217,14 @@ class AuthViewModel extends ChangeNotifier {
     }
 
     _isLoading = value;
+
     notifyListeners();
   }
 
   @override
   void dispose() {
     _authSubscription.cancel();
+
     super.dispose();
   }
 }
