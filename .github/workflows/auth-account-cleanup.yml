@@ -3,7 +3,7 @@ name: Sendaris Auth Account Cleanup
 on:
   push:
     branches:
-      - feat/ux-bottom-navigation
+      - main
     paths:
       - ".github/workflows/auth-account-cleanup.yml"
       - "firebase-maintenance/**"
