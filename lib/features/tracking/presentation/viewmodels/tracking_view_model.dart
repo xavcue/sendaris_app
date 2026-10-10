@@ -281,6 +281,106 @@ class TrackingViewModel extends ChangeNotifier {
     }
   }
 
+  Future<bool> deleteAllProfilesForAccount() async {
+    if (_isLoading) {
+      return false;
+    }
+
+    final deletionRepository = _deletionRepository;
+
+    if (deletionRepository == null) {
+      _errorMessage =
+          'No fue posible eliminar los datos de la cuenta. '
+          'Inténtalo nuevamente.';
+
+      notifyListeners();
+
+      return false;
+    }
+
+    _setLoading(true);
+
+    _clearMessages();
+
+    final deletedIds = <String>{};
+
+    try {
+      final recoveredProfiles = await _repository.recoverProfiles();
+
+      for (final profile in recoveredProfiles) {
+        try {
+          await deletionRepository.deleteProfile(profile.anonymousId);
+
+          deletedIds.add(profile.anonymousId);
+        } on TrackingFailure catch (error) {
+          if (deletedIds.isNotEmpty) {
+            _applyDeletedProfiles(deletedIds);
+          }
+
+          _errorMessage = error.message;
+
+          return false;
+        } catch (_) {
+          if (deletedIds.isNotEmpty) {
+            _applyDeletedProfiles(deletedIds);
+          }
+
+          _errorMessage =
+              'No fue posible eliminar todos '
+              'los datos de la cuenta.';
+
+          return false;
+        }
+      }
+
+      _profiles = [];
+
+      _activeProfile = null;
+
+      _isInitialized = true;
+
+      _successMessage = 'Datos de la cuenta eliminados correctamente.';
+
+      return true;
+    } on TrackingFailure catch (error) {
+      _errorMessage = error.message;
+
+      return false;
+    } catch (_) {
+      _errorMessage =
+          'No fue posible eliminar los datos de la cuenta. '
+          'Inténtalo nuevamente.';
+
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  void clearAuthenticationState() {
+    final changed =
+        _isLoading ||
+        _isInitialized ||
+        _profiles.isNotEmpty ||
+        _activeProfile != null ||
+        _errorMessage != null ||
+        _successMessage != null;
+
+    _isLoading = false;
+
+    _isInitialized = false;
+
+    _profiles = [];
+
+    _activeProfile = null;
+
+    _clearMessages();
+
+    if (changed) {
+      notifyListeners();
+    }
+  }
+
   int? trackingNumberFor(AnonymousTrackingProfile profile) {
     final persistedNumber = profile.trackingNumber;
 

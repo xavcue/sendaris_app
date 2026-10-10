@@ -115,6 +115,10 @@ class _SendarisAppState extends State<SendarisApp> {
       widget.trackingProfileFactory,
     );
 
+    _authViewModel.addListener(_handleAuthenticationChange);
+
+    _handleAuthenticationChange();
+
     _themeModeController = ThemeModeController();
 
     _router = AppRouter.create(
@@ -142,9 +146,19 @@ class _SendarisAppState extends State<SendarisApp> {
     );
   }
 
+  void _handleAuthenticationChange() {
+    if (_authViewModel.isAuthenticated) {
+      return;
+    }
+
+    _trackingViewModel.clearAuthenticationState();
+  }
+
   @override
   void dispose() {
     _router.dispose();
+
+    _authViewModel.removeListener(_handleAuthenticationChange);
 
     _authViewModel.dispose();
 

@@ -77,6 +77,8 @@ void main() {
 
     expect(find.byTooltip('Usar modo oscuro'), findsNothing);
 
+    expect(find.byTooltip('Cerrar sesión'), findsNothing);
+
     await tester.tap(find.byKey(const Key('home-settings-action')));
 
     await tester.pumpAndSettle();
