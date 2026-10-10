@@ -1,0 +1,93 @@
+name: Sendaris Auth Account Cleanup
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/auth-account-cleanup.yml"
+      - "firebase-maintenance/**"
+
+  workflow_dispatch:
+
+  schedule:
+    - cron: "17 */6 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sendaris-auth-account-cleanup
+  cancel-in-progress: false
+
+jobs:
+  maintenance:
+    name: Mantener cuentas de autenticación
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 10
+
+    steps:
+      - name: Obtener repositorio
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: firebase-maintenance/package-lock.json
+
+      - name: Instalar dependencias
+        working-directory: firebase-maintenance
+        run: npm ci
+
+      - name: Verificar dependencias
+        working-directory: firebase-maintenance
+        run: npm audit --omit=dev
+
+      - name: Ejecutar pruebas
+        working-directory: firebase-maintenance
+        run: npm test
+
+      - name: Preparar credencial temporal de Firebase
+        shell: bash
+        env:
+          SERVICE_ACCOUNT_BASE64: ${{ secrets.SENDARIS_FIREBASE_SERVICE_ACCOUNT_BASE64 }}
+        run: |
+          set -euo pipefail
+
+          credentials_path="$RUNNER_TEMP/sendaris-auth-maintenance.service-account.json"
+
+          printf '%s' "$SERVICE_ACCOUNT_BASE64" \
+            | base64 --decode \
+            > "$credentials_path"
+
+          chmod 600 "$credentials_path"
+
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$credentials_path" >> "$GITHUB_ENV"
+          echo "FIREBASE_PROJECT_ID=sendaris-app-xavcue" >> "$GITHUB_ENV"
+
+      - name: Analizar cuentas no verificadas
+        if: github.event_name != 'schedule'
+        working-directory: firebase-maintenance
+        run: npm run cleanup:dry-run
+
+      - name: Eliminar cuentas no verificadas vencidas
+        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main'
+        working-directory: firebase-maintenance
+        env:
+          SENDARIS_ALLOW_ACCOUNT_DELETION: DELETE_UNVERIFIED_AFTER_24H
+        run: npm run cleanup:apply
+
+      - name: Eliminar credencial temporal
+        if: always()
+        shell: bash
+        run: |
+          credentials_path="$RUNNER_TEMP/sendaris-auth-maintenance.service-account.json"
+
+          if [ -f "$credentials_path" ]; then
+            rm -f "$credentials_path"
+          fi
