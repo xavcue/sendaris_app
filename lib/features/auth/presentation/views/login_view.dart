@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../../app/animation/app_motion.dart';
 import '../../../../app/theme/theme_mode_controller.dart';
 import '../viewmodels/auth_view_model.dart';
+import 'registration_email_view.dart';
 
 class LoginView extends StatefulWidget {
   const LoginView({super.key});
@@ -37,6 +38,8 @@ class _LoginViewState extends State<LoginView>
   late final Animation<double> _footerOpacity;
 
   bool _obscurePassword = true;
+
+  bool _showRegistration = false;
 
   @override
   void initState() {
@@ -114,8 +117,53 @@ class _LoginViewState extends State<LoginView>
     );
   }
 
+  void _openRegistration(AuthViewModel authViewModel) {
+    authViewModel.clearError();
+
+    setState(() {
+      _showRegistration = true;
+    });
+  }
+
+  void _keepRegistrationOpen() {
+    if (_showRegistration) {
+      return;
+    }
+
+    setState(() {
+      _showRegistration = true;
+    });
+  }
+
+  void _closeRegistration() {
+    final authViewModel = context.read<AuthViewModel>();
+
+    authViewModel.clearError();
+
+    setState(() {
+      _showRegistration = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final authViewModel = context.watch<AuthViewModel>();
+
+    final hasUnverifiedSession =
+        authViewModel.isAuthenticated && authViewModel.isEmailVerified == false;
+
+    if (_showRegistration || hasUnverifiedSession) {
+      return RegistrationEmailView(
+        initialVerificationPending: hasUnverifiedSession,
+        initialVerificationEmail: hasUnverifiedSession
+            ? authViewModel.currentUserEmail
+            : null,
+        onUseAnotherEmailRequested: _keepRegistrationOpen,
+        onBack: _closeRegistration,
+        onLogin: _closeRegistration,
+      );
+    }
+
     final theme = Theme.of(context);
 
     final colorScheme = theme.colorScheme;
@@ -457,6 +505,56 @@ class _LoginViewState extends State<LoginView>
                                             ? 'Ingresando...'
                                             : 'Iniciar sesión',
                                       ),
+                                    ),
+
+                                    const SizedBox(height: 22),
+
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Divider(
+                                            color: colorScheme.outlineVariant,
+                                          ),
+                                        ),
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                          ),
+                                          child: Text(
+                                            '¿Aún no tienes cuenta?',
+                                            style: theme.textTheme.bodySmall
+                                                ?.copyWith(
+                                                  color: colorScheme
+                                                      .onSurfaceVariant,
+                                                ),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: Divider(
+                                            color: colorScheme.outlineVariant,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+
+                                    const SizedBox(height: 16),
+
+                                    OutlinedButton.icon(
+                                      key: const Key(
+                                        'login-create-account-button',
+                                      ),
+                                      onPressed: authViewModel.isLoading
+                                          ? null
+                                          : () {
+                                              _openRegistration(authViewModel);
+                                            },
+                                      style: OutlinedButton.styleFrom(
+                                        minimumSize: const Size.fromHeight(52),
+                                      ),
+                                      icon: const Icon(
+                                        Icons.person_add_alt_1_rounded,
+                                      ),
+                                      label: const Text('Crear cuenta'),
                                     ),
                                   ],
                                 ),

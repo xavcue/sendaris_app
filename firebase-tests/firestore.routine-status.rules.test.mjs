@@ -39,6 +39,12 @@ after(async () => {
   await testEnv.cleanup();
 });
 
+function verifiedDb(uid) {
+  return testEnv.authenticatedContext(uid, {
+    email_verified: true,
+  }).firestore();
+}
+
 async function createActiveTrackingProfile({
   db,
   uid,
@@ -107,7 +113,7 @@ function validRoutineStatusData({
 }
 
 async function prepareContext() {
-  const db = testEnv.authenticatedContext('usuario-a').firestore();
+  const db = verifiedDb('usuario-a');
 
   const anonymousId =
     '550e8400-e29b-41d4-a716-446655440000';
@@ -279,7 +285,7 @@ test(
 test(
   'otro usuario no puede registrar estados en un seguimiento ajeno',
   async () => {
-    const ownerDb = testEnv.authenticatedContext('usuario-a').firestore();
+    const ownerDb = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -296,7 +302,7 @@ test(
       anonymousId,
     });
 
-    const otherDb = testEnv.authenticatedContext('usuario-b').firestore();
+    const otherDb = verifiedDb('usuario-b');
 
     const reference = doc(
       otherDb,
@@ -319,7 +325,7 @@ test(
 test(
   'otro usuario no puede eliminar un estado de rutina ajeno',
   async () => {
-    const ownerDb = testEnv.authenticatedContext('usuario-a').firestore();
+    const ownerDb = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -346,7 +352,7 @@ test(
       validRoutineStatusData(),
     );
 
-    const otherDb = testEnv.authenticatedContext('usuario-b').firestore();
+    const otherDb = verifiedDb('usuario-b');
 
     const otherReference = doc(
       otherDb,
@@ -878,7 +884,7 @@ test(
 test(
   'otro usuario no puede actualizar un estado de rutina ajeno',
   async () => {
-    const ownerDb = testEnv.authenticatedContext('usuario-a').firestore();
+    const ownerDb = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -905,7 +911,7 @@ test(
       validRoutineStatusData(),
     );
 
-    const otherDb = testEnv.authenticatedContext('usuario-b').firestore();
+    const otherDb = verifiedDb('usuario-b');
 
     const otherReference = doc(
       otherDb,

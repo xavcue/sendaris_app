@@ -37,6 +37,12 @@ after(async () => {
   await testEnv.cleanup();
 });
 
+function verifiedDb(uid) {
+  return testEnv.authenticatedContext(uid, {
+    email_verified: true,
+  }).firestore();
+}
+
 function trackingPath({
   uid = 'usuario-a',
   anonymousId = 'seguimiento-a',
@@ -127,9 +133,7 @@ async function seedTrackingTree() {
 test(
   'el propietario puede crear un seguimiento con número técnico',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     await assertSucceeds(
       setDoc(
@@ -150,11 +154,55 @@ test(
 );
 
 test(
+  'un correo no verificado no puede crear un seguimiento',
+  async () => {
+    const db = testEnv.authenticatedContext('usuario-a', {
+      email_verified: false,
+    }).firestore();
+
+    await assertFails(
+      setDoc(doc(db, trackingPath()), {
+        fechaCreacion: new Date('2026-09-20T12:00:00Z'),
+        activo: true,
+        numeroSeguimiento: 1,
+      }),
+    );
+  },
+);
+
+test(
+  'un correo no verificado no puede eliminar un seguimiento existente',
+  async () => {
+    await seedTrackingTree();
+
+    const db = testEnv.authenticatedContext('usuario-a', {
+      email_verified: false,
+    }).firestore();
+
+    await assertFails(
+      deleteDoc(doc(db, trackingPath())),
+    );
+  },
+);
+
+test(
+  'un token sin email_verified no puede eliminar un seguimiento',
+  async () => {
+    await seedTrackingTree();
+
+    const db = testEnv.authenticatedContext('usuario-a', {
+      email: 'usuario-a@example.test',
+    }).firestore();
+
+    await assertFails(
+      deleteDoc(doc(db, trackingPath())),
+    );
+  },
+);
+test(
   'un seguimiento anterior puede recibir su número técnico',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const reference = doc(
       db,
@@ -187,9 +235,7 @@ test(
 test(
   'el número técnico no puede modificarse después de asignarse',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const reference = doc(
       db,
@@ -221,9 +267,7 @@ test(
 test(
   'se rechaza un número técnico igual a cero',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     await assertFails(
       setDoc(
@@ -248,9 +292,7 @@ test(
   async () => {
     await seedTrackingTree();
 
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     await assertSucceeds(
       deleteDoc(
@@ -268,9 +310,7 @@ test(
   async () => {
     await seedTrackingTree();
 
-    const db = testEnv
-      .authenticatedContext('usuario-b')
-      .firestore();
+    const db = verifiedDb('usuario-b');
 
     await assertFails(
       deleteDoc(
@@ -288,9 +328,7 @@ test(
   async () => {
     await seedTrackingTree();
 
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     await assertSucceeds(
       deleteDoc(
@@ -308,9 +346,7 @@ test(
   async () => {
     await seedTrackingTree();
 
-    const db = testEnv
-      .authenticatedContext('usuario-b')
-      .firestore();
+    const db = verifiedDb('usuario-b');
 
     await assertFails(
       deleteDoc(
@@ -328,9 +364,7 @@ test(
   async () => {
     await seedTrackingTree();
 
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     await assertSucceeds(
       deleteDoc(
@@ -348,9 +382,7 @@ test(
   async () => {
     await seedTrackingTree();
 
-    const db = testEnv
-      .authenticatedContext('usuario-b')
-      .firestore();
+    const db = verifiedDb('usuario-b');
 
     await assertFails(
       deleteDoc(

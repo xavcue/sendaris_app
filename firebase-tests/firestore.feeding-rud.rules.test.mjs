@@ -48,7 +48,9 @@ after(async () => {
 });
 
 function authenticatedDb(uid) {
-  return testEnv.authenticatedContext(uid).firestore();
+  return testEnv.authenticatedContext(uid, {
+    email_verified: true,
+  }).firestore();
 }
 
 async function createTrackingProfile({

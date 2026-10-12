@@ -39,10 +39,14 @@ after(async () => {
   await testEnv.cleanup();
 });
 
+function verifiedDb(uid) {
+  return testEnv.authenticatedContext(uid, {
+    email_verified: true,
+  }).firestore();
+}
+
 test('usuario autenticado puede crear su propio perfil anónimo válido', async () => {
-  const db = testEnv
-    .authenticatedContext('usuario-a')
-    .firestore();
+  const db = verifiedDb('usuario-a');
 
   const reference = doc(
     db,
@@ -58,9 +62,7 @@ test('usuario autenticado puede crear su propio perfil anónimo válido', async 
 });
 
 test('usuario no autenticado no puede leer perfiles', async () => {
-  const adminDb = testEnv
-    .authenticatedContext('usuario-a')
-    .firestore();
+  const adminDb = verifiedDb('usuario-a');
 
   const path =
     'usuarios/usuario-a/seguimientos/550e8400-e29b-41d4-a716-446655440000';
@@ -79,9 +81,7 @@ test('usuario no autenticado no puede leer perfiles', async () => {
 });
 
 test('un usuario no puede leer datos pertenecientes a otra cuenta', async () => {
-  const ownerDb = testEnv
-    .authenticatedContext('usuario-a')
-    .firestore();
+  const ownerDb = verifiedDb('usuario-a');
 
   const path =
     'usuarios/usuario-a/seguimientos/550e8400-e29b-41d4-a716-446655440000';
@@ -91,9 +91,7 @@ test('un usuario no puede leer datos pertenecientes a otra cuenta', async () => 
     activo: true,
   });
 
-  const otherUserDb = testEnv
-    .authenticatedContext('usuario-b')
-    .firestore();
+  const otherUserDb = verifiedDb('usuario-b');
 
   await assertFails(
     getDoc(doc(otherUserDb, path)),
@@ -101,9 +99,7 @@ test('un usuario no puede leer datos pertenecientes a otra cuenta', async () => 
 });
 
 test('un usuario no puede escribir dentro de la ruta de otra cuenta', async () => {
-  const db = testEnv
-    .authenticatedContext('usuario-b')
-    .firestore();
+  const db = verifiedDb('usuario-b');
 
   const reference = doc(
     db,
@@ -119,9 +115,7 @@ test('un usuario no puede escribir dentro de la ruta de otra cuenta', async () =
 });
 
 test('un perfil con identificadores directos es rechazado', async () => {
-  const db = testEnv
-    .authenticatedContext('usuario-a')
-    .firestore();
+  const db = verifiedDb('usuario-a');
 
   const reference = doc(
     db,
@@ -138,9 +132,7 @@ test('un perfil con identificadores directos es rechazado', async () => {
 });
 
 test('el propietario puede desactivar su perfil', async () => {
-  const db = testEnv
-    .authenticatedContext('usuario-a')
-    .firestore();
+  const db = verifiedDb('usuario-a');
 
   const reference = doc(
     db,
@@ -160,9 +152,7 @@ test('el propietario puede desactivar su perfil', async () => {
 });
 
 test('la fecha de creación del perfil no puede modificarse', async () => {
-  const db = testEnv
-    .authenticatedContext('usuario-a')
-    .firestore();
+  const db = verifiedDb('usuario-a');
 
   const reference = doc(
     db,
@@ -182,9 +172,7 @@ test('la fecha de creación del perfil no puede modificarse', async () => {
 });
 
 test('el propietario puede eliminar físicamente su seguimiento', async () => {
-  const db = testEnv
-    .authenticatedContext('usuario-a')
-    .firestore();
+  const db = verifiedDb('usuario-a');
 
   const reference = doc(
     db,
@@ -202,9 +190,7 @@ test('el propietario puede eliminar físicamente su seguimiento', async () => {
 });
 
 test('las colecciones futuras continúan cerradas hasta definir su esquema', async () => {
-  const db = testEnv
-    .authenticatedContext('usuario-a')
-    .firestore();
+  const db = verifiedDb('usuario-a');
 
   const reference = doc(
     db,
@@ -219,9 +205,7 @@ test('las colecciones futuras continúan cerradas hasta definir su esquema', asy
 });
 
 test('los datos autorizados pueden recuperarse íntegramente', async () => {
-  const db = testEnv
-    .authenticatedContext('usuario-a')
-    .firestore();
+  const db = verifiedDb('usuario-a');
 
   const path =
     'usuarios/usuario-a/seguimientos/550e8400-e29b-41d4-a716-446655440000';
@@ -285,9 +269,7 @@ function validBehaviorData({
 test(
   'el propietario puede crear una conducta válida en un seguimiento activo',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -315,9 +297,7 @@ test(
 test(
   'una conducta puede omitir todos los campos descriptivos opcionales',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -360,9 +340,7 @@ test(
 test(
   'otro usuario no puede crear conductas en un seguimiento ajeno',
   async () => {
-    const ownerDb = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const ownerDb = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -373,9 +351,7 @@ test(
       anonymousId,
     });
 
-    const otherDb = testEnv
-      .authenticatedContext('usuario-b')
-      .firestore();
+    const otherDb = verifiedDb('usuario-b');
 
     const reference = doc(
       otherDb,
@@ -396,9 +372,7 @@ test(
 test(
   'no se puede crear una conducta sin un seguimiento existente',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const reference = doc(
       db,
@@ -417,9 +391,7 @@ test(
 test(
   'no se puede crear una conducta en un seguimiento inactivo',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -455,9 +427,7 @@ test(
 test(
   'se rechaza una categoría de conducta fuera del catálogo',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -489,9 +459,7 @@ test(
 test(
   'se rechaza una duración igual o menor que cero',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -523,9 +491,7 @@ test(
 test(
   'se rechaza una intensidad fuera del catálogo descriptivo',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -557,9 +523,7 @@ test(
 test(
   'se rechaza una hora con formato inválido',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -591,9 +555,7 @@ test(
 test(
   'se rechaza un uidOperacion diferente al usuario autenticado',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -623,9 +585,7 @@ test(
 test(
   'se rechazan campos adicionales no permitidos en una conducta',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -657,9 +617,7 @@ test(
 test(
   'un registro de otro tipo continúa bloqueado',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -691,9 +649,7 @@ test(
 test(
   'el propietario puede leer una conducta persistida',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -738,9 +694,7 @@ test(
 test(
   'otro usuario no puede leer una conducta ajena',
   async () => {
-    const ownerDb = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const ownerDb = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -759,9 +713,7 @@ test(
       validBehaviorData(),
     );
 
-    const otherDb = testEnv
-      .authenticatedContext('usuario-b')
-      .firestore();
+    const otherDb = verifiedDb('usuario-b');
 
     await assertFails(
       getDoc(
@@ -774,9 +726,7 @@ test(
 test(
   'el propietario puede eliminar físicamente uno de sus registros',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';

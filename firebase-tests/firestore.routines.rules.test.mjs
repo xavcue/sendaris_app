@@ -39,6 +39,12 @@ after(async () => {
   await testEnv.cleanup();
 });
 
+function verifiedDb(uid) {
+  return testEnv.authenticatedContext(uid, {
+    email_verified: true,
+  }).firestore();
+}
+
 async function createActiveTrackingProfile({
   db,
   uid,
@@ -72,9 +78,7 @@ function validRoutineData({
 test(
   'el propietario puede crear una rutina válida en un seguimiento activo',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -102,9 +106,7 @@ test(
 test(
   'una rutina puede omitir todos los campos opcionales',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -131,9 +133,7 @@ test(
 test(
   'otro usuario no puede crear rutinas en un seguimiento ajeno',
   async () => {
-    const ownerDb = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const ownerDb = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -144,9 +144,7 @@ test(
       anonymousId,
     });
 
-    const otherDb = testEnv
-      .authenticatedContext('usuario-b')
-      .firestore();
+    const otherDb = verifiedDb('usuario-b');
 
     const reference = doc(
       otherDb,
@@ -165,9 +163,7 @@ test(
 test(
   'no se puede crear una rutina sin seguimiento existente',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const reference = doc(
       db,
@@ -186,9 +182,7 @@ test(
 test(
   'no se puede crear una rutina en un seguimiento inactivo',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -224,9 +218,7 @@ test(
 test(
   'se rechaza una recurrencia fuera del catálogo',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -258,9 +250,7 @@ test(
 test(
   'se rechaza una hora programada inválida',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -292,9 +282,7 @@ test(
 test(
   'se rechazan campos adicionales no permitidos en una rutina',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -326,9 +314,7 @@ test(
 test(
   'el propietario puede consultar y modificar una rutina existente',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -386,9 +372,7 @@ test(
 test(
   'el propietario puede eliminar físicamente una de sus rutinas',
   async () => {
-    const db = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -418,9 +402,7 @@ test(
 test(
   'otro usuario no puede leer ni modificar una rutina ajena',
   async () => {
-    const ownerDb = testEnv
-      .authenticatedContext('usuario-a')
-      .firestore();
+    const ownerDb = verifiedDb('usuario-a');
 
     const anonymousId =
       '550e8400-e29b-41d4-a716-446655440000';
@@ -441,9 +423,7 @@ test(
       validRoutineData(),
     );
 
-    const otherDb = testEnv
-      .authenticatedContext('usuario-b')
-      .firestore();
+    const otherDb = verifiedDb('usuario-b');
 
     const otherReference = doc(
       otherDb,
