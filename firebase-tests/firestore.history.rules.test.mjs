@@ -50,6 +50,12 @@ after(async () => {
   await testEnv.cleanup();
 });
 
+function verifiedDb(uid) {
+  return testEnv.authenticatedContext(uid, {
+    email_verified: true,
+  }).firestore();
+}
+
 function recordData({
   type = 'conducta',
   eventDate,
@@ -215,11 +221,7 @@ test(
   async () => {
     await seedTrackingData();
 
-    const db = testEnv
-      .authenticatedContext(
-        'usuario-a',
-      )
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const snapshot =
       await assertSucceeds(
@@ -262,11 +264,7 @@ test(
   async () => {
     await seedTrackingData();
 
-    const db = testEnv
-      .authenticatedContext(
-        'usuario-a',
-      )
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const snapshot =
       await assertSucceeds(
@@ -301,11 +299,7 @@ test(
   async () => {
     await seedTrackingData();
 
-    const db = testEnv
-      .authenticatedContext(
-        'usuario-a',
-      )
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const snapshot =
       await assertSucceeds(
@@ -339,11 +333,7 @@ test(
   async () => {
     await seedTrackingData();
 
-    const otherDb = testEnv
-      .authenticatedContext(
-        'usuario-b',
-      )
-      .firestore();
+    const otherDb = verifiedDb('usuario-b');
 
     await assertFails(
       getDocs(
@@ -406,11 +396,7 @@ test(
           },
         );
 
-    const db = testEnv
-      .authenticatedContext(
-        'usuario-a',
-      )
-      .firestore();
+    const db = verifiedDb('usuario-a');
 
     const snapshot =
       await assertSucceeds(

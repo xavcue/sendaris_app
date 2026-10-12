@@ -9,7 +9,8 @@ service cloud.firestore {
 
     function isOwner(uid) {
       return isAuthenticated()
-        && request.auth.uid == uid;
+        && request.auth.uid == uid
+        && request.auth.token.email_verified == true;
     }
 
     function hasValidTrackingProfileFields() {

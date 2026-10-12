@@ -73,6 +73,7 @@ import '../../features/tracking/presentation/viewmodels/tracking_view_model.dart
 import '../animation/app_motion.dart';
 import '../navigation/main_navigation_shell.dart';
 import '../theme/ambient_background.dart';
+import 'auth_route_guard.dart';
 import 'app_routes.dart';
 
 abstract final class AppRouter {
@@ -183,19 +184,10 @@ abstract final class AppRouter {
       initialLocation: AppRoutes.home,
       refreshListenable: authViewModel,
       redirect: (context, state) {
-        final isAuthenticated = authViewModel.isAuthenticated;
-
-        final isGoingToLogin = state.matchedLocation == AppRoutes.login;
-
-        if (!isAuthenticated) {
-          return isGoingToLogin ? null : AppRoutes.login;
-        }
-
-        if (isGoingToLogin) {
-          return AppRoutes.home;
-        }
-
-        return null;
+        return AuthRouteGuard.redirect(
+          isAuthenticated: authViewModel.isAuthenticatedAppReady,
+          matchedLocation: state.matchedLocation,
+        );
       },
       routes: [
         GoRoute(

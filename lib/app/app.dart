@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -95,7 +97,7 @@ class SendarisApp extends StatefulWidget {
   State<SendarisApp> createState() => _SendarisAppState();
 }
 
-class _SendarisAppState extends State<SendarisApp> {
+class _SendarisAppState extends State<SendarisApp> with WidgetsBindingObserver {
   late final AuthViewModel _authViewModel;
 
   late final TrackingViewModel _trackingViewModel;
@@ -108,6 +110,8 @@ class _SendarisAppState extends State<SendarisApp> {
   void initState() {
     super.initState();
 
+    WidgetsBinding.instance.addObserver(this);
+
     _authViewModel = AuthViewModel(widget.authRepository);
 
     _trackingViewModel = TrackingViewModel(
@@ -118,6 +122,10 @@ class _SendarisAppState extends State<SendarisApp> {
     _authViewModel.addListener(_handleAuthenticationChange);
 
     _handleAuthenticationChange();
+
+    if (_authViewModel.isAuthenticated) {
+      unawaited(_authViewModel.validateCurrentSession());
+    }
 
     _themeModeController = ThemeModeController();
 
@@ -155,7 +163,20 @@ class _SendarisAppState extends State<SendarisApp> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    if (state != AppLifecycleState.resumed || !_authViewModel.isAuthenticated) {
+      return;
+    }
+
+    unawaited(_authViewModel.validateCurrentSession());
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+
     _router.dispose();
 
     _authViewModel.removeListener(_handleAuthenticationChange);

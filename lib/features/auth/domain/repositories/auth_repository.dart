@@ -8,6 +8,40 @@ abstract interface class AuthRepository {
   Future<void> signOut();
 }
 
+/// Capacidad para crear una cuenta provisional mediante
+/// correo electrónico y contraseña.
+///
+/// La creación de la cuenta en el proveedor de autenticación
+/// no habilita todavía el acceso funcional a Sendaris.
+/// La cuenta debe verificar primero su dirección de correo.
+abstract interface class AuthRegistrationRepository {
+  Future<void> createUnverifiedAccount({
+    required String email,
+    required String password,
+  });
+}
+
+/// Capacidad adicional para consultar y gestionar la verificación
+/// del correo electrónico de la cuenta autenticada.
+///
+/// El correo pertenece exclusivamente al contexto de autenticación
+/// y no debe incorporarse a los registros de seguimiento.
+abstract interface class AuthEmailVerificationRepository {
+  String? get currentUserEmail;
+
+  bool get isCurrentUserEmailVerified;
+
+  Future<void> sendEmailVerification();
+
+  Future<bool> refreshEmailVerificationStatus();
+}
+
+/// Capacidad adicional para comprobar contra el proveedor de
+/// autenticación si la sesión actual continúa siendo válida.
+abstract interface class AuthSessionValidationRepository {
+  Future<bool> validateCurrentSession();
+}
+
 /// Operaciones sensibles relacionadas con la administración
 /// de una cuenta autenticada.
 ///
