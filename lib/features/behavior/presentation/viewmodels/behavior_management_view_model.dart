@@ -5,7 +5,23 @@ import '../../domain/models/behavior_record.dart';
 import '../../domain/repositories/behavior_management_repository.dart';
 
 class BehaviorManagementViewModel extends ChangeNotifier {
-  BehaviorManagementViewModel(this._repository, {required this.anonymousId});
+  BehaviorManagementViewModel(
+    this._repository, {
+    required this.anonymousId,
+    DateTime? initialDateFilter,
+  }) {
+    final normalizedInitialDate = initialDateFilter == null
+        ? null
+        : _dateOnly(initialDateFilter);
+
+    if (normalizedInitialDate != null) {
+      _startDate = normalizedInitialDate;
+      _endDate = normalizedInitialDate;
+
+      _pendingStartDate = normalizedInitialDate;
+      _pendingEndDate = normalizedInitialDate;
+    }
+  }
 
   final BehaviorManagementRepository _repository;
 

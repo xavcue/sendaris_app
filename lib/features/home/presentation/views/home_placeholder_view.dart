@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -6,9 +8,11 @@ import '../../../../app/animation/animated_entrance.dart';
 import '../../../../app/animation/animated_pressable_scale.dart';
 import '../../../../app/router/app_routes.dart';
 import '../../../../app/theme/ambient_background.dart';
-import '../../../../app/theme/sendaris_section_label.dart';
-import '../../../tracking/domain/models/anonymous_tracking_profile.dart';
+import '../../../../app/widgets/sendaris_primary_app_bar.dart';
 import '../../../tracking/presentation/viewmodels/tracking_view_model.dart';
+import '../../domain/models/home_activity_area.dart';
+import '../viewmodels/home_view_model.dart';
+import '../widgets/home_tracking_selector_sheet.dart';
 
 class HomePlaceholderView extends StatefulWidget {
   const HomePlaceholderView({required this.trackingViewModel, super.key});
@@ -22,6 +26,10 @@ class HomePlaceholderView extends StatefulWidget {
 class _HomePlaceholderViewState extends State<HomePlaceholderView> {
   late final AmbientBackgroundController _ambientBackgroundController;
 
+  bool _wasNavigationBranchActive = false;
+
+  bool _silentRefreshScheduled = false;
+
   @override
   void initState() {
     super.initState();
@@ -34,44 +42,47 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    final isNavigationBranchActive = TickerMode.valuesOf(context).enabled;
+
+    if (isNavigationBranchActive && !_wasNavigationBranchActive) {
+      _scheduleSilentOverviewRefresh();
+    }
+
+    _wasNavigationBranchActive = isNavigationBranchActive;
+  }
+
+  @override
   void dispose() {
     _ambientBackgroundController.dispose();
 
     super.dispose();
   }
 
-  void _openRoutines() {
-    context.go(AppRoutes.routines);
-  }
-
-  Future<void> _openFrequencies() async {
-    await context.push<void>('/frequencies');
-
-    if (!mounted) {
+  void _scheduleSilentOverviewRefresh() {
+    if (_silentRefreshScheduled) {
       return;
     }
 
-    _ambientBackgroundController.replay();
-  }
+    _silentRefreshScheduled = true;
 
-  Future<void> _openDurations() async {
-    await context.push<void>('/durations');
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _silentRefreshScheduled = false;
 
-    if (!mounted) {
-      return;
-    }
+      if (!mounted || !TickerMode.valuesOf(context).enabled) {
+        return;
+      }
 
-    _ambientBackgroundController.replay();
-  }
+      final homeViewModel = context.read<HomeViewModel>();
 
-  Future<void> _openRoutineCompliance() async {
-    await context.push<void>('/routine-compliance');
+      if (homeViewModel.activeAnonymousId == null) {
+        return;
+      }
 
-    if (!mounted) {
-      return;
-    }
-
-    _ambientBackgroundController.replay();
+      unawaited(homeViewModel.refreshOverview());
+    });
   }
 
   Future<void> _showTrackingSelector(TrackingViewModel viewModel) async {
@@ -83,7 +94,7 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
       builder: (_) {
         return ChangeNotifierProvider<TrackingViewModel>.value(
           value: viewModel,
-          child: const _TrackingSelectorSheet(),
+          child: const HomeTrackingSelectorSheet(),
         );
       },
     );
@@ -99,1023 +110,390 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
     _ambientBackgroundController.replay();
   }
 
+  void _openArea(HomeActivityArea area, DateTime localDate) {
+    final route = switch (area) {
+      HomeActivityArea.behavior => AppRoutes.behavior,
+      HomeActivityArea.sleep => AppRoutes.sleep,
+      HomeActivityArea.feeding => AppRoutes.feeding,
+      HomeActivityArea.socialInteraction => AppRoutes.socialInteraction,
+      HomeActivityArea.dysregulation => AppRoutes.dysregulation,
+      HomeActivityArea.otherSituation => AppRoutes.atypicalSituation,
+      HomeActivityArea.routines => AppRoutes.routineStatus,
+    };
+
+    final date = _formatRouteDate(localDate);
+
+    context.push('$route?date=$date');
+  }
+
   @override
   Widget build(BuildContext context) {
     final trackingViewModel = context.watch<TrackingViewModel>();
 
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
+    final homeViewModel = context.watch<HomeViewModel>();
+
+    final activeTrackingIsSynchronized =
+        trackingViewModel.activeAnonymousId == homeViewModel.activeAnonymousId;
+
+    final initialOverviewResolved =
+        homeViewModel.activeAnonymousId == null ||
+        homeViewModel.hasOverview ||
+        homeViewModel.errorMessage != null;
+
+    final trackingContextReady =
+        trackingViewModel.isInitialized &&
+        activeTrackingIsSynchronized &&
+        initialOverviewResolved;
 
     return AmbientBackground(
       controller: _ambientBackgroundController,
       child: Scaffold(
+        key: const Key('home-view'),
         backgroundColor: Colors.transparent,
-        appBar: AppBar(
-          toolbarHeight: 80,
-          backgroundColor: Colors.transparent,
-          surfaceTintColor: Colors.transparent,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          titleSpacing: 20,
-          title: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.asset(
-                  'assets/branding/sendaris_app_icon.png',
-                  width: 40,
-                  height: 40,
-                  fit: BoxFit.cover,
+        appBar: const SendarisPrimaryAppBar(),
+        body: SafeArea(
+          top: false,
+          child: CustomScrollView(
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    _HomeIntroduction(
+                      greeting: homeViewModel.greeting,
+                      date: homeViewModel.localDate,
+                    ),
+                    if (trackingContextReady) ...[
+                      const SizedBox(height: 24),
+                      _TrackingContextCard(
+                        viewModel: trackingViewModel,
+                        onTap: () {
+                          _showTrackingSelector(trackingViewModel);
+                        },
+                      ),
+                      const SizedBox(height: 24),
+                      _DayOverviewCard(
+                        homeViewModel: homeViewModel,
+                        onAreaTap: (area) {
+                          _openArea(area, homeViewModel.localDate);
+                        },
+                      ),
+                    ],
+                  ]),
                 ),
               ),
-              const SizedBox(width: 12),
-              Text(
-                'Sendaris',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontSize: 25,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.65,
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                fillOverscroll: false,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(20, 28, 20, 36),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [_HomeScopeFooter()],
+                  ),
                 ),
               ),
             ],
           ),
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: IconButton(
-                key: const Key('home-settings-action'),
-                tooltip: 'Ajustes',
-                style: IconButton.styleFrom(
-                  backgroundColor: colorScheme.surface.withValues(
-                    alpha: isDark ? 0.72 : 0.68,
-                  ),
-                  foregroundColor: colorScheme.onSurface,
-                  side: BorderSide(
-                    color: colorScheme.outlineVariant.withValues(alpha: 0.56),
-                  ),
-                ),
-                onPressed: () {
-                  context.push(AppRoutes.settings);
-                },
-                icon: const Icon(Icons.settings_outlined, size: 20),
-              ),
-            ),
-          ],
-        ),
-        body: SafeArea(
-          top: false,
-          child: _buildBody(context, trackingViewModel),
         ),
       ),
     );
   }
+}
 
-  Widget _buildBody(BuildContext context, TrackingViewModel viewModel) {
+class _HomeIntroduction extends StatelessWidget {
+  const _HomeIntroduction({required this.greeting, required this.date});
+
+  final String greeting;
+
+  final DateTime date;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
 
-    if (viewModel.isLoading && !viewModel.isInitialized) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    return AnimatedEntrance(
+      duration: const Duration(milliseconds: 420),
+      offset: const Offset(0, 0.04),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            greeting,
+            key: const Key('home-greeting'),
+            style: theme.textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.7,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.calendar_today_outlined,
+                size: 20,
+                color: colorScheme.onSurface,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  _formatHomeDate(date),
+                  key: const Key('home-current-date'),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: colorScheme.onSurface,
+                    fontWeight: FontWeight.w800,
+                    height: 1.2,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Organiza eventos, rutinas e indicadores '
+            'descriptivos de forma privada.',
+            key: const Key('home-purpose-description'),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-    if (!viewModel.hasActiveProfile) {
-      if (viewModel.errorMessage != null) {
-        return Padding(
-          padding: const EdgeInsets.all(24),
-          child: Center(
-            child: AnimatedEntrance(
-              beginScale: 0.98,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+class _TrackingContextCard extends StatelessWidget {
+  const _TrackingContextCard({required this.viewModel, required this.onTap});
+
+  final TrackingViewModel viewModel;
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final colorScheme = theme.colorScheme;
+
+    final activeProfile = viewModel.activeProfile;
+
+    final label = viewModel.activeTrackingLabel ?? 'Seguimiento';
+
+    return AnimatedEntrance(
+      delay: const Duration(milliseconds: 80),
+      duration: const Duration(milliseconds: 460),
+      beginScale: 0.99,
+      child: AnimatedPressableScale(
+        child: Card(
+          key: const Key('home-tracking-selector-card'),
+          margin: EdgeInsets.zero,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(22),
+            onTap: viewModel.isLoading ? null : onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Row(
                 children: [
                   Container(
-                    width: 64,
-                    height: 64,
+                    width: 50,
+                    height: 50,
                     decoration: BoxDecoration(
-                      color: colorScheme.errorContainer,
-                      borderRadius: BorderRadius.circular(20),
+                      color: colorScheme.primary,
+                      borderRadius: BorderRadius.circular(16),
                     ),
                     child: Icon(
-                      Icons.cloud_off_outlined,
-                      size: 30,
-                      color: colorScheme.onErrorContainer,
+                      Icons.layers_outlined,
+                      color: colorScheme.onPrimary,
+                      size: 26,
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  Text(
-                    'No pudimos preparar los seguimientos',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    viewModel.errorMessage!,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
+                  const SizedBox(width: 15),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Seguimiento actual',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          label,
+                          key: const Key('home-active-tracking-label'),
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          activeProfile == null
+                              ? 'Toca para crear o seleccionar '
+                                    'un seguimiento.'
+                              : 'Activo desde el '
+                                    '${_formatTrackingDate(activeProfile.createdAt)}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  FilledButton.icon(
-                    onPressed: viewModel.isLoading
-                        ? null
-                        : viewModel.initialize,
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('Reintentar'),
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ],
               ),
             ),
           ),
-        );
-      }
-
-      return Padding(
-        padding: const EdgeInsets.all(24),
-        child: Center(
-          child: AnimatedEntrance(
-            beginScale: 0.98,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 68,
-                  height: 68,
-                  decoration: BoxDecoration(
-                    color: colorScheme.primaryContainer.withValues(alpha: 0.58),
-                    borderRadius: BorderRadius.circular(22),
-                  ),
-                  child: Icon(
-                    Icons.layers_outlined,
-                    size: 32,
-                    color: colorScheme.primary,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Aún no tienes seguimientos',
-                  key: const Key('home-empty-tracking-title'),
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Crea un seguimiento para comenzar.',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                FilledButton.icon(
-                  key: const Key('home-empty-create-tracking-button'),
-                  onPressed: viewModel.isLoading
-                      ? null
-                      : () async {
-                          final success = await viewModel
-                              .createAndPersistProfile();
-
-                          if (!context.mounted || !success) {
-                            return;
-                          }
-
-                          ScaffoldMessenger.of(context)
-                            ..hideCurrentSnackBar()
-                            ..showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  viewModel.successMessage ??
-                                      'Seguimiento creado correctamente.',
-                                ),
-                              ),
-                            );
-
-                          _ambientBackgroundController.replay();
-                        },
-                  icon: viewModel.isLoading
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.add_rounded),
-                  label: Text(
-                    viewModel.isLoading ? 'Creando...' : 'Crear seguimiento',
-                  ),
-                ),
-              ],
-            ),
-          ),
         ),
-      );
-    }
-
-    final activeTrackingLabel =
-        viewModel.activeTrackingLabel ?? 'Seguimiento actual';
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 36),
-      children: [
-        AnimatedEntrance(
-          duration: const Duration(milliseconds: 430),
-          offset: const Offset(0, 0.04),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 11,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: colorScheme.primary.withValues(
-                    alpha: isDark ? 0.13 : 0.08,
-                  ),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                    color: colorScheme.primary.withValues(
-                      alpha: isDark ? 0.20 : 0.10,
-                    ),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: colorScheme.primary,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 7),
-                    Text(
-                      'Seguimiento actual',
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: colorScheme.primary,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text('Resumen de hoy', style: theme.textTheme.headlineMedium),
-              const SizedBox(height: 7),
-              Text(
-                'Organiza y consulta la información registrada.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 26),
-        AnimatedEntrance(
-          delay: const Duration(milliseconds: 90),
-          duration: const Duration(milliseconds: 470),
-          beginScale: 0.985,
-          child: AnimatedPressableScale(
-            child: Card(
-              key: const Key('home-tracking-selector-card'),
-              margin: EdgeInsets.zero,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(22),
-                onTap: viewModel.isLoading
-                    ? null
-                    : () {
-                        _showTrackingSelector(viewModel);
-                      },
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: colorScheme.primary,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Icon(
-                          Icons.layers_outlined,
-                          color: colorScheme.onPrimary,
-                          size: 27,
-                        ),
-                      ),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              activeTrackingLabel,
-                              key: const Key('home-active-tracking-label'),
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              'Toca para cambiar, crear o administrar seguimientos.',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        width: 34,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerLow,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.keyboard_arrow_down_rounded,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 30),
-        const AnimatedEntrance(
-          delay: Duration(milliseconds: 170),
-          child: SendarisSectionLabel(label: 'Acciones rápidas'),
-        ),
-        const SizedBox(height: 14),
-
-        // Rutinas.
-        AnimatedEntrance(
-          delay: const Duration(milliseconds: 320),
-          duration: const Duration(milliseconds: 460),
-          beginScale: 0.99,
-          child: AnimatedPressableScale(
-            child: Card(
-              key: const Key('home-routines-action'),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(22),
-                onTap: _openRoutines,
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? const Color(0xFF1B302E)
-                              : const Color(0xFFE8F0F1),
-                          borderRadius: BorderRadius.circular(17),
-                        ),
-                        child: Icon(
-                          Icons.event_repeat_rounded,
-                          color: isDark
-                              ? const Color(0xFF8ABDB8)
-                              : const Color(0xFF527B7E),
-                          size: 26,
-                        ),
-                      ),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Rutinas', style: theme.textTheme.titleMedium),
-                            const SizedBox(height: 5),
-                            Text(
-                              'Crea y organiza actividades habituales.',
-                              style: theme.textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                      ),
-                      _ArrowCircle(colorScheme: colorScheme),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 30),
-        const AnimatedEntrance(
-          delay: Duration(milliseconds: 390),
-          child: SendarisSectionLabel(label: 'Seguimiento'),
-        ),
-        const SizedBox(height: 14),
-
-        // Frecuencias.
-        AnimatedEntrance(
-          delay: const Duration(milliseconds: 520),
-          duration: const Duration(milliseconds: 470),
-          beginScale: 0.99,
-          child: AnimatedPressableScale(
-            child: Card(
-              key: const Key('home-frequency-action'),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(22),
-                onTap: _openFrequencies,
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? const Color(0xFF27283A)
-                              : const Color(0xFFEEEAF8),
-                          borderRadius: BorderRadius.circular(17),
-                        ),
-                        child: Icon(
-                          Icons.bar_chart_rounded,
-                          color: isDark
-                              ? const Color(0xFFB4A8E0)
-                              : const Color(0xFF6F5E9C),
-                          size: 27,
-                        ),
-                      ),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Frecuencias descriptivas',
-                              style: theme.textTheme.titleMedium,
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              'Cuenta registros por periodo y categoría.',
-                              style: theme.textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                      ),
-                      _ArrowCircle(colorScheme: colorScheme),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // Duraciones.
-        AnimatedEntrance(
-          delay: const Duration(milliseconds: 590),
-          duration: const Duration(milliseconds: 470),
-          beginScale: 0.99,
-          child: AnimatedPressableScale(
-            child: Card(
-              key: const Key('home-duration-action'),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(22),
-                onTap: _openDurations,
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? const Color(0xFF203234)
-                              : const Color(0xFFE7F1F0),
-                          borderRadius: BorderRadius.circular(17),
-                        ),
-                        child: Icon(
-                          Icons.timer_outlined,
-                          color: isDark
-                              ? const Color(0xFF8FC5C2)
-                              : const Color(0xFF4E817F),
-                          size: 27,
-                        ),
-                      ),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Duraciones y promedios',
-                              style: theme.textTheme.titleMedium,
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              'Consulta duraciones válidas y promedios por periodo.',
-                              style: theme.textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                      ),
-                      _ArrowCircle(colorScheme: colorScheme),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // Cumplimiento de rutinas.
-        AnimatedEntrance(
-          delay: const Duration(milliseconds: 660),
-          duration: const Duration(milliseconds: 470),
-          beginScale: 0.99,
-          child: AnimatedPressableScale(
-            child: Card(
-              key: const Key('home-routine-compliance-action'),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(22),
-                onTap: _openRoutineCompliance,
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? const Color(0xFF302C23)
-                              : const Color(0xFFF4EFE2),
-                          borderRadius: BorderRadius.circular(17),
-                        ),
-                        child: Icon(
-                          Icons.task_alt_rounded,
-                          color: isDark
-                              ? const Color(0xFFD7BE83)
-                              : const Color(0xFF806B39),
-                          size: 27,
-                        ),
-                      ),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Cumplimiento de rutinas',
-                              style: theme.textTheme.titleMedium,
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              'Revisa cuántos registros de rutina '
-                              'se completaron en un periodo.',
-                              style: theme.textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                      ),
-                      _ArrowCircle(colorScheme: colorScheme),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
 
-class _TrackingSelectorSheet extends StatefulWidget {
-  const _TrackingSelectorSheet();
+class _DayOverviewCard extends StatelessWidget {
+  const _DayOverviewCard({
+    required this.homeViewModel,
+    required this.onAreaTap,
+  });
 
-  @override
-  State<_TrackingSelectorSheet> createState() => _TrackingSelectorSheetState();
-}
+  final HomeViewModel homeViewModel;
 
-class _TrackingSelectorSheetState extends State<_TrackingSelectorSheet> {
-  bool _isManaging = false;
-
-  final Set<String> _selectedIds = <String>{};
-
-  void _startManaging() {
-    setState(() {
-      _isManaging = true;
-      _selectedIds.clear();
-    });
-  }
-
-  void _cancelManaging() {
-    setState(() {
-      _isManaging = false;
-      _selectedIds.clear();
-    });
-  }
-
-  void _toggleSelection(String anonymousId) {
-    setState(() {
-      if (!_selectedIds.add(anonymousId)) {
-        _selectedIds.remove(anonymousId);
-      }
-    });
-  }
-
-  void _toggleSelectAll(List<AnonymousTrackingProfile> profiles) {
-    setState(() {
-      if (_selectedIds.length == profiles.length) {
-        _selectedIds.clear();
-        return;
-      }
-
-      _selectedIds
-        ..clear()
-        ..addAll(profiles.map((profile) => profile.anonymousId));
-    });
-  }
-
-  Future<void> _confirmDeletion(TrackingViewModel viewModel) async {
-    if (_selectedIds.isEmpty || viewModel.isLoading) {
-      return;
-    }
-
-    final selectedCount = _selectedIds.length;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        final dialogColorScheme = Theme.of(dialogContext).colorScheme;
-
-        return AlertDialog(
-          title: const Text('¿Eliminar definitivamente?'),
-          content: Text(
-            selectedCount == 1
-                ? 'Se eliminarán este seguimiento y toda la información '
-                      'asociada, incluidos registros y rutinas. '
-                      'Esta acción no se puede deshacer.'
-                : 'Se eliminarán los seguimientos seleccionados y toda la '
-                      'información asociada, incluidos registros y rutinas. '
-                      'Esta acción no se puede deshacer.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(false);
-              },
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              key: const Key('tracking-confirm-delete-button'),
-              style: FilledButton.styleFrom(
-                backgroundColor: dialogColorScheme.error,
-                foregroundColor: dialogColorScheme.onError,
-              ),
-              onPressed: () {
-                Navigator.of(dialogContext).pop(true);
-              },
-              child: const Text('Eliminar definitivamente'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed != true || !mounted) {
-      return;
-    }
-
-    final idsToDelete = Set<String>.unmodifiable(_selectedIds);
-
-    final success = await viewModel.deleteProfiles(idsToDelete);
-
-    if (!mounted) {
-      return;
-    }
-
-    if (success) {
-      final message =
-          viewModel.successMessage ?? 'Seguimiento eliminado definitivamente.';
-
-      Navigator.of(context).pop(message);
-
-      return;
-    }
-
-    final remainingIds = viewModel.profiles
-        .map((profile) => profile.anonymousId)
-        .toSet();
-
-    setState(() {
-      _selectedIds.removeWhere((id) => !remainingIds.contains(id));
-    });
-  }
+  final ValueChanged<HomeActivityArea> onAreaTap;
 
   @override
   Widget build(BuildContext context) {
-    final viewModel = context.watch<TrackingViewModel>();
-
     final theme = Theme.of(context);
+
     final colorScheme = theme.colorScheme;
 
-    final profiles = _isManaging
-        ? viewModel.orderedProfiles
-        : viewModel.activeProfiles;
+    final isDark = theme.brightness == Brightness.dark;
 
-    final allSelected =
-        profiles.isNotEmpty && _selectedIds.length == profiles.length;
+    final overview = homeViewModel.overview;
 
-    return PopScope(
-      canPop: !_isManaging,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) {
-          return;
-        }
+    final orderedAreas = overview?.orderedAreas ?? const <HomeActivityArea>[];
 
-        if (_isManaging && !viewModel.isLoading) {
-          _cancelManaging();
-        }
-      },
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          20,
-          0,
-          20,
-          20 + MediaQuery.viewInsetsOf(context).bottom,
-        ),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * 0.82,
-          ),
+    return AnimatedEntrance(
+      delay: const Duration(milliseconds: 150),
+      duration: const Duration(milliseconds: 470),
+      beginScale: 0.99,
+      child: Card(
+        key: const Key('home-day-overview-card'),
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                _isManaging ? 'Administrar seguimientos' : 'Tus seguimientos',
+                'Hoy en el seguimiento',
+                key: const Key('home-day-overview-title'),
                 style: theme.textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 5),
               Text(
-                _isManaging
-                    ? 'Selecciona uno o varios seguimientos para eliminarlos definitivamente.'
-                    : 'La información de cada seguimiento se mantiene separada.',
+                'Áreas registradas hoy.',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: colorScheme.onSurfaceVariant,
-                  height: 1.4,
+                  height: 1.35,
                 ),
               ),
-              const SizedBox(height: 12),
-              Container(
-                key: const Key('tracking-privacy-message'),
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: colorScheme.outlineVariant.withValues(alpha: 0.55),
-                  ),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      _isManaging
-                          ? Icons.warning_amber_rounded
-                          : Icons.shield_outlined,
-                      size: 19,
-                      color: _isManaging
-                          ? colorScheme.error
-                          : colorScheme.primary,
-                    ),
-                    const SizedBox(width: 9),
-                    Expanded(
-                      child: Text(
-                        _isManaging
-                            ? 'La eliminación es permanente y también borra los registros y rutinas asociados.'
-                            : 'Cada seguimiento es anónimo. No se solicitan nombres ni datos personales.',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                          height: 1.35,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (viewModel.errorMessage != null) ...[
-                const SizedBox(height: 12),
+              const SizedBox(height: 20),
+              if (homeViewModel.errorMessage != null) ...[
                 Container(
-                  key: const Key('tracking-selector-error'),
+                  key: const Key('home-overview-error'),
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: colorScheme.errorContainer,
+                    color: colorScheme.errorContainer.withValues(
+                      alpha: isDark ? 0.55 : 0.74,
+                    ),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Text(
-                    viewModel.errorMessage!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onErrorContainer,
-                    ),
-                  ),
-                ),
-              ],
-              if (_isManaging && profiles.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '${_selectedIds.length} '
-                        '${_selectedIds.length == 1 ? 'seleccionado' : 'seleccionados'}',
-                        key: const Key('tracking-selected-count'),
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    TextButton(
-                      key: const Key('tracking-select-all-button'),
-                      onPressed: viewModel.isLoading
-                          ? null
-                          : () {
-                              _toggleSelectAll(profiles);
-                            },
-                      child: Text(
-                        allSelected ? 'Quitar selección' : 'Seleccionar todos',
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-              const SizedBox(height: 12),
-              Flexible(
-                child: profiles.isEmpty
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 28),
-                          child: Text(
-                            'Aún no tienes seguimientos.',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.info_outline_rounded,
+                            size: 20,
+                            color: colorScheme.onErrorContainer,
+                          ),
+                          const SizedBox(width: 9),
+                          Expanded(
+                            child: Text(
+                              homeViewModel.errorMessage!,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onErrorContainer,
+                              ),
                             ),
                           ),
-                        ),
-                      )
-                    : ListView.separated(
-                        key: const Key('tracking-selector-list'),
-                        shrinkWrap: true,
-                        itemCount: profiles.length,
-                        separatorBuilder: (_, _) {
-                          return const SizedBox(height: 10);
-                        },
-                        itemBuilder: (context, index) {
-                          final profile = profiles[index];
-
-                          final number =
-                              viewModel.trackingNumberFor(profile) ?? index + 1;
-
-                          final label = viewModel.trackingLabelFor(profile);
-
-                          final isCurrent =
-                              viewModel.activeAnonymousId ==
-                              profile.anonymousId;
-
-                          final isMarked = _selectedIds.contains(
-                            profile.anonymousId,
-                          );
-
-                          return _TrackingOptionCard(
-                            key: Key('tracking-option-$number'),
-                            profile: profile,
-                            label: label,
-                            isCurrent: isCurrent,
-                            isManaging: _isManaging,
-                            isMarked: isMarked,
-                            isLoading: viewModel.isLoading,
-                            onSelected: () {
-                              if (_isManaging) {
-                                _toggleSelection(profile.anonymousId);
-
-                                return;
-                              }
-
-                              final success = viewModel.selectProfile(profile);
-
-                              if (!success) {
-                                return;
-                              }
-
-                              Navigator.of(context).pop('$label seleccionado.');
-                            },
-                          );
-                        },
+                        ],
                       ),
-              ),
-              const SizedBox(height: 18),
-              if (_isManaging) ...[
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    key: const Key('tracking-delete-selected-button'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: colorScheme.error,
-                      foregroundColor: colorScheme.onError,
-                    ),
-                    onPressed: _selectedIds.isEmpty || viewModel.isLoading
-                        ? null
-                        : () {
-                            _confirmDeletion(viewModel);
-                          },
-                    icon: viewModel.isLoading
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.delete_outline_rounded),
-                    label: Text(
-                      viewModel.isLoading
-                          ? 'Eliminando...'
-                          : 'Eliminar definitivamente',
-                    ),
+                      const SizedBox(height: 6),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          key: const Key('home-overview-retry-button'),
+                          onPressed: homeViewModel.activeAnonymousId == null
+                              ? null
+                              : () {
+                                  homeViewModel.refreshOverview();
+                                },
+                          child: const Text('Reintentar'),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  child: TextButton(
-                    key: const Key('tracking-management-cancel-button'),
-                    onPressed: viewModel.isLoading ? null : _cancelManaging,
-                    child: const Text('Cancelar'),
-                  ),
-                ),
-              ] else ...[
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    key: const Key('tracking-create-button'),
-                    onPressed: viewModel.isLoading
-                        ? null
-                        : () async {
-                            final success = await viewModel
-                                .createAndPersistProfile();
-
-                            if (!context.mounted || !success) {
-                              return;
-                            }
-
-                            final label = viewModel.activeTrackingLabel;
-
-                            if (label == null) {
-                              return;
-                            }
-
-                            Navigator.of(context)
-                                .pop('$label creado y seleccionado.');
-                          },
-                    icon: viewModel.isLoading
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.add_rounded),
-                    label: Text(
-                      viewModel.isLoading ? 'Creando...' : 'Nuevo seguimiento',
-                    ),
-                  ),
-                ),
-                if (profiles.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      key: const Key('tracking-manage-button'),
-                      onPressed: viewModel.isLoading ? null : _startManaging,
-                      icon: const Icon(Icons.tune_rounded),
-                      label: const Text('Administrar'),
-                    ),
-                  ),
-                ],
+                const SizedBox(height: 16),
               ],
+              if (orderedAreas.isEmpty)
+                _EmptyOverviewState(
+                  hasTracking: homeViewModel.activeAnonymousId != null,
+                )
+              else
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    const spacing = 10.0;
+
+                    final tileWidth = (constraints.maxWidth - spacing) / 2;
+
+                    return Wrap(
+                      key: const Key('home-overview-areas'),
+                      spacing: spacing,
+                      runSpacing: spacing,
+                      children: [
+                        for (final area in orderedAreas)
+                          SizedBox(
+                            width: tileWidth,
+                            child: _ActivityAreaTile(
+                              area: area,
+                              count: overview!.countFor(area),
+                              onTap: () {
+                                onAreaTap(area);
+                              },
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
             ],
           ),
         ),
@@ -1124,106 +502,154 @@ class _TrackingSelectorSheetState extends State<_TrackingSelectorSheet> {
   }
 }
 
-class _TrackingOptionCard extends StatelessWidget {
-  const _TrackingOptionCard({
-    required this.profile,
-    required this.label,
-    required this.isCurrent,
-    required this.isManaging,
-    required this.isMarked,
-    required this.isLoading,
-    required this.onSelected,
-    super.key,
-  });
+class _EmptyOverviewState extends StatelessWidget {
+  const _EmptyOverviewState({required this.hasTracking});
 
-  final AnonymousTrackingProfile profile;
-  final String label;
-  final bool isCurrent;
-  final bool isManaging;
-  final bool isMarked;
-  final bool isLoading;
-  final VoidCallback onSelected;
+  final bool hasTracking;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     final colorScheme = theme.colorScheme;
 
-    final canSelect = profile.isActive && !isLoading;
-
-    final canManage = !isLoading;
-
-    final highlighted = isManaging ? isMarked : isCurrent;
-
-    return Material(
-      color: highlighted
-          ? colorScheme.primaryContainer.withValues(alpha: 0.55)
-          : colorScheme.surfaceContainerLow,
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: (isManaging ? canManage : canSelect) ? onSelected : null,
-        child: Padding(
-          padding: const EdgeInsets.all(15),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: highlighted
-                      ? colorScheme.primary
-                      : colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(
-                  Icons.layers_outlined,
-                  color: highlighted
-                      ? colorScheme.onPrimary
-                      : colorScheme.onSurfaceVariant,
-                ),
+    return Container(
+      key: const Key('home-overview-empty-state'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer.withValues(alpha: 0.65),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Icon(
+              hasTracking ? Icons.today_outlined : Icons.layers_outlined,
+              color: colorScheme.primary,
+              size: 21,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              hasTracking
+                  ? 'El panorama del día aparecerá aquí '
+                        'conforme registres información.'
+                  : 'Selecciona o crea un seguimiento '
+                        'para comenzar a construir '
+                        'el panorama del día.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+                height: 1.4,
               ),
-              const SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      label,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: colorScheme.onSurface,
-                      ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActivityAreaTile extends StatelessWidget {
+  const _ActivityAreaTile({
+    required this.area,
+    required this.count,
+    required this.onTap,
+  });
+
+  final HomeActivityArea area;
+
+  final int count;
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final colorScheme = theme.colorScheme;
+
+    final visual = _visualFor(area);
+
+    return AnimatedPressableScale(
+      child: Material(
+        color: visual.color.withValues(
+          alpha: theme.brightness == Brightness.dark ? 0.16 : 0.10,
+        ),
+        borderRadius: BorderRadius.circular(17),
+        child: InkWell(
+          key: Key('home-overview-area-${area.code}'),
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(17),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 74),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(17),
+              border: Border.all(color: visual.color.withValues(alpha: 0.24)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: visual.color.withValues(
+                      alpha: theme.brightness == Brightness.dark ? 0.20 : 0.14,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Creado el '
-                      '${_formatTrackingDate(profile.createdAt)}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Icon(visual.icon, size: 19, color: visual.color),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    area.label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.w700,
+                      height: 1.15,
                     ),
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              if (isManaging)
-                Checkbox(
-                  value: isMarked,
-                  onChanged: canManage
-                      ? (_) {
-                          onSelected();
-                        }
-                      : null,
-                )
-              else if (isCurrent)
-                Icon(Icons.check_circle_rounded, color: colorScheme.primary)
-              else
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: colorScheme.onSurfaceVariant,
+                const SizedBox(width: 6),
+                Container(
+                  key: Key('home-overview-area-count-${area.code}'),
+                  constraints: const BoxConstraints(
+                    minWidth: 25,
+                    minHeight: 25,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: visual.color.withValues(
+                      alpha: theme.brightness == Brightness.dark ? 0.24 : 0.17,
+                    ),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '$count',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1231,27 +657,121 @@ class _TrackingOptionCard extends StatelessWidget {
   }
 }
 
-class _ArrowCircle extends StatelessWidget {
-  const _ArrowCircle({required this.colorScheme});
-
-  final ColorScheme colorScheme;
+class _HomeScopeFooter extends StatelessWidget {
+  const _HomeScopeFooter();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 34,
-      height: 34,
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLow,
-        shape: BoxShape.circle,
-      ),
-      child: Icon(
-        Icons.arrow_forward_rounded,
-        size: 18,
-        color: colorScheme.onSurfaceVariant,
+    final theme = Theme.of(context);
+
+    final colorScheme = theme.colorScheme;
+
+    return AnimatedEntrance(
+      delay: const Duration(milliseconds: 210),
+      child: Container(
+        key: const Key('home-descriptive-scope-footer'),
+        width: double.infinity,
+        padding: const EdgeInsets.only(top: 14, left: 2, right: 2),
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(
+              color: colorScheme.outlineVariant.withValues(alpha: 0.35),
+            ),
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.shield_outlined, size: 18, color: colorScheme.primary),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text(
+                'Sin diagnósticos, recomendaciones, '
+                'predicciones ni interpretaciones clínicas.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+}
+
+class _AreaVisual {
+  const _AreaVisual({required this.icon, required this.color});
+
+  final IconData icon;
+
+  final Color color;
+}
+
+_AreaVisual _visualFor(HomeActivityArea area) {
+  return switch (area) {
+    HomeActivityArea.behavior => const _AreaVisual(
+      icon: Icons.psychology_alt_outlined,
+      color: Color(0xFFE56F61),
+    ),
+    HomeActivityArea.sleep => const _AreaVisual(
+      icon: Icons.bedtime_outlined,
+      color: Color(0xFF78AFC1),
+    ),
+    HomeActivityArea.feeding => const _AreaVisual(
+      icon: Icons.restaurant_outlined,
+      color: Color(0xFFC9A353),
+    ),
+    HomeActivityArea.socialInteraction => const _AreaVisual(
+      icon: Icons.groups_outlined,
+      color: Color(0xFF69AA98),
+    ),
+    HomeActivityArea.dysregulation => const _AreaVisual(
+      icon: Icons.sentiment_dissatisfied_outlined,
+      color: Color(0xFF8173AE),
+    ),
+    HomeActivityArea.otherSituation => const _AreaVisual(
+      icon: Icons.event_note_outlined,
+      color: Color(0xFF9B8564),
+    ),
+    HomeActivityArea.routines => const _AreaVisual(
+      icon: Icons.event_repeat_rounded,
+      color: Color(0xFF527B7E),
+    ),
+  };
+}
+
+String _formatHomeDate(DateTime value) {
+  const weekdays = [
+    'lunes',
+    'martes',
+    'miércoles',
+    'jueves',
+    'viernes',
+    'sábado',
+    'domingo',
+  ];
+
+  const months = [
+    'enero',
+    'febrero',
+    'marzo',
+    'abril',
+    'mayo',
+    'junio',
+    'julio',
+    'agosto',
+    'septiembre',
+    'octubre',
+    'noviembre',
+    'diciembre',
+  ];
+
+  return 'Hoy, '
+      '${weekdays[value.weekday - 1]} '
+      '${value.day} de '
+      '${months[value.month - 1]}';
 }
 
 String _formatTrackingDate(DateTime value) {
@@ -1275,4 +795,14 @@ String _formatTrackingDate(DateTime value) {
   return '${localValue.day.toString().padLeft(2, '0')} '
       '${months[localValue.month - 1]} '
       '${localValue.year}';
+}
+
+String _formatRouteDate(DateTime value) {
+  final localValue = value.toLocal();
+
+  final month = localValue.month.toString().padLeft(2, '0');
+
+  final day = localValue.day.toString().padLeft(2, '0');
+
+  return '${localValue.year}-$month-$day';
 }

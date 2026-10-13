@@ -11,18 +11,35 @@ class SleepManagementView extends StatelessWidget {
   const SleepManagementView({
     required this.repository,
     required this.anonymousId,
+    this.initialDateFilter,
     super.key,
   });
 
   final SleepManagementRepository repository;
   final String anonymousId;
+  final DateTime? initialDateFilter;
 
   @override
   Widget build(BuildContext context) {
+    final resolvedInitialDateFilter =
+        initialDateFilter ?? _initialDateFilterFromRoute(context);
+
     return ChangeNotifierProvider(
-      create: (_) =>
-          SleepManagementViewModel(repository, anonymousId: anonymousId)
-            ..load(),
+      create: (_) {
+        final viewModel = SleepManagementViewModel(
+          repository,
+          anonymousId: anonymousId,
+        );
+
+        if (resolvedInitialDateFilter != null) {
+          viewModel
+            ..setPendingStartDate(resolvedInitialDateFilter)
+            ..setPendingEndDate(resolvedInitialDateFilter)
+            ..applyDateFilter();
+        }
+
+        return viewModel..load();
+      },
       child: const _SleepManagementContent(),
     );
   }
@@ -1032,4 +1049,44 @@ String _formatDuration(int minutes) {
   }
 
   return '$hours h $remainingMinutes min';
+}
+
+DateTime? _initialDateFilterFromRoute(BuildContext context) {
+  try {
+    final rawDate = GoRouterState.of(context).uri.queryParameters['date'];
+
+    return _parseRouteDate(rawDate);
+  } catch (_) {
+    return null;
+  }
+}
+
+DateTime? _parseRouteDate(String? rawDate) {
+  if (rawDate == null || rawDate.isEmpty) {
+    return null;
+  }
+
+  final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(rawDate);
+
+  if (match == null) {
+    return null;
+  }
+
+  final year = int.tryParse(match.group(1)!);
+
+  final month = int.tryParse(match.group(2)!);
+
+  final day = int.tryParse(match.group(3)!);
+
+  if (year == null || month == null || day == null) {
+    return null;
+  }
+
+  final date = DateTime(year, month, day);
+
+  if (date.year != year || date.month != month || date.day != day) {
+    return null;
+  }
+
+  return date;
 }

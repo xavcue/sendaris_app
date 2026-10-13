@@ -14,20 +14,26 @@ class RoutineStatusManagementView extends StatelessWidget {
     required this.repository,
     required this.routineRepository,
     required this.anonymousId,
+    this.initialDateFilter,
     super.key,
   });
 
   final RoutineStatusManagementRepository repository;
   final RoutineRepository routineRepository;
   final String anonymousId;
+  final DateTime? initialDateFilter;
 
   @override
   Widget build(BuildContext context) {
+    final resolvedInitialDateFilter =
+        initialDateFilter ?? _initialDateFilterFromRoute(context);
+
     return ChangeNotifierProvider(
       create: (_) => RoutineStatusManagementViewModel(
         repository,
         routineRepository,
         anonymousId: anonymousId,
+        initialDateFilter: resolvedInitialDateFilter,
       )..initialize(),
       child: const _RoutineStatusManagementContent(),
     );
@@ -211,6 +217,18 @@ class _RoutineStatusManagementContentState
     BuildContext context,
     RoutineStatusManagementViewModel viewModel,
   ) {
+    final contextualStartDate = viewModel.hasContextualDateFilter
+        ? viewModel.startDate
+        : null;
+
+    final contextualEndDate = viewModel.hasContextualDateFilter
+        ? viewModel.endDate
+        : null;
+
+    final routineCountForCurrentContext = viewModel.hasContextualDateFilter
+        ? viewModel.visibleRoutineGroupCount
+        : viewModel.routineGroupCount;
+
     return ListView(
       key: const Key('routine-status-management-list'),
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
@@ -238,12 +256,16 @@ class _RoutineStatusManagementContentState
         const SizedBox(height: 28),
         _RoutineGroupsHeader(
           visibleCount: viewModel.searchedRoutineGroupCount,
-          totalCount: viewModel.routineGroupCount,
+          totalCount: routineCountForCurrentContext,
           hasSearch: viewModel.hasRoutineSearchQuery,
         ),
         const SizedBox(height: 8),
-        const _RoutineGroupsExplanation(),
-        if (!viewModel.isEmpty) ...[
+        _RoutineGroupsExplanation(
+          startDate: contextualStartDate,
+          endDate: contextualEndDate,
+        ),
+        if (!viewModel.isEmpty &&
+            !viewModel.hasNoContextualDateFilterResults) ...[
           const SizedBox(height: 16),
           _RoutineSearchField(
             controller: _routineSearchController,
@@ -257,6 +279,12 @@ class _RoutineStatusManagementContentState
         const SizedBox(height: 16),
         if (viewModel.isEmpty)
           const _RoutineStatusEmptyState()
+        else if (viewModel.hasNoContextualDateFilterResults)
+          _NoContextualRoutineResults(
+            startDate: viewModel.startDate,
+            endDate: viewModel.endDate,
+            onClear: viewModel.clearDateFilter,
+          )
         else if (viewModel.hasNoRoutineSearchResults)
           _NoRoutineSearchResults(
             query: viewModel.routineSearchQuery,
@@ -379,8 +407,9 @@ class _RoutineStatusManagementContentState
         return AlertDialog(
           title: const Text('¿Eliminar estado de rutina?'),
           content: const Text(
-            'Este estado se eliminará definitivamente y dejará de formar '
-            'parte de las métricas de rutinas calculadas con estos datos. '
+            'Este estado se eliminará definitivamente '
+            'y dejará de formar parte de las métricas '
+            'de rutinas calculadas con estos datos. '
             'Esta acción no se puede deshacer.',
           ),
           actions: [
@@ -531,7 +560,10 @@ class _RoutineGroupsHeader extends StatelessWidget {
 }
 
 class _RoutineGroupsExplanation extends StatelessWidget {
-  const _RoutineGroupsExplanation();
+  const _RoutineGroupsExplanation({this.startDate, this.endDate});
+
+  final DateTime? startDate;
+  final DateTime? endDate;
 
   @override
   Widget build(BuildContext context) {
@@ -539,12 +571,44 @@ class _RoutineGroupsExplanation extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return Text(
-      'Cada tarjeta reúne todos los estados registrados para una misma rutina.',
+      _description,
+      key: const Key('routine-status-groups-explanation'),
       style: theme.textTheme.bodySmall?.copyWith(
         color: colorScheme.onSurfaceVariant,
         height: 1.35,
       ),
     );
+  }
+
+  String get _description {
+    final start = startDate;
+    final end = endDate;
+
+    if (start == null && end == null) {
+      return 'Cada tarjeta reúne todos los estados '
+          'registrados para una misma rutina.';
+    }
+
+    if (start != null && end != null && _isSameDay(start, end)) {
+      return 'Se muestran únicamente las rutinas '
+          'con estados registrados el ${_formatDate(start)}.';
+    }
+
+    if (start != null && end != null) {
+      return 'Se muestran únicamente las rutinas '
+          'con estados registrados entre '
+          '${_formatDate(start)} y ${_formatDate(end)}.';
+    }
+
+    if (start != null) {
+      return 'Se muestran únicamente las rutinas '
+          'con estados registrados desde '
+          '${_formatDate(start)}.';
+    }
+
+    return 'Se muestran únicamente las rutinas '
+        'con estados registrados hasta '
+        '${_formatDate(end!)}.';
   }
 }
 
@@ -654,6 +718,64 @@ class _NoRoutineSearchResults extends StatelessWidget {
   }
 }
 
+class _NoContextualRoutineResults extends StatelessWidget {
+  const _NoContextualRoutineResults({
+    required this.startDate,
+    required this.endDate,
+    required this.onClear,
+  });
+
+  final DateTime? startDate;
+  final DateTime? endDate;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Card(
+      key: const Key('routine-status-no-contextual-date-results'),
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
+        child: Column(
+          children: [
+            Icon(
+              Icons.event_busy_outlined,
+              size: 40,
+              color: colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'No hay estados de rutina en este periodo',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              _filterDescription(startDate, endDate),
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 14),
+            TextButton.icon(
+              key: const Key('routine-status-clear-contextual-date-filter'),
+              onPressed: onClear,
+              icon: const Icon(Icons.restart_alt_rounded),
+              label: const Text('Quitar filtro'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _RoutineGroupCard extends StatelessWidget {
   const _RoutineGroupCard({required this.group, required this.onTap});
 
@@ -672,17 +794,11 @@ class _RoutineGroupCard extends StatelessWidget {
         : '${group.recordCount} estados registrados';
 
     return Card(
-      key: Key(
-        'routine-status-routine-group-'
-        '${group.routineId}',
-      ),
+      key: Key('routine-status-routine-group-${group.routineId}'),
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        key: Key(
-          'routine-status-open-routine-'
-          '${group.routineId}',
-        ),
+        key: Key('routine-status-open-routine-${group.routineId}'),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(17),
@@ -709,8 +825,7 @@ class _RoutineGroupCard extends StatelessWidget {
                     Text(
                       group.routineName,
                       key: Key(
-                        'routine-status-routine-name-'
-                        '${group.routineId}',
+                        'routine-status-routine-name-${group.routineId}',
                       ),
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w800,
@@ -720,8 +835,7 @@ class _RoutineGroupCard extends StatelessWidget {
                     Text(
                       recordLabel,
                       key: Key(
-                        'routine-status-routine-record-count-'
-                        '${group.routineId}',
+                        'routine-status-routine-record-count-${group.routineId}',
                       ),
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: colorScheme.onSurfaceVariant,
@@ -738,8 +852,7 @@ class _RoutineGroupCard extends StatelessWidget {
                             'Último: '
                             '${_formatDate(latest.date)}',
                             key: Key(
-                              'routine-status-routine-latest-'
-                              '${group.routineId}',
+                              'routine-status-routine-latest-${group.routineId}',
                             ),
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.bodySmall?.copyWith(
@@ -881,7 +994,8 @@ class _RoutineStatusDateFilterCard extends StatelessWidget {
             ),
             const SizedBox(height: 5),
             Text(
-              'Filtra los estados de esta rutina por la fecha registrada.',
+              'Filtra los estados de esta rutina '
+              'por la fecha registrada.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
                 height: 1.35,
@@ -1112,17 +1226,11 @@ class _RoutineStatusRecordCard extends StatelessWidget {
     final observation = _normalizedObservation(record.observation);
 
     return Card(
-      key: Key(
-        'routine-status-record-'
-        '${record.recordId}',
-      ),
+      key: Key('routine-status-record-${record.recordId}'),
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        key: Key(
-          'routine-status-open-'
-          '${record.recordId}',
-        ),
+        key: Key('routine-status-open-${record.recordId}'),
         onTap: isDeleting ? null : onOpen,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
@@ -1148,10 +1256,7 @@ class _RoutineStatusRecordCard extends StatelessWidget {
                   children: [
                     Text(
                       _formatDate(record.date),
-                      key: Key(
-                        'routine-status-record-date-'
-                        '${record.recordId}',
-                      ),
+                      key: Key('routine-status-record-date-${record.recordId}'),
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w800,
                       ),
@@ -1164,8 +1269,7 @@ class _RoutineStatusRecordCard extends StatelessWidget {
                         'Observación: '
                         '$observation',
                         key: Key(
-                          'routine-status-record-observation-'
-                          '${record.recordId}',
+                          'routine-status-record-observation-${record.recordId}',
                         ),
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
@@ -1189,10 +1293,7 @@ class _RoutineStatusRecordCard extends StatelessWidget {
                 )
               else
                 PopupMenuButton<_RoutineStatusAction>(
-                  key: Key(
-                    'routine-status-menu-'
-                    '${record.recordId}',
-                  ),
+                  key: Key('routine-status-menu-${record.recordId}'),
                   tooltip: 'Opciones del estado de rutina',
                   onSelected: (action) {
                     switch (action) {
@@ -1295,7 +1396,8 @@ class _RoutineStatusEmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 7),
             Text(
-              'Cuando registres estados, las rutinas aparecerán agrupadas aquí.',
+              'Cuando registres estados, las rutinas '
+              'aparecerán agrupadas aquí.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: colorScheme.onSurfaceVariant,
@@ -1467,6 +1569,37 @@ String _formatDate(DateTime value) {
       '${local.year}';
 }
 
+String _filterDescription(DateTime? startDate, DateTime? endDate) {
+  if (startDate != null && endDate != null && _isSameDay(startDate, endDate)) {
+    return 'No se encontraron estados registrados '
+        'el ${_formatDate(startDate)}.';
+  }
+
+  if (startDate != null && endDate != null) {
+    return 'No se encontraron estados registrados '
+        'entre ${_formatDate(startDate)} y '
+        '${_formatDate(endDate)}.';
+  }
+
+  if (startDate != null) {
+    return 'No se encontraron estados registrados '
+        'desde ${_formatDate(startDate)}.';
+  }
+
+  if (endDate != null) {
+    return 'No se encontraron estados registrados '
+        'hasta ${_formatDate(endDate)}.';
+  }
+
+  return 'No se encontraron estados para el periodo seleccionado.';
+}
+
+bool _isSameDay(DateTime first, DateTime second) {
+  return first.year == second.year &&
+      first.month == second.month &&
+      first.day == second.day;
+}
+
 DateTime _oldestDate(List<RoutineStatusRecord> records) {
   if (records.isEmpty) {
     return DateTime.now();
@@ -1531,4 +1664,44 @@ Future<DateTime?> _pickDate(
     cancelText: 'Cancelar',
     confirmText: 'Seleccionar',
   );
+}
+
+DateTime? _initialDateFilterFromRoute(BuildContext context) {
+  try {
+    final rawDate = GoRouterState.of(context).uri.queryParameters['date'];
+
+    return _parseRouteDate(rawDate);
+  } catch (_) {
+    return null;
+  }
+}
+
+DateTime? _parseRouteDate(String? rawDate) {
+  if (rawDate == null || rawDate.isEmpty) {
+    return null;
+  }
+
+  final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(rawDate);
+
+  if (match == null) {
+    return null;
+  }
+
+  final year = int.tryParse(match.group(1)!);
+
+  final month = int.tryParse(match.group(2)!);
+
+  final day = int.tryParse(match.group(3)!);
+
+  if (year == null || month == null || day == null) {
+    return null;
+  }
+
+  final date = DateTime(year, month, day);
+
+  if (date.year != year || date.month != month || date.day != day) {
+    return null;
+  }
+
+  return date;
 }
