@@ -16,6 +16,9 @@ import '../features/dysregulation/domain/services/dysregulation_record_factory.d
 import '../features/feeding/domain/repositories/feeding_repository.dart';
 import '../features/feeding/domain/services/feeding_record_factory.dart';
 import '../features/frequency/domain/repositories/frequency_repository.dart';
+import '../features/home/data/repositories/composite_home_overview_repository.dart';
+import '../features/home/data/services/system_home_clock.dart';
+import '../features/home/presentation/viewmodels/home_view_model.dart';
 import '../features/routine/domain/repositories/routine_repository.dart';
 import '../features/routine/domain/services/routine_factory.dart';
 import '../features/routine_compliance/domain/repositories/routine_compliance_repository.dart';
@@ -102,6 +105,8 @@ class _SendarisAppState extends State<SendarisApp> with WidgetsBindingObserver {
 
   late final TrackingViewModel _trackingViewModel;
 
+  late final HomeViewModel _homeViewModel;
+
   late final ThemeModeController _themeModeController;
 
   late final GoRouter _router;
@@ -119,15 +124,34 @@ class _SendarisAppState extends State<SendarisApp> with WidgetsBindingObserver {
       widget.trackingProfileFactory,
     );
 
+    final homeOverviewRepository = CompositeHomeOverviewRepository(
+      behaviorRepository: widget.behaviorRepository,
+      sleepRepository: widget.sleepRepository,
+      feedingRepository: widget.feedingRepository,
+      socialInteractionRepository: widget.socialInteractionRepository,
+      dysregulationRepository: widget.dysregulationRepository,
+      atypicalSituationRepository: widget.atypicalSituationRepository,
+      routineStatusRepository: widget.routineStatusRepository,
+    );
+
+    _homeViewModel = HomeViewModel(
+      clock: const SystemHomeClock(),
+      overviewRepository: homeOverviewRepository,
+    );
+
+    _themeModeController = ThemeModeController();
+
+    _trackingViewModel.addListener(_handleTrackingChange);
+
     _authViewModel.addListener(_handleAuthenticationChange);
+
+    _handleTrackingChange();
 
     _handleAuthenticationChange();
 
     if (_authViewModel.isAuthenticated) {
       unawaited(_authViewModel.validateCurrentSession());
     }
-
-    _themeModeController = ThemeModeController();
 
     _router = AppRouter.create(
       _authViewModel,
@@ -154,19 +178,33 @@ class _SendarisAppState extends State<SendarisApp> with WidgetsBindingObserver {
     );
   }
 
+  void _handleTrackingChange() {
+    unawaited(
+      _homeViewModel.setActiveTracking(_trackingViewModel.activeAnonymousId),
+    );
+  }
+
   void _handleAuthenticationChange() {
     if (_authViewModel.isAuthenticated) {
       return;
     }
 
     _trackingViewModel.clearAuthenticationState();
+
+    unawaited(_homeViewModel.setActiveTracking(null));
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
 
-    if (state != AppLifecycleState.resumed || !_authViewModel.isAuthenticated) {
+    if (state != AppLifecycleState.resumed) {
+      return;
+    }
+
+    _homeViewModel.handleAppResumed();
+
+    if (!_authViewModel.isAuthenticated) {
       return;
     }
 
@@ -181,9 +219,13 @@ class _SendarisAppState extends State<SendarisApp> with WidgetsBindingObserver {
 
     _authViewModel.removeListener(_handleAuthenticationChange);
 
+    _trackingViewModel.removeListener(_handleTrackingChange);
+
     _authViewModel.dispose();
 
     _trackingViewModel.dispose();
+
+    _homeViewModel.dispose();
 
     _themeModeController.dispose();
 
@@ -199,6 +241,8 @@ class _SendarisAppState extends State<SendarisApp> with WidgetsBindingObserver {
         ChangeNotifierProvider<TrackingViewModel>.value(
           value: _trackingViewModel,
         ),
+
+        ChangeNotifierProvider<HomeViewModel>.value(value: _homeViewModel),
 
         ChangeNotifierProvider<ThemeModeController>.value(
           value: _themeModeController,

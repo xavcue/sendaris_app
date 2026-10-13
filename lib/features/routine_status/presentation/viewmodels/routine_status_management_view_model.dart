@@ -43,7 +43,22 @@ class RoutineStatusManagementViewModel extends ChangeNotifier {
     this._repository,
     this._routineRepository, {
     required this.anonymousId,
-  });
+    DateTime? initialDateFilter,
+  }) {
+    if (initialDateFilter == null) {
+      return;
+    }
+
+    final normalizedDate = _dateOnly(initialDateFilter);
+
+    _startDate = normalizedDate;
+    _endDate = normalizedDate;
+
+    _pendingStartDate = normalizedDate;
+    _pendingEndDate = normalizedDate;
+
+    _preserveDateFilterAcrossRoutineNavigation = true;
+  }
 
   final RoutineStatusManagementRepository _repository;
 
@@ -71,6 +86,8 @@ class RoutineStatusManagementViewModel extends ChangeNotifier {
 
   bool _hasLoaded = false;
 
+  bool _preserveDateFilterAcrossRoutineNavigation = false;
+
   String? _errorMessage;
 
   String? _filterErrorMessage;
@@ -97,49 +114,46 @@ class RoutineStatusManagementViewModel extends ChangeNotifier {
   }
 
   List<RoutineStatusRoutineGroup> get routineGroups {
-    final groupedItems = <String, List<RoutineStatusManagementItem>>{};
-
-    for (final item in items) {
-      groupedItems
-          .putIfAbsent(
-            item.record.routineId,
-            () => <RoutineStatusManagementItem>[],
-          )
-          .add(item);
-    }
-
-    return List.unmodifiable(
-      groupedItems.entries.map((entry) {
-        final groupItems = entry.value;
-
-        return RoutineStatusRoutineGroup(
-          routineId: entry.key,
-          routineName: groupItems.first.routineName,
-          items: groupItems,
-        );
-      }),
-    );
+    return _groupItems(items);
   }
 
-  int get routineGroupCount => routineGroups.length;
+  List<RoutineStatusRoutineGroup> get visibleRoutineGroups {
+    if (!hasContextualDateFilter) {
+      return routineGroups;
+    }
 
-  String get routineSearchQuery => _routineSearchQuery;
+    return _groupItems(filteredItems);
+  }
+
+  int get routineGroupCount {
+    return routineGroups.length;
+  }
+
+  int get visibleRoutineGroupCount {
+    return visibleRoutineGroups.length;
+  }
+
+  String get routineSearchQuery {
+    return _routineSearchQuery;
+  }
 
   bool get hasRoutineSearchQuery {
     return _routineSearchQuery.trim().isNotEmpty;
   }
 
   List<RoutineStatusRoutineGroup> get searchedRoutineGroups {
+    final availableGroups = visibleRoutineGroups;
+
     if (!hasRoutineSearchQuery) {
-      return routineGroups;
+      return availableGroups;
     }
 
     final query = _normalizeSearchText(_routineSearchQuery);
 
     return List.unmodifiable(
-      routineGroups.where(
-        (group) => _normalizeSearchText(group.routineName).contains(query),
-      ),
+      availableGroups.where((group) {
+        return _normalizeSearchText(group.routineName).contains(query);
+      }),
     );
   }
 
@@ -149,13 +163,23 @@ class RoutineStatusManagementViewModel extends ChangeNotifier {
 
   bool get hasNoRoutineSearchResults {
     return hasRoutineSearchQuery &&
-        routineGroups.isNotEmpty &&
+        visibleRoutineGroups.isNotEmpty &&
         searchedRoutineGroups.isEmpty;
   }
 
-  String? get selectedRoutineId => _selectedRoutineId;
+  bool get hasNoContextualDateFilterResults {
+    return hasContextualDateFilter &&
+        _records.isNotEmpty &&
+        visibleRoutineGroups.isEmpty;
+  }
 
-  bool get hasSelectedRoutine => _selectedRoutineId != null;
+  String? get selectedRoutineId {
+    return _selectedRoutineId;
+  }
+
+  bool get hasSelectedRoutine {
+    return _selectedRoutineId != null;
+  }
 
   RoutineStatusRoutineGroup? get selectedRoutineGroup {
     final selectedRoutineId = _selectedRoutineId;
@@ -189,7 +213,9 @@ class RoutineStatusManagementViewModel extends ChangeNotifier {
     }
 
     return List.unmodifiable(
-      items.where((item) => _matchesActiveDateFilter(item.record.date)),
+      items.where((item) {
+        return _matchesActiveDateFilter(item.record.date);
+      }),
     );
   }
 
@@ -203,9 +229,9 @@ class RoutineStatusManagementViewModel extends ChangeNotifier {
     }
 
     return List.unmodifiable(
-      selectedRoutineItems.where(
-        (item) => _matchesActiveDateFilter(item.record.date),
-      ),
+      selectedRoutineItems.where((item) {
+        return _matchesActiveDateFilter(item.record.date);
+      }),
     );
   }
 
@@ -217,11 +243,17 @@ class RoutineStatusManagementViewModel extends ChangeNotifier {
     return filteredSelectedRoutineItems.length;
   }
 
-  bool get isLoading => _isLoading;
+  bool get isLoading {
+    return _isLoading;
+  }
 
-  bool get hasLoaded => _hasLoaded;
+  bool get hasLoaded {
+    return _hasLoaded;
+  }
 
-  bool get hasRecords => _records.isNotEmpty;
+  bool get hasRecords {
+    return _records.isNotEmpty;
+  }
 
   bool get isEmpty {
     return _hasLoaded &&
@@ -241,19 +273,33 @@ class RoutineStatusManagementViewModel extends ChangeNotifier {
         filteredSelectedRoutineItems.isEmpty;
   }
 
-  String? get errorMessage => _errorMessage;
+  String? get errorMessage {
+    return _errorMessage;
+  }
 
-  String? get filterErrorMessage => _filterErrorMessage;
+  String? get filterErrorMessage {
+    return _filterErrorMessage;
+  }
 
-  String? get actionErrorMessage => _actionErrorMessage;
+  String? get actionErrorMessage {
+    return _actionErrorMessage;
+  }
 
-  DateTime? get startDate => _startDate;
+  DateTime? get startDate {
+    return _startDate;
+  }
 
-  DateTime? get endDate => _endDate;
+  DateTime? get endDate {
+    return _endDate;
+  }
 
-  DateTime? get pendingStartDate => _pendingStartDate;
+  DateTime? get pendingStartDate {
+    return _pendingStartDate;
+  }
 
-  DateTime? get pendingEndDate => _pendingEndDate;
+  DateTime? get pendingEndDate {
+    return _pendingEndDate;
+  }
 
   bool get hasActiveDateFilter {
     return _startDate != null || _endDate != null;
@@ -261,6 +307,10 @@ class RoutineStatusManagementViewModel extends ChangeNotifier {
 
   bool get hasPendingDateFilter {
     return _pendingStartDate != null || _pendingEndDate != null;
+  }
+
+  bool get hasContextualDateFilter {
+    return _preserveDateFilterAcrossRoutineNavigation && hasActiveDateFilter;
   }
 
   Future<bool> initialize() {
@@ -287,15 +337,15 @@ class RoutineStatusManagementViewModel extends ChangeNotifier {
         anonymousId: anonymousId,
       );
 
-      final matchingRecords = recoveredRecords
-          .where((record) => record.anonymousId == anonymousId)
-          .toList();
+      final matchingRecords = recoveredRecords.where((record) {
+        return record.anonymousId == anonymousId;
+      }).toList();
 
       matchingRecords.sort(_compareRecords);
 
-      final matchingRoutines = recoveredRoutines.where(
-        (routine) => routine.anonymousId == anonymousId,
-      );
+      final matchingRoutines = recoveredRoutines.where((routine) {
+        return routine.anonymousId == anonymousId;
+      });
 
       final routinesById = <String, Routine>{
         for (final routine in matchingRoutines) routine.routineId: routine,
@@ -364,9 +414,9 @@ class RoutineStatusManagementViewModel extends ChangeNotifier {
       return;
     }
 
-    final exists = routineGroups.any(
-      (group) => group.routineId == normalizedRoutineId,
-    );
+    final exists = visibleRoutineGroups.any((group) {
+      return group.routineId == normalizedRoutineId;
+    });
 
     if (!exists) {
       return;
@@ -378,7 +428,9 @@ class RoutineStatusManagementViewModel extends ChangeNotifier {
 
     _selectedRoutineId = normalizedRoutineId;
 
-    _resetDateFilter();
+    if (!_preserveDateFilterAcrossRoutineNavigation) {
+      _resetDateFilter();
+    }
 
     notifyListeners();
   }
@@ -390,7 +442,9 @@ class RoutineStatusManagementViewModel extends ChangeNotifier {
 
     _selectedRoutineId = null;
 
-    _resetDateFilter();
+    if (!_preserveDateFilterAcrossRoutineNavigation) {
+      _resetDateFilter();
+    }
 
     notifyListeners();
   }
@@ -438,6 +492,8 @@ class RoutineStatusManagementViewModel extends ChangeNotifier {
   }
 
   void clearDateFilter() {
+    _preserveDateFilterAcrossRoutineNavigation = false;
+
     _resetDateFilter();
 
     notifyListeners();
@@ -473,17 +529,12 @@ class RoutineStatusManagementViewModel extends ChangeNotifier {
       );
 
       _records = List.unmodifiable(
-        _records
-            .where((current) => current.recordId != record.recordId)
-            .toList(),
+        _records.where((current) {
+          return current.recordId != record.recordId;
+        }).toList(),
       );
 
-      if (_selectedRoutineId == record.routineId &&
-          !_records.any((current) => current.routineId == record.routineId)) {
-        _selectedRoutineId = null;
-
-        _resetDateFilter();
-      }
+      _synchronizeSelectedRoutine();
 
       return true;
     } on RoutineStatusFailure catch (failure) {
@@ -513,6 +564,33 @@ class RoutineStatusManagementViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  List<RoutineStatusRoutineGroup> _groupItems(
+    Iterable<RoutineStatusManagementItem> sourceItems,
+  ) {
+    final groupedItems = <String, List<RoutineStatusManagementItem>>{};
+
+    for (final item in sourceItems) {
+      groupedItems
+          .putIfAbsent(
+            item.record.routineId,
+            () => <RoutineStatusManagementItem>[],
+          )
+          .add(item);
+    }
+
+    return List.unmodifiable(
+      groupedItems.entries.map((entry) {
+        final groupItems = entry.value;
+
+        return RoutineStatusRoutineGroup(
+          routineId: entry.key,
+          routineName: groupItems.first.routineName,
+          items: groupItems,
+        );
+      }),
+    );
+  }
+
   void _synchronizeSelectedRoutine() {
     final selectedRoutineId = _selectedRoutineId;
 
@@ -520,9 +598,14 @@ class RoutineStatusManagementViewModel extends ChangeNotifier {
       return;
     }
 
-    final stillExists = _records.any(
-      (record) => record.routineId == selectedRoutineId,
-    );
+    final stillExists =
+        _preserveDateFilterAcrossRoutineNavigation && hasActiveDateFilter
+        ? filteredItems.any((item) {
+            return item.record.routineId == selectedRoutineId;
+          })
+        : _records.any((record) {
+            return record.routineId == selectedRoutineId;
+          });
 
     if (stillExists) {
       return;
@@ -530,7 +613,9 @@ class RoutineStatusManagementViewModel extends ChangeNotifier {
 
     _selectedRoutineId = null;
 
-    _resetDateFilter();
+    if (!_preserveDateFilterAcrossRoutineNavigation) {
+      _resetDateFilter();
+    }
   }
 
   void _resetDateFilter() {

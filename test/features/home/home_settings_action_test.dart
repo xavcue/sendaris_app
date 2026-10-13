@@ -1,8 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:sendaris/app/router/app_routes.dart';
+import 'package:sendaris/features/home/domain/models/home_day_overview.dart';
+import 'package:sendaris/features/home/domain/repositories/home_overview_repository.dart';
+import 'package:sendaris/features/home/domain/services/home_clock.dart';
+import 'package:sendaris/features/home/presentation/viewmodels/home_view_model.dart';
 import 'package:sendaris/features/home/presentation/views/home_placeholder_view.dart';
 import 'package:sendaris/features/tracking/domain/models/anonymous_tracking_profile.dart';
 import 'package:sendaris/features/tracking/domain/repositories/tracking_deletion_repository.dart';
@@ -12,18 +18,20 @@ import 'package:sendaris/features/tracking/domain/services/anonymous_tracking_pr
 import 'package:sendaris/features/tracking/presentation/viewmodels/tracking_view_model.dart';
 
 void main() {
-  testWidgets('Inicio abre Ajustes y no duplica el selector de apariencia', (
+  testWidgets('Inicio reutiliza SendarisPrimaryAppBar y abre Ajustes', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1000, 1800);
+
     tester.view.devicePixelRatio = 1;
 
     addTearDown(() {
       tester.view.resetPhysicalSize();
+
       tester.view.resetDevicePixelRatio();
     });
 
-    final repository = _FakeTrackingRepository(
+    final trackingRepository = _FakeTrackingRepository(
       recoveredProfiles: [
         AnonymousTrackingProfile(
           anonymousId: 'seguimiento-prueba',
@@ -33,12 +41,20 @@ void main() {
       ],
     );
 
-    final viewModel = TrackingViewModel(
-      repository,
+    final trackingViewModel = TrackingViewModel(
+      trackingRepository,
       const AnonymousTrackingProfileFactory(_FakeAnonymousIdGenerator()),
     );
 
-    addTearDown(viewModel.dispose);
+    final homeViewModel = HomeViewModel(
+      clock: _FakeHomeClock(DateTime(2026, 10, 12, 10)),
+      overviewRepository: _FakeHomeOverviewRepository(),
+      timerFactory: (_, _) => _NoopTimer(),
+    );
+
+    addTearDown(trackingViewModel.dispose);
+
+    addTearDown(homeViewModel.dispose);
 
     final router = GoRouter(
       initialLocation: AppRoutes.home,
@@ -46,9 +62,16 @@ void main() {
         GoRoute(
           path: AppRoutes.home,
           builder: (context, state) {
-            return ChangeNotifierProvider<TrackingViewModel>.value(
-              value: viewModel,
-              child: HomePlaceholderView(trackingViewModel: viewModel),
+            return MultiProvider(
+              providers: [
+                ChangeNotifierProvider<TrackingViewModel>.value(
+                  value: trackingViewModel,
+                ),
+                ChangeNotifierProvider<HomeViewModel>.value(
+                  value: homeViewModel,
+                ),
+              ],
+              child: HomePlaceholderView(trackingViewModel: trackingViewModel),
             );
           },
         ),
@@ -69,17 +92,28 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('home-settings-action')), findsOneWidget);
+    expect(find.byKey(const Key('sendaris-primary-app-bar')), findsOneWidget);
+
+    expect(
+      find.byKey(const Key('sendaris-primary-app-bar-logo')),
+      findsOneWidget,
+    );
+
+    expect(
+      find.byKey(const Key('sendaris-primary-app-bar-title')),
+      findsOneWidget,
+    );
+
+    expect(
+      find.byKey(const Key('sendaris-primary-app-bar-settings-button')),
+      findsOneWidget,
+    );
 
     expect(find.byTooltip('Ajustes'), findsOneWidget);
 
-    expect(find.byTooltip('Usar modo claro'), findsNothing);
-
-    expect(find.byTooltip('Usar modo oscuro'), findsNothing);
-
-    expect(find.byTooltip('Cerrar sesión'), findsNothing);
-
-    await tester.tap(find.byKey(const Key('home-settings-action')));
+    await tester.tap(
+      find.byKey(const Key('sendaris-primary-app-bar-settings-button')),
+    );
 
     await tester.pumpAndSettle();
 
@@ -111,5 +145,41 @@ class _FakeAnonymousIdGenerator implements AnonymousIdGenerator {
   @override
   String generate() {
     return 'seguimiento-generado-prueba';
+  }
+}
+
+class _FakeHomeClock implements HomeClock {
+  _FakeHomeClock(this.current);
+
+  DateTime current;
+
+  @override
+  DateTime now() {
+    return current;
+  }
+}
+
+class _FakeHomeOverviewRepository implements HomeOverviewRepository {
+  @override
+  Future<HomeDayOverview> recoverDayOverview({
+    required String anonymousId,
+    required DateTime localDate,
+  }) async {
+    return HomeDayOverview(date: localDate, areas: const {});
+  }
+}
+
+class _NoopTimer implements Timer {
+  bool _isActive = true;
+
+  @override
+  bool get isActive => _isActive;
+
+  @override
+  int get tick => 0;
+
+  @override
+  void cancel() {
+    _isActive = false;
   }
 }
