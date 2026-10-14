@@ -19,6 +19,7 @@ class TrackingViewModel extends ChangeNotifier {
 
   bool _isLoading = false;
   bool _isInitialized = false;
+  bool _isDisposed = false;
 
   String? _errorMessage;
   String? _successMessage;
@@ -26,6 +27,17 @@ class TrackingViewModel extends ChangeNotifier {
   List<AnonymousTrackingProfile> _profiles = [];
 
   AnonymousTrackingProfile? _activeProfile;
+
+  // Permite invalidar resultados de operaciones asincronicas
+  // iniciadas durante un contexto de autenticacion anterior.
+  int _authenticationGeneration = 0;
+
+  // El contexto se configura desde la aplicacion.
+  // Mientras no este configurado, se conserva la compatibilidad
+  // con los repositorios simulados de las pruebas existentes.
+  bool _hasAuthenticationContext = false;
+
+  String? _authenticatedUserId;
 
   bool get isLoading => _isLoading;
 
@@ -69,9 +81,38 @@ class TrackingViewModel extends ChangeNotifier {
     return trackingLabelFor(profile);
   }
 
+  /// Sincroniza la identidad responsable de los seguimientos.
+  ///
+  /// Si cambia el UID, descarta el estado local de la cuenta
+  /// anterior e invalida las operaciones asincronicas pendientes.
+  ///
+  /// Un UID nulo representa una sesion sin cuenta autenticada.
+  /// No debe utilizarse como identificador de seguimiento.
+  void synchronizeAuthenticationContext(String? userId) {
+    if (_isDisposed) {
+      return;
+    }
+
+    if (_hasAuthenticationContext && _authenticatedUserId == userId) {
+      return;
+    }
+
+    _hasAuthenticationContext = true;
+    _authenticatedUserId = userId;
+
+    _invalidateAuthenticationGeneration();
+    _resetTrackingState();
+  }
+
   Future<bool> initialize() async {
     if (_isInitialized) {
       return true;
+    }
+
+    final generation = _authenticationGeneration;
+
+    if (!_isRequestCurrent(generation)) {
+      return false;
     }
 
     _setLoading(true);
@@ -80,29 +121,56 @@ class TrackingViewModel extends ChangeNotifier {
     try {
       final recoveredProfiles = await _repository.recoverProfiles();
 
-      _profiles = await _ensureTrackingNumbers(recoveredProfiles);
+      if (!_isRequestCurrent(generation)) {
+        return false;
+      }
 
+      final normalizedProfiles = await _ensureTrackingNumbers(
+        recoveredProfiles,
+        generation: generation,
+      );
+
+      if (!_isRequestCurrent(generation)) {
+        return false;
+      }
+
+      _profiles = normalizedProfiles;
       _activeProfile = _findActiveProfile(_profiles);
-
       _isInitialized = true;
 
       return true;
     } on TrackingFailure catch (error) {
+      if (!_isRequestCurrent(generation)) {
+        return false;
+      }
+
       _errorMessage = error.message;
 
       return false;
     } catch (_) {
+      if (!_isRequestCurrent(generation)) {
+        return false;
+      }
+
       _errorMessage =
           'No fue posible preparar los seguimientos. '
           'Inténtalo nuevamente.';
 
       return false;
     } finally {
-      _setLoading(false);
+      if (_isRequestCurrent(generation)) {
+        _setLoading(false);
+      }
     }
   }
 
   Future<bool> createAndPersistProfile() async {
+    final generation = _authenticationGeneration;
+
+    if (!_isRequestCurrent(generation)) {
+      return false;
+    }
+
     _setLoading(true);
     _clearMessages();
 
@@ -111,7 +179,15 @@ class TrackingViewModel extends ChangeNotifier {
         trackingNumber: _nextTrackingNumber(),
       );
 
+      if (!_isRequestCurrent(generation)) {
+        return false;
+      }
+
       await _repository.persistProfile(profile);
+
+      if (!_isRequestCurrent(generation)) {
+        return false;
+      }
 
       _profiles = _sortProfiles([
         ..._profiles.where(
@@ -121,28 +197,43 @@ class TrackingViewModel extends ChangeNotifier {
       ]);
 
       _activeProfile = profile;
-
       _isInitialized = true;
 
       _successMessage = 'Seguimiento creado correctamente.';
 
       return true;
     } on TrackingFailure catch (error) {
+      if (!_isRequestCurrent(generation)) {
+        return false;
+      }
+
       _errorMessage = error.message;
 
       return false;
     } catch (_) {
+      if (!_isRequestCurrent(generation)) {
+        return false;
+      }
+
       _errorMessage =
           'No fue posible crear el seguimiento. '
           'Inténtalo nuevamente.';
 
       return false;
     } finally {
-      _setLoading(false);
+      if (_isRequestCurrent(generation)) {
+        _setLoading(false);
+      }
     }
   }
 
   Future<bool> recoverProfiles() async {
+    final generation = _authenticationGeneration;
+
+    if (!_isRequestCurrent(generation)) {
+      return false;
+    }
+
     _setLoading(true);
     _clearMessages();
 
@@ -151,7 +242,20 @@ class TrackingViewModel extends ChangeNotifier {
 
       final recoveredProfiles = await _repository.recoverProfiles();
 
-      _profiles = await _ensureTrackingNumbers(recoveredProfiles);
+      if (!_isRequestCurrent(generation)) {
+        return false;
+      }
+
+      final normalizedProfiles = await _ensureTrackingNumbers(
+        recoveredProfiles,
+        generation: generation,
+      );
+
+      if (!_isRequestCurrent(generation)) {
+        return false;
+      }
+
+      _profiles = normalizedProfiles;
 
       _activeProfile =
           _findActiveProfileById(
@@ -168,21 +272,35 @@ class TrackingViewModel extends ChangeNotifier {
 
       return true;
     } on TrackingFailure catch (error) {
+      if (!_isRequestCurrent(generation)) {
+        return false;
+      }
+
       _errorMessage = error.message;
 
       return false;
     } catch (_) {
+      if (!_isRequestCurrent(generation)) {
+        return false;
+      }
+
       _errorMessage =
           'No fue posible cargar los seguimientos. '
           'Inténtalo nuevamente.';
 
       return false;
     } finally {
-      _setLoading(false);
+      if (_isRequestCurrent(generation)) {
+        _setLoading(false);
+      }
     }
   }
 
   bool selectProfile(AnonymousTrackingProfile profile) {
+    if (!_isRequestCurrent(_authenticationGeneration)) {
+      return false;
+    }
+
     if (!profile.isActive) {
       return false;
     }
@@ -210,7 +328,9 @@ class TrackingViewModel extends ChangeNotifier {
   }
 
   Future<bool> deleteProfiles(Set<String> anonymousIds) async {
-    if (anonymousIds.isEmpty || _isLoading) {
+    final generation = _authenticationGeneration;
+
+    if (!_isRequestCurrent(generation) || anonymousIds.isEmpty || _isLoading) {
       return false;
     }
 
@@ -242,15 +362,35 @@ class TrackingViewModel extends ChangeNotifier {
 
     try {
       for (final profile in targets) {
+        if (!_isRequestCurrent(generation)) {
+          return false;
+        }
+
         try {
           await deletionRepository.deleteProfile(profile.anonymousId);
 
+          if (!_isRequestCurrent(generation)) {
+            return false;
+          }
+
           deletedIds.add(profile.anonymousId);
         } on TrackingFailure catch (error) {
+          if (!_isRequestCurrent(generation)) {
+            return false;
+          }
+
           failureMessage ??= error.message;
         } catch (_) {
+          if (!_isRequestCurrent(generation)) {
+            return false;
+          }
+
           failureMessage ??= 'No fue posible eliminar uno de los seguimientos.';
         }
+      }
+
+      if (!_isRequestCurrent(generation)) {
+        return false;
       }
 
       if (deletedIds.isNotEmpty) {
@@ -277,12 +417,16 @@ class TrackingViewModel extends ChangeNotifier {
 
       return true;
     } finally {
-      _setLoading(false);
+      if (_isRequestCurrent(generation)) {
+        _setLoading(false);
+      }
     }
   }
 
   Future<bool> deleteAllProfilesForAccount() async {
-    if (_isLoading) {
+    final generation = _authenticationGeneration;
+
+    if (!_isRequestCurrent(generation) || _isLoading) {
       return false;
     }
 
@@ -299,7 +443,6 @@ class TrackingViewModel extends ChangeNotifier {
     }
 
     _setLoading(true);
-
     _clearMessages();
 
     final deletedIds = <String>{};
@@ -307,12 +450,28 @@ class TrackingViewModel extends ChangeNotifier {
     try {
       final recoveredProfiles = await _repository.recoverProfiles();
 
+      if (!_isRequestCurrent(generation)) {
+        return false;
+      }
+
       for (final profile in recoveredProfiles) {
+        if (!_isRequestCurrent(generation)) {
+          return false;
+        }
+
         try {
           await deletionRepository.deleteProfile(profile.anonymousId);
 
+          if (!_isRequestCurrent(generation)) {
+            return false;
+          }
+
           deletedIds.add(profile.anonymousId);
         } on TrackingFailure catch (error) {
+          if (!_isRequestCurrent(generation)) {
+            return false;
+          }
+
           if (deletedIds.isNotEmpty) {
             _applyDeletedProfiles(deletedIds);
           }
@@ -321,6 +480,10 @@ class TrackingViewModel extends ChangeNotifier {
 
           return false;
         } catch (_) {
+          if (!_isRequestCurrent(generation)) {
+            return false;
+          }
+
           if (deletedIds.isNotEmpty) {
             _applyDeletedProfiles(deletedIds);
           }
@@ -333,52 +496,51 @@ class TrackingViewModel extends ChangeNotifier {
         }
       }
 
+      if (!_isRequestCurrent(generation)) {
+        return false;
+      }
+
       _profiles = [];
-
       _activeProfile = null;
-
       _isInitialized = true;
 
       _successMessage = 'Datos de la cuenta eliminados correctamente.';
 
       return true;
     } on TrackingFailure catch (error) {
+      if (!_isRequestCurrent(generation)) {
+        return false;
+      }
+
       _errorMessage = error.message;
 
       return false;
     } catch (_) {
+      if (!_isRequestCurrent(generation)) {
+        return false;
+      }
+
       _errorMessage =
           'No fue posible eliminar los datos de la cuenta. '
           'Inténtalo nuevamente.';
 
       return false;
     } finally {
-      _setLoading(false);
+      if (_isRequestCurrent(generation)) {
+        _setLoading(false);
+      }
     }
   }
 
   void clearAuthenticationState() {
-    final changed =
-        _isLoading ||
-        _isInitialized ||
-        _profiles.isNotEmpty ||
-        _activeProfile != null ||
-        _errorMessage != null ||
-        _successMessage != null;
-
-    _isLoading = false;
-
-    _isInitialized = false;
-
-    _profiles = [];
-
-    _activeProfile = null;
-
-    _clearMessages();
-
-    if (changed) {
-      notifyListeners();
+    if (_isDisposed) {
+      return;
     }
+
+    _authenticatedUserId = null;
+
+    _invalidateAuthenticationGeneration();
+    _resetTrackingState();
   }
 
   int? trackingNumberFor(AnonymousTrackingProfile profile) {
@@ -410,8 +572,13 @@ class TrackingViewModel extends ChangeNotifier {
   }
 
   Future<List<AnonymousTrackingProfile>> _ensureTrackingNumbers(
-    Iterable<AnonymousTrackingProfile> profiles,
-  ) async {
+    Iterable<AnonymousTrackingProfile> profiles, {
+    required int generation,
+  }) async {
+    if (!_isRequestCurrent(generation)) {
+      return const [];
+    }
+
     final ordered = _sortProfiles(profiles);
 
     if (ordered.isEmpty) {
@@ -428,6 +595,10 @@ class TrackingViewModel extends ChangeNotifier {
     final normalized = <AnonymousTrackingProfile>[];
 
     for (final profile in ordered) {
+      if (!_isRequestCurrent(generation)) {
+        return const [];
+      }
+
       final existingNumber = profile.trackingNumber;
 
       if (existingNumber != null) {
@@ -446,7 +617,16 @@ class TrackingViewModel extends ChangeNotifier {
         isActive: profile.isActive,
       );
 
+      // No inicia una nueva escritura si el contexto ya cambio.
+      if (!_isRequestCurrent(generation)) {
+        return const [];
+      }
+
       await _repository.persistProfile(numberedProfile);
+
+      if (!_isRequestCurrent(generation)) {
+        return const [];
+      }
 
       normalized.add(numberedProfile);
 
@@ -531,18 +711,70 @@ class TrackingViewModel extends ChangeNotifier {
     return ordered;
   }
 
+  void _invalidateAuthenticationGeneration() {
+    _authenticationGeneration++;
+  }
+
+  bool _isRequestCurrent(int generation) {
+    if (_isDisposed) {
+      return false;
+    }
+
+    if (generation != _authenticationGeneration) {
+      return false;
+    }
+
+    // Una vez configurada la identidad, no se permite acceder
+    // a los seguimientos sin una cuenta autenticada.
+    if (_hasAuthenticationContext && _authenticatedUserId == null) {
+      return false;
+    }
+
+    return true;
+  }
+
+  void _resetTrackingState() {
+    final changed =
+        _isLoading ||
+        _isInitialized ||
+        _profiles.isNotEmpty ||
+        _activeProfile != null ||
+        _errorMessage != null ||
+        _successMessage != null;
+
+    _isLoading = false;
+    _isInitialized = false;
+
+    _profiles = [];
+    _activeProfile = null;
+
+    _clearMessages();
+
+    if (changed && !_isDisposed) {
+      notifyListeners();
+    }
+  }
+
   void _clearMessages() {
     _errorMessage = null;
     _successMessage = null;
   }
 
   void _setLoading(bool value) {
-    if (_isLoading == value) {
+    if (_isDisposed || _isLoading == value) {
       return;
     }
 
     _isLoading = value;
 
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    _invalidateAuthenticationGeneration();
+
+    super.dispose();
   }
 }

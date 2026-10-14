@@ -111,6 +111,13 @@ class _SendarisAppState extends State<SendarisApp> with WidgetsBindingObserver {
 
   late final GoRouter _router;
 
+  // Recuerda el ultimo UID habilitado para utilizar
+  // las funcionalidades de seguimiento de Sendaris.
+  //
+  // Es independiente del identificador anonimo
+  // de cada seguimiento.
+  String? _lastTrackingUserId;
+
   @override
   void initState() {
     super.initState();
@@ -145,6 +152,8 @@ class _SendarisAppState extends State<SendarisApp> with WidgetsBindingObserver {
 
     _authViewModel.addListener(_handleAuthenticationChange);
 
+    // Sincroniza el contexto inicial antes de preparar
+    // la navegacion de la aplicacion.
     _handleTrackingChange();
 
     _handleAuthenticationChange();
@@ -184,14 +193,57 @@ class _SendarisAppState extends State<SendarisApp> with WidgetsBindingObserver {
     );
   }
 
+  /// Sincroniza el seguimiento con la identidad autenticada.
+  ///
+  /// Cuando cambia directamente de una cuenta habilitada
+  /// a otra, invalida los seguimientos anteriores e inicia
+  /// la recuperacion correspondiente al nuevo UID.
+  ///
+  /// La recuperacion inicial sigue a cargo de Inicio,
+  /// evitando ejecutar dos cargas al montar la pantalla.
   void _handleAuthenticationChange() {
-    if (_authViewModel.isAuthenticated) {
+    if (widget.authRepository is AuthIdentityRepository) {
+      final userId = _authViewModel.isAuthenticatedAppReady
+          ? _authViewModel.currentUserId
+          : null;
+
+      final previousUserId = _lastTrackingUserId;
+
+      final isDirectAccountSwitch =
+          previousUserId != null && userId != null && previousUserId != userId;
+
+      _lastTrackingUserId = userId;
+
+      // Si el UID cambia, TrackingViewModel descarta
+      // los perfiles de la cuenta anterior e invalida
+      // los resultados asincronicos pendientes.
+      _trackingViewModel.synchronizeAuthenticationContext(userId);
+
+      // Una pantalla Inicio que permanece montada no
+      // ejecuta nuevamente initState al cambiar de UID.
+      //
+      // Por ello recuperamos aqui los perfiles de B
+      // exclusivamente cuando ocurre un cambio directo
+      // entre dos cuentas autenticadas y habilitadas.
+      if (isDirectAccountSwitch) {
+        unawaited(_trackingViewModel.initialize());
+      }
+
+      if (userId == null) {
+        unawaited(_homeViewModel.setActiveTracking(null));
+      }
+
       return;
     }
 
-    _trackingViewModel.clearAuthenticationState();
+    // Compatibilidad con repositorios que no exponen UID.
+    // FirebaseAuthRepository implementa la interfaz
+    // AuthIdentityRepository y utiliza la ruta anterior.
+    if (!_authViewModel.isAuthenticated) {
+      _trackingViewModel.clearAuthenticationState();
 
-    unawaited(_homeViewModel.setActiveTracking(null));
+      unawaited(_homeViewModel.setActiveTracking(null));
+    }
   }
 
   @override

@@ -87,67 +87,111 @@ class _SettingsViewState extends State<SettingsView> {
   ) async {
     if (_isDeletingAccount ||
         authViewModel.isLoading ||
-        trackingViewModel.isLoading) {
+        trackingViewModel.isLoading ||
+        !authViewModel.isAuthenticated) {
       return;
     }
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        final colorScheme = Theme.of(dialogContext).colorScheme;
+    // Captura la cuenta que inicia el procedimiento.
+    //
+    // La autorizacion de esta cuenta nunca debe
+    // utilizarse para eliminar datos de otra.
+    final initiatingUserId = authViewModel.currentUserId;
+    final initiatingAuthenticated = authViewModel.isAuthenticated;
 
-        return AlertDialog(
-          key: const Key('settings-delete-account-warning-dialog'),
-          icon: Icon(Icons.warning_amber_rounded, color: colorScheme.error),
-          title: const Text('¿Eliminar cuenta definitivamente?'),
-          content: const Text(
-            'Se eliminarán de forma permanente '
-            'todos tus seguimientos, eventos, rutinas, '
-            'estados de rutina y tu cuenta de acceso.\n\n'
-            'Esta acción no se puede deshacer.',
-          ),
-          actions: [
-            TextButton(
-              key: const Key('settings-cancel-delete-account-button'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop(false);
-              },
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              key: const Key('settings-continue-delete-account-button'),
-              style: FilledButton.styleFrom(
-                backgroundColor: colorScheme.error,
-                foregroundColor: colorScheme.onError,
-              ),
-              onPressed: () {
-                Navigator.of(dialogContext).pop(true);
-              },
-              child: const Text('Continuar'),
-            ),
-          ],
-        );
-      },
-    );
+    // Este indicador permanece invalidado incluso
+    // cuando el usuario cambia A -> B -> A.
+    //
+    // No es suficiente comparar el UID al finalizar.
+    var authenticationContextChanged = false;
 
-    if (confirmed != true || !context.mounted) {
-      return;
+    void observeAuthenticationContext() {
+      if (authViewModel.currentUserId != initiatingUserId ||
+          authViewModel.isAuthenticated != initiatingAuthenticated) {
+        authenticationContextChanged = true;
+      }
     }
 
-    final password = await _requestDeletionPassword(context);
+    bool isOriginalAuthenticationContext() {
+      observeAuthenticationContext();
 
-    if (password == null || !context.mounted) {
-      return;
+      return !authenticationContextChanged;
     }
 
-    setState(() {
-      _isDeletingAccount = true;
-    });
+    // El observador se activa antes de mostrar
+    // cualquier dialogo o esperar una operacion.
+    authViewModel.addListener(observeAuthenticationContext);
 
     try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) {
+          final colorScheme = Theme.of(dialogContext).colorScheme;
+
+          return AlertDialog(
+            key: const Key('settings-delete-account-warning-dialog'),
+            icon: Icon(Icons.warning_amber_rounded, color: colorScheme.error),
+            title: const Text('¿Eliminar cuenta definitivamente?'),
+            content: const Text(
+              'Se eliminarán de forma permanente '
+              'todos tus seguimientos, eventos, rutinas, '
+              'estados de rutina y tu cuenta de acceso.\n\n'
+              'Esta acción no se puede deshacer.',
+            ),
+            actions: [
+              TextButton(
+                key: const Key('settings-cancel-delete-account-button'),
+                onPressed: () {
+                  Navigator.of(dialogContext).pop(false);
+                },
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                key: const Key('settings-continue-delete-account-button'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: colorScheme.error,
+                  foregroundColor: colorScheme.onError,
+                ),
+                onPressed: () {
+                  Navigator.of(dialogContext).pop(true);
+                },
+                child: const Text('Continuar'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (confirmed != true ||
+          !context.mounted ||
+          !isOriginalAuthenticationContext()) {
+        return;
+      }
+
+      final password = await _requestDeletionPassword(context);
+
+      if (password == null ||
+          !context.mounted ||
+          !isOriginalAuthenticationContext()) {
+        return;
+      }
+
+      setState(() {
+        _isDeletingAccount = true;
+      });
+
       final reauthenticated = await authViewModel.reauthenticateWithPassword(
         password: password,
       );
+
+      // Proteccion principal:
+      //
+      // Aunque la contrasena de A sea correcta,
+      // la operacion no puede continuar si ahora
+      // esta autenticada B.
+      if (!isOriginalAuthenticationContext()) {
+        return;
+      }
 
       if (!reauthenticated) {
         if (context.mounted) {
@@ -163,7 +207,16 @@ class _SettingsViewState extends State<SettingsView> {
         return;
       }
 
+      // Solo se inicia la limpieza cuando la cuenta
+      // autorizada continua autenticada.
       final dataDeleted = await trackingViewModel.deleteAllProfilesForAccount();
+
+      // Una limpieza iniciada en A no debe autorizar
+      // posteriormente la eliminacion de Authentication
+      // si la sesion cambio durante el proceso.
+      if (!isOriginalAuthenticationContext()) {
+        return;
+      }
 
       if (!dataDeleted) {
         if (context.mounted) {
@@ -179,9 +232,21 @@ class _SettingsViewState extends State<SettingsView> {
         return;
       }
 
+      // Ultima comprobacion antes de invocar
+      // la eliminacion de Firebase Authentication.
+      if (!isOriginalAuthenticationContext()) {
+        return;
+      }
+
       final accountDeleted = await authViewModel.deleteCurrentAccount();
 
       if (!accountDeleted) {
+        // No se muestran errores pertenecientes a
+        // otra sesion que pudo iniciar mientras tanto.
+        if (!isOriginalAuthenticationContext()) {
+          return;
+        }
+
         if (context.mounted) {
           final authMessage = authViewModel.errorMessage;
 
@@ -204,9 +269,23 @@ class _SettingsViewState extends State<SettingsView> {
         return;
       }
 
-      trackingViewModel.clearAuthenticationState();
+      // La eliminacion correcta de la cuenta produce
+      // una transicion esperada a sesion no autenticada.
+      //
+      // No debemos limpiar el estado de seguimiento
+      // de una nueva cuenta B si aparecio mientras
+      // terminaba la operacion anterior.
+      if (!authViewModel.isAuthenticated &&
+          authViewModel.currentUserId == null) {
+        trackingViewModel.clearAuthenticationState();
+      }
     } finally {
-      if (mounted) {
+      // El observador es temporal y siempre se retira,
+      // incluyendo cancelaciones, errores o cambios
+      // de identidad durante cualquier dialogo.
+      authViewModel.removeListener(observeAuthenticationContext);
+
+      if (mounted && _isDeletingAccount) {
         setState(() {
           _isDeletingAccount = false;
         });
