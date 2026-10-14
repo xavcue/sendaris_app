@@ -7,6 +7,9 @@ import '../services/firebase_auth_service.dart';
 class FirebaseAuthRepository
     implements
         AuthRepository,
+        AuthIdentityRepository,
+        AuthIdentitySessionOperationsRepository,
+        AuthObservedSessionOperationsRepository,
         AuthRegistrationRepository,
         AuthEmailVerificationRepository,
         AuthSessionValidationRepository,
@@ -16,22 +19,24 @@ class FirebaseAuthRepository
   final FirebaseAuthService _service;
 
   @override
-  bool get isAuthenticated {
-    return _service.currentUser != null;
-  }
+  bool get isAuthenticated => _service.currentUser != null;
+
+  @override
+  String? get currentUserId => _service.currentUser?.uid;
+
+  @override
+  Stream<String?> get userIdChanges =>
+      _service.authStateChanges.map((user) => user?.uid).distinct();
 
   @override
   String? get currentUserEmail => _service.currentUserEmail;
 
   @override
-  bool get isCurrentUserEmailVerified {
-    return _service.isCurrentUserEmailVerified;
-  }
+  bool get isCurrentUserEmailVerified => _service.isCurrentUserEmailVerified;
 
   @override
-  Stream<bool> get authStateChanges {
-    return _service.authStateChanges.map((user) => user != null).distinct();
-  }
+  Stream<bool> get authStateChanges =>
+      _service.authStateChanges.map((user) => user != null).distinct();
 
   @override
   Future<void> signIn({required String email, required String password}) async {
@@ -41,8 +46,7 @@ class FirebaseAuthRepository
       throw AuthFailure(_safeSignInMessage(error.code));
     } catch (_) {
       throw const AuthFailure(
-        'No fue posible iniciar sesión. '
-        'Inténtalo nuevamente.',
+        'No fue posible iniciar sesión. Inténtalo nuevamente.',
       );
     }
   }
@@ -58,8 +62,95 @@ class FirebaseAuthRepository
       throw AuthFailure(_safeRegistrationMessage(error.code));
     } catch (_) {
       throw const AuthFailure(
-        'No fue posible crear la cuenta. '
-        'Inténtalo nuevamente.',
+        'No fue posible crear la cuenta. Inténtalo nuevamente.',
+      );
+    }
+  }
+
+  @override
+  Future<String> signInAndGetUserId({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      return await _service.signInAndGetUserId(
+        email: email,
+        password: password,
+      );
+    } on FirebaseAuthException catch (error) {
+      throw AuthFailure(_safeSignInMessage(error.code));
+    } catch (_) {
+      throw const AuthFailure(
+        'No fue posible iniciar sesión. Inténtalo nuevamente.',
+      );
+    }
+  }
+
+  @override
+  Future<String> createUnverifiedAccountAndGetUserId({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      return await _service.createUnverifiedAccountAndGetUserId(
+        email: email,
+        password: password,
+      );
+    } on FirebaseAuthException catch (error) {
+      throw AuthFailure(_safeRegistrationMessage(error.code));
+    } catch (_) {
+      throw const AuthFailure(
+        'No fue posible crear la cuenta. Inténtalo nuevamente.',
+      );
+    }
+  }
+
+  @override
+  Future<String> signInObserved({
+    required String email,
+    required String password,
+    required void Function() onExecutionStarted,
+  }) async {
+    try {
+      return await _service.signInObserved(
+        email: email,
+        password: password,
+        onExecutionStarted: onExecutionStarted,
+      );
+    } on FirebaseAuthException catch (error) {
+      throw AuthFailure(_safeSignInMessage(error.code));
+    } on AuthFailure {
+      rethrow;
+    } catch (_) {
+      throw const AuthFailure(
+        'No fue posible iniciar sesión. Inténtalo nuevamente.',
+      );
+    }
+  }
+
+  @override
+  Future<String> createUnverifiedAccountObserved({
+    required String email,
+    required String password,
+    required void Function() onExecutionStarted,
+    required void Function(String userId) onProvisionalAccountCreated,
+    required void Function(String userId) onProvisionalAccountCleaned,
+  }) async {
+    try {
+      return await _service.createUnverifiedAccountObserved(
+        email: email,
+        password: password,
+        onExecutionStarted: onExecutionStarted,
+        onProvisionalAccountCreated: onProvisionalAccountCreated,
+        onProvisionalAccountCleaned: onProvisionalAccountCleaned,
+      );
+    } on FirebaseAuthException catch (error) {
+      throw AuthFailure(_safeRegistrationMessage(error.code));
+    } on AuthFailure {
+      rethrow;
+    } catch (_) {
+      throw const AuthFailure(
+        'No fue posible crear la cuenta. Inténtalo nuevamente.',
       );
     }
   }
@@ -102,34 +193,54 @@ class FirebaseAuthRepository
       await _service.signOut();
     } on FirebaseAuthException {
       throw const AuthFailure(
-        'No fue posible cerrar la sesión. '
-        'Inténtalo nuevamente.',
+        'No fue posible cerrar la sesión. Inténtalo nuevamente.',
       );
     } catch (_) {
       throw const AuthFailure(
-        'No fue posible cerrar la sesión. '
-        'Inténtalo nuevamente.',
+        'No fue posible cerrar la sesión. Inténtalo nuevamente.',
       );
     }
   }
 
   @override
   Future<bool> validateCurrentSession() async {
-    if (_service.currentUser == null) {
+    final requestedUserId = currentUserId;
+
+    if (requestedUserId == null) {
       return false;
     }
+
+    var authenticationContextChanged = false;
+
+    final subscription = _service.authStateChanges.listen((user) {
+      if (user?.uid != requestedUserId) {
+        authenticationContextChanged = true;
+      }
+    });
+
+    bool isOutdatedValidation() =>
+        authenticationContextChanged || currentUserId != requestedUserId;
+
+    bool hasAuthenticatedSession() => _service.currentUser != null;
 
     try {
       await _service.reloadCurrentUser();
 
-      return _service.currentUser != null;
+      if (isOutdatedValidation()) {
+        return hasAuthenticatedSession();
+      }
+
+      return hasAuthenticatedSession();
     } on FirebaseAuthException catch (error) {
+      if (isOutdatedValidation()) {
+        return hasAuthenticatedSession();
+      }
+
       if (_invalidSessionCodes.contains(error.code)) {
         try {
           await _service.signOut();
         } catch (_) {
-          // La sesión se considera inválida aunque no sea posible
-          // completar el cierre local.
+          // Conservar el estado de sesión inválida.
         }
 
         return false;
@@ -155,10 +266,15 @@ class FirebaseAuthRepository
           );
       }
     } catch (_) {
+      if (isOutdatedValidation()) {
+        return hasAuthenticatedSession();
+      }
+
       throw const AuthFailure(
-        'No fue posible verificar la sesión. '
-        'Inténtalo nuevamente.',
+        'No fue posible verificar la sesión. Inténtalo nuevamente.',
       );
+    } finally {
+      await subscription.cancel();
     }
   }
 
@@ -168,8 +284,7 @@ class FirebaseAuthRepository
       await _service.reauthenticateCurrentUserWithPassword(password: password);
     } on StateError {
       throw const AuthFailure(
-        'Debes iniciar sesión nuevamente '
-        'antes de continuar.',
+        'Debes iniciar sesión nuevamente antes de continuar.',
       );
     } on FirebaseAuthException catch (error) {
       switch (error.code) {
@@ -179,8 +294,7 @@ class FirebaseAuthRepository
 
         case 'too-many-requests':
           throw const AuthFailure(
-            'Demasiados intentos. '
-            'Inténtalo nuevamente más tarde.',
+            'Demasiados intentos. Inténtalo nuevamente más tarde.',
           );
 
         case 'network-request-failed':
@@ -194,8 +308,7 @@ class FirebaseAuthRepository
         case 'user-token-expired':
         case 'invalid-user-token':
           throw const AuthFailure(
-            'Debes iniciar sesión nuevamente '
-            'antes de continuar.',
+            'Debes iniciar sesión nuevamente antes de continuar.',
           );
 
         default:
@@ -218,8 +331,7 @@ class FirebaseAuthRepository
       await _service.deleteCurrentUser();
     } on StateError {
       throw const AuthFailure(
-        'Debes iniciar sesión nuevamente '
-        'antes de eliminar la cuenta.',
+        'Debes iniciar sesión nuevamente antes de eliminar la cuenta.',
       );
     } on FirebaseAuthException catch (error) {
       switch (error.code) {
@@ -232,8 +344,7 @@ class FirebaseAuthRepository
 
         case 'too-many-requests':
           throw const AuthFailure(
-            'Demasiados intentos. '
-            'Inténtalo nuevamente más tarde.',
+            'Demasiados intentos. Inténtalo nuevamente más tarde.',
           );
 
         case 'network-request-failed':
@@ -250,8 +361,7 @@ class FirebaseAuthRepository
       }
     } catch (_) {
       throw const AuthFailure(
-        'No fue posible eliminar la cuenta. '
-        'Inténtalo nuevamente.',
+        'No fue posible eliminar la cuenta. Inténtalo nuevamente.',
       );
     }
   }

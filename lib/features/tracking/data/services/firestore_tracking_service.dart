@@ -59,41 +59,98 @@ class FirestoreTrackingService
   Future<void> deleteProfile(String anonymousId) async {
     final uid = _requireAuthenticatedUid();
 
-    final trackingDocument = TrackingFirestorePaths.anonymousTrackingDocument(
-      uid: uid,
-      anonymousId: anonymousId,
-    );
+    // El UID original determina todas las rutas.
+    //
+    // Ademas, cualquier cambio de autenticacion invalida
+    // permanentemente esta operacion, incluso si ocurre
+    // una secuencia A -> B -> A.
+    var authenticationContextChanged = false;
 
-    final recordsCollection = TrackingFirestorePaths.trackingRecordsCollection(
-      uid: uid,
-      anonymousId: anonymousId,
-    );
+    final subscription = _firebaseAuth.authStateChanges().listen((user) {
+      if (user?.uid != uid) {
+        authenticationContextChanged = true;
+      }
+    });
 
-    final routinesCollection = TrackingFirestorePaths.routinesCollection(
-      uid: uid,
-      anonymousId: anonymousId,
-    );
+    void requireOriginalAuthenticationContext() {
+      if (authenticationContextChanged ||
+          _firebaseAuth.currentUser?.uid != uid) {
+        throw StateError('Authentication changed during tracking deletion.');
+      }
+    }
 
-    // Firestore no elimina subcolecciones automáticamente al borrar
-    // el documento padre. Primero eliminamos los documentos que
-    // actualmente pertenecen al seguimiento.
-    await _deleteCollection(recordsCollection);
+    try {
+      requireOriginalAuthenticationContext();
 
-    await _deleteCollection(routinesCollection);
+      final trackingDocument = TrackingFirestorePaths.anonymousTrackingDocument(
+        uid: uid,
+        anonymousId: anonymousId,
+      );
 
-    // El documento principal se elimina únicamente después de que sus
-    // colecciones funcionales se hayan eliminado correctamente.
-    await _firestore.doc(trackingDocument).delete();
+      final recordsCollection =
+          TrackingFirestorePaths.trackingRecordsCollection(
+            uid: uid,
+            anonymousId: anonymousId,
+          );
 
-    await _firestore.waitForPendingWrites();
+      final routinesCollection = TrackingFirestorePaths.routinesCollection(
+        uid: uid,
+        anonymousId: anonymousId,
+      );
+
+      // Firestore no elimina automaticamente las
+      // subcolecciones cuando se borra el documento padre.
+      //
+      // Se verifica el contexto antes y despues de
+      // cada consulta y de cada lote de eliminacion.
+      await _deleteCollection(
+        recordsCollection,
+        requireAuthenticationContext: requireOriginalAuthenticationContext,
+      );
+
+      requireOriginalAuthenticationContext();
+
+      await _deleteCollection(
+        routinesCollection,
+        requireAuthenticationContext: requireOriginalAuthenticationContext,
+      );
+
+      requireOriginalAuthenticationContext();
+
+      // El documento principal solo se elimina cuando
+      // terminaron las subcolecciones y la sesion
+      // original continua siendo valida.
+      await _firestore.doc(trackingDocument).delete();
+
+      requireOriginalAuthenticationContext();
+
+      await _firestore.waitForPendingWrites();
+
+      requireOriginalAuthenticationContext();
+    } finally {
+      // La escucha de cambios de autenticacion solo
+      // existe durante esta operacion.
+      await subscription.cancel();
+    }
   }
 
-  Future<void> _deleteCollection(String collectionPath) async {
+  Future<void> _deleteCollection(
+    String collectionPath, {
+    required void Function() requireAuthenticationContext,
+  }) async {
     while (true) {
+      requireAuthenticationContext();
+
       final snapshot = await _firestore
           .collection(collectionPath)
           .limit(_deleteBatchSize)
           .get(const GetOptions(source: Source.server));
+
+      // Una consulta iniciada por A puede terminar
+      // despues de que se haya autenticado B.
+      //
+      // En ese caso no se inicia ningun borrado.
+      requireAuthenticationContext();
 
       if (snapshot.docs.isEmpty) {
         return;
@@ -105,7 +162,14 @@ class FirestoreTrackingService
         batch.delete(document.reference);
       }
 
+      // No confirmar el lote si ya cambio la sesion.
+      requireAuthenticationContext();
+
       await batch.commit();
+
+      // Una vez confirmado un lote, no puede deshacerse.
+      // Esta comprobacion evita comenzar el siguiente.
+      requireAuthenticationContext();
 
       if (snapshot.docs.length < _deleteBatchSize) {
         return;
