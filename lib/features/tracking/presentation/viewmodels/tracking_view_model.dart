@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../../domain/exceptions/tracking_failure.dart';
 import '../../domain/models/anonymous_tracking_profile.dart';
 import '../../domain/repositories/tracking_deletion_repository.dart';
+import '../../domain/repositories/tracking_observation_repository.dart';
 import '../../domain/repositories/tracking_repository.dart';
 import '../../domain/services/anonymous_tracking_profile_factory.dart';
 
@@ -11,11 +14,19 @@ class TrackingViewModel extends ChangeNotifier {
     : _repository = repository,
       _deletionRepository = repository is TrackingDeletionRepository
           ? repository as TrackingDeletionRepository
+          : null,
+      _observationRepository = repository is TrackingObservationRepository
+          ? repository as TrackingObservationRepository
           : null;
 
   final TrackingRepository _repository;
   final TrackingDeletionRepository? _deletionRepository;
+  final TrackingObservationRepository? _observationRepository;
   final AnonymousTrackingProfileFactory _profileFactory;
+
+  StreamSubscription<List<AnonymousTrackingProfile>>? _profilesSubscription;
+  List<AnonymousTrackingProfile>? _pendingObservedProfiles;
+  int? _observationGeneration;
 
   bool _isLoading = false;
   bool _isInitialized = false;
@@ -100,6 +111,7 @@ class TrackingViewModel extends ChangeNotifier {
     _hasAuthenticationContext = true;
     _authenticatedUserId = userId;
 
+    _cancelProfilesObservation();
     _invalidateAuthenticationGeneration();
     _resetTrackingState();
   }
@@ -160,6 +172,9 @@ class TrackingViewModel extends ChangeNotifier {
     } finally {
       if (_isRequestCurrent(generation)) {
         _setLoading(false);
+        if (_isInitialized) {
+          _startProfilesObservation(generation);
+        }
       }
     }
   }
@@ -198,6 +213,11 @@ class TrackingViewModel extends ChangeNotifier {
 
       _activeProfile = profile;
       _isInitialized = true;
+
+      // La escritura local ya finalizó correctamente.
+      // Una instantánea recibida durante esa escritura
+      // no debe reemplazar el seguimiento recién creado.
+      _pendingObservedProfiles = null;
 
       _successMessage = 'Seguimiento creado correctamente.';
 
@@ -257,6 +277,10 @@ class TrackingViewModel extends ChangeNotifier {
 
       _profiles = normalizedProfiles;
 
+      // La recuperación finalizada tiene prioridad sobre
+      // observaciones anteriores recibidas durante la consulta.
+      _pendingObservedProfiles = null;
+
       _activeProfile =
           _findActiveProfileById(
             profiles: _profiles,
@@ -292,6 +316,9 @@ class TrackingViewModel extends ChangeNotifier {
     } finally {
       if (_isRequestCurrent(generation)) {
         _setLoading(false);
+        if (_isInitialized) {
+          _startProfilesObservation(generation);
+        }
       }
     }
   }
@@ -504,6 +531,10 @@ class TrackingViewModel extends ChangeNotifier {
       _activeProfile = null;
       _isInitialized = true;
 
+      // Impide restaurar perfiles desde una instantánea
+      // anterior a la limpieza confirmada de la cuenta.
+      _pendingObservedProfiles = null;
+
       _successMessage = 'Datos de la cuenta eliminados correctamente.';
 
       return true;
@@ -539,6 +570,7 @@ class TrackingViewModel extends ChangeNotifier {
 
     _authenticatedUserId = null;
 
+    _cancelProfilesObservation();
     _invalidateAuthenticationGeneration();
     _resetTrackingState();
   }
@@ -653,6 +685,10 @@ class TrackingViewModel extends ChangeNotifier {
   }
 
   void _applyDeletedProfiles(Set<String> deletedIds) {
+    // Descarta instantáneas recibidas antes de confirmar
+    // los borrados locales. También cubre borrados parciales.
+    _pendingObservedProfiles = null;
+
     _profiles = _sortProfiles(
       _profiles.where((profile) => !deletedIds.contains(profile.anonymousId)),
     );
@@ -766,13 +802,148 @@ class TrackingViewModel extends ChangeNotifier {
     }
 
     _isLoading = value;
-
     notifyListeners();
+
+    if (!value) {
+      _applyPendingObservedProfiles();
+    }
+  }
+
+  void _startProfilesObservation(int generation) {
+    final repository = _observationRepository;
+
+    if (repository == null ||
+        _profilesSubscription != null ||
+        !_isInitialized ||
+        !_isRequestCurrent(generation)) {
+      return;
+    }
+
+    _observationGeneration = generation;
+
+    _profilesSubscription = repository.watchProfiles().listen(
+      (profiles) {
+        if (!_isRequestCurrent(generation) ||
+            _observationGeneration != generation ||
+            !_isInitialized) {
+          return;
+        }
+
+        if (_isLoading) {
+          _pendingObservedProfiles = List<AnonymousTrackingProfile>.from(
+            profiles,
+          );
+          return;
+        }
+
+        _applyObservedProfiles(profiles);
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (!_isRequestCurrent(generation) ||
+            _observationGeneration != generation) {
+          return;
+        }
+
+        _profilesSubscription = null;
+        _pendingObservedProfiles = null;
+
+        _errorMessage = error is TrackingFailure
+            ? error.message
+            : 'No fue posible sincronizar los seguimientos. '
+                  'Inténtalo nuevamente.';
+
+        notifyListeners();
+      },
+      onDone: () {
+        if (_observationGeneration == generation) {
+          _profilesSubscription = null;
+        }
+      },
+      cancelOnError: true,
+    );
+  }
+
+  void _applyPendingObservedProfiles() {
+    final pending = _pendingObservedProfiles;
+    _pendingObservedProfiles = null;
+
+    if (pending == null ||
+        _isLoading ||
+        !_isInitialized ||
+        _observationGeneration != _authenticationGeneration ||
+        !_isRequestCurrent(_authenticationGeneration)) {
+      return;
+    }
+
+    _applyObservedProfiles(pending);
+  }
+
+  void _applyObservedProfiles(List<AnonymousTrackingProfile> observedProfiles) {
+    if (_isDisposed) {
+      return;
+    }
+
+    final ordered = _sortProfiles(observedProfiles);
+    final previousSelectedId = _activeProfile?.anonymousId;
+
+    final nextSelected =
+        _findActiveProfileById(
+          profiles: ordered,
+          anonymousId: previousSelectedId,
+        ) ??
+        _findActiveProfile(ordered);
+
+    final changed =
+        !_haveSameProfiles(_profiles, ordered) ||
+        previousSelectedId != nextSelected?.anonymousId;
+
+    _profiles = ordered;
+    _activeProfile = nextSelected;
+
+    if (changed) {
+      notifyListeners();
+    }
+  }
+
+  bool _haveSameProfiles(
+    List<AnonymousTrackingProfile> first,
+    List<AnonymousTrackingProfile> second,
+  ) {
+    if (first.length != second.length) {
+      return false;
+    }
+
+    for (var index = 0; index < first.length; index++) {
+      final a = first[index];
+      final b = second[index];
+
+      if (a.anonymousId != b.anonymousId ||
+          a.trackingNumber != b.trackingNumber ||
+          a.isActive != b.isActive ||
+          !a.createdAt.isAtSameMomentAs(b.createdAt)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  void _cancelProfilesObservation() {
+    final subscription = _profilesSubscription;
+
+    _profilesSubscription = null;
+    _pendingObservedProfiles = null;
+    _observationGeneration = null;
+
+    if (subscription != null) {
+      unawaited(subscription.cancel());
+    }
   }
 
   @override
   void dispose() {
     _isDisposed = true;
+    _cancelProfilesObservation();
     _invalidateAuthenticationGeneration();
 
     super.dispose();

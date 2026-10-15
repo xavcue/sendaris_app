@@ -444,3 +444,38 @@ test(
     );
   },
 );
+
+test(
+  'una actualización no puede introducir campos adicionales',
+  async () => {
+    const db = verifiedDb('usuario-a');
+
+    const anonymousId =
+      '550e8400-e29b-41d4-a716-446655440000';
+
+    await createActiveTrackingProfile({
+      db,
+      uid: 'usuario-a',
+      anonymousId,
+    });
+
+    const reference = doc(
+      db,
+      `usuarios/usuario-a/seguimientos/${anonymousId}/rutinas/rutina-10`,
+    );
+
+    await setDoc(
+      reference,
+      validRoutineData(),
+    );
+
+    await assertFails(
+      updateDoc(
+        reference,
+        {
+          campoNoPermitido: 'valor',
+        },
+      ),
+    );
+  },
+);

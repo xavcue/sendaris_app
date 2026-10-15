@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -5,10 +7,15 @@ import '../../domain/models/anonymous_tracking_profile.dart';
 import '../firestore/tracking_firestore_paths.dart';
 import '../mappers/anonymous_tracking_profile_mapper.dart';
 import 'tracking_deletion_remote_service.dart';
+import 'tracking_observation_remote_service.dart';
+import 'tracking_observation_snapshot_policy.dart';
 import 'tracking_remote_service.dart';
 
 class FirestoreTrackingService
-    implements TrackingRemoteService, TrackingDeletionRemoteService {
+    implements
+        TrackingRemoteService,
+        TrackingDeletionRemoteService,
+        TrackingObservationRemoteService {
   FirestoreTrackingService(this._firestore, this._firebaseAuth);
 
   static const int _deleteBatchSize = 400;
@@ -56,14 +63,160 @@ class FirestoreTrackingService
   }
 
   @override
+  Stream<List<AnonymousTrackingProfile>> watchProfiles() {
+    final uid = _requireAuthenticatedUid();
+
+    final collectionPath = TrackingFirestorePaths.anonymousTrackingCollection(
+      uid,
+    );
+
+    StreamSubscription<User?>? identitySubscription;
+
+    StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+    profilesSubscription;
+
+    late final StreamController<List<AnonymousTrackingProfile>> controller;
+
+    var terminated = false;
+
+    Future<void> cancelSubscriptions() async {
+      final identity = identitySubscription;
+      final profiles = profilesSubscription;
+
+      identitySubscription = null;
+      profilesSubscription = null;
+
+      await profiles?.cancel();
+      await identity?.cancel();
+    }
+
+    void terminateWithError(Object error, StackTrace stackTrace) {
+      if (terminated) {
+        return;
+      }
+
+      terminated = true;
+
+      if (!controller.isClosed) {
+        controller.addError(error, stackTrace);
+        unawaited(controller.close());
+      }
+
+      unawaited(cancelSubscriptions());
+    }
+
+    void invalidateAuthenticationContext() {
+      terminateWithError(
+        StateError('Authentication changed during tracking observation.'),
+        StackTrace.current,
+      );
+    }
+
+    bool isAuthenticationContextValid() {
+      if (terminated) {
+        return false;
+      }
+
+      if (_firebaseAuth.currentUser?.uid != uid) {
+        invalidateAuthenticationContext();
+        return false;
+      }
+
+      return true;
+    }
+
+    controller = StreamController<List<AnonymousTrackingProfile>>(
+      onListen: () {
+        if (!isAuthenticationContextValid()) {
+          return;
+        }
+
+        // La escucha está vinculada al UID original.
+        // Un cambio A -> B -> A invalida la suscripción anterior.
+        identitySubscription = _firebaseAuth.authStateChanges().listen(
+          (user) {
+            if (user?.uid != uid) {
+              invalidateAuthenticationContext();
+            }
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            terminateWithError(error, stackTrace);
+          },
+        );
+
+        if (!isAuthenticationContextValid()) {
+          return;
+        }
+
+        profilesSubscription = _firestore
+            .collection(collectionPath)
+            .orderBy('fechaCreacion')
+            .snapshots(includeMetadataChanges: true)
+            .listen(
+              (snapshot) {
+                if (!isAuthenticationContextValid()) {
+                  return;
+                }
+
+                // Solo se aceptan datos confirmados por el
+                // servidor y sin escrituras locales pendientes.
+                //
+                // Esta política evita aplicar instantáneas de
+                // caché potencialmente obsoletas.
+                final metadata = snapshot.metadata;
+
+                final shouldEmit = TrackingObservationSnapshotPolicy.shouldEmit(
+                  isFromCache: metadata.isFromCache,
+                  hasPendingWrites: metadata.hasPendingWrites,
+                );
+
+                if (!shouldEmit) {
+                  return;
+                }
+
+                try {
+                  final profiles = snapshot.docs
+                      .map(
+                        (document) =>
+                            AnonymousTrackingProfileMapper.fromFirestore(
+                              anonymousId: document.id,
+                              data: document.data(),
+                            ),
+                      )
+                      .toList(growable: false);
+
+                  if (isAuthenticationContextValid()) {
+                    controller.add(profiles);
+                  }
+                } catch (error, stackTrace) {
+                  terminateWithError(error, stackTrace);
+                }
+              },
+              onError: (Object error, StackTrace stackTrace) {
+                terminateWithError(error, stackTrace);
+              },
+              onDone: () {
+                if (!controller.isClosed) {
+                  unawaited(controller.close());
+                }
+
+                unawaited(cancelSubscriptions());
+              },
+            );
+      },
+      onCancel: cancelSubscriptions,
+    );
+
+    return controller.stream;
+  }
+
+  @override
   Future<void> deleteProfile(String anonymousId) async {
     final uid = _requireAuthenticatedUid();
 
     // El UID original determina todas las rutas.
-    //
-    // Ademas, cualquier cambio de autenticacion invalida
-    // permanentemente esta operacion, incluso si ocurre
-    // una secuencia A -> B -> A.
+    // Cualquier cambio de autenticación invalida
+    // permanentemente la operación, incluso A -> B -> A.
     var authenticationContextChanged = false;
 
     final subscription = _firebaseAuth.authStateChanges().listen((user) {
@@ -98,11 +251,8 @@ class FirestoreTrackingService
         anonymousId: anonymousId,
       );
 
-      // Firestore no elimina automaticamente las
-      // subcolecciones cuando se borra el documento padre.
-      //
-      // Se verifica el contexto antes y despues de
-      // cada consulta y de cada lote de eliminacion.
+      // Firestore no elimina automáticamente las
+      // subcolecciones al eliminar el documento padre.
       await _deleteCollection(
         recordsCollection,
         requireAuthenticationContext: requireOriginalAuthenticationContext,
@@ -117,9 +267,8 @@ class FirestoreTrackingService
 
       requireOriginalAuthenticationContext();
 
-      // El documento principal solo se elimina cuando
-      // terminaron las subcolecciones y la sesion
-      // original continua siendo valida.
+      // El documento principal se elimina únicamente
+      // después de procesar las subcolecciones.
       await _firestore.doc(trackingDocument).delete();
 
       requireOriginalAuthenticationContext();
@@ -128,8 +277,6 @@ class FirestoreTrackingService
 
       requireOriginalAuthenticationContext();
     } finally {
-      // La escucha de cambios de autenticacion solo
-      // existe durante esta operacion.
       await subscription.cancel();
     }
   }
@@ -146,10 +293,6 @@ class FirestoreTrackingService
           .limit(_deleteBatchSize)
           .get(const GetOptions(source: Source.server));
 
-      // Una consulta iniciada por A puede terminar
-      // despues de que se haya autenticado B.
-      //
-      // En ese caso no se inicia ningun borrado.
       requireAuthenticationContext();
 
       if (snapshot.docs.isEmpty) {
@@ -162,13 +305,10 @@ class FirestoreTrackingService
         batch.delete(document.reference);
       }
 
-      // No confirmar el lote si ya cambio la sesion.
       requireAuthenticationContext();
 
       await batch.commit();
 
-      // Una vez confirmado un lote, no puede deshacerse.
-      // Esta comprobacion evita comenzar el siguiente.
       requireAuthenticationContext();
 
       if (snapshot.docs.length < _deleteBatchSize) {

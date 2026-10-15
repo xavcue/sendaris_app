@@ -1129,16 +1129,37 @@ service cloud.firestore {
               idAnonimo
             )
             && (
-              isValidBehaviorUpdate(uid)
-              || isValidSleepUpdate(uid)
-              || isValidFeedingUpdate(uid)
-              || isValidSocialInteractionUpdate(uid)
-              || isValidDysregulationUpdate(uid)
-              || isValidRoutineStatusUpdate(
-                uid,
-                idAnonimo
-              )
-              || isValidAtypicalSituationUpdate(uid)
+              request.resource.data.tipoRegistro == 'estadoRutina'
+                ? isValidRoutineStatusUpdate(
+                    uid,
+                    idAnonimo
+                  )
+                : (
+                  (
+                    request.resource.data.tipoRegistro == 'conducta'
+                    && isValidBehaviorUpdate(uid)
+                  )
+                  || (
+                    request.resource.data.tipoRegistro == 'sueno'
+                    && isValidSleepUpdate(uid)
+                  )
+                  || (
+                    request.resource.data.tipoRegistro == 'alimentacion'
+                    && isValidFeedingUpdate(uid)
+                  )
+                  || (
+                    request.resource.data.tipoRegistro == 'interaccionSocial'
+                    && isValidSocialInteractionUpdate(uid)
+                  )
+                  || (
+                    request.resource.data.tipoRegistro == 'desregulacion'
+                    && isValidDysregulationUpdate(uid)
+                  )
+                  || (
+                    request.resource.data.tipoRegistro == 'situacionAtipica'
+                    && isValidAtypicalSituationUpdate(uid)
+                  )
+                )
             );
 
           allow delete: if isOwner(uid);

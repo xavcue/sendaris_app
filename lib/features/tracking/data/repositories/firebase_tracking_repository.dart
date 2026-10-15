@@ -3,12 +3,17 @@ import 'package:firebase_core/firebase_core.dart';
 import '../../domain/exceptions/tracking_failure.dart';
 import '../../domain/models/anonymous_tracking_profile.dart';
 import '../../domain/repositories/tracking_deletion_repository.dart';
+import '../../domain/repositories/tracking_observation_repository.dart';
 import '../../domain/repositories/tracking_repository.dart';
 import '../services/tracking_deletion_remote_service.dart';
+import '../services/tracking_observation_remote_service.dart';
 import '../services/tracking_remote_service.dart';
 
 class FirebaseTrackingRepository
-    implements TrackingRepository, TrackingDeletionRepository {
+    implements
+        TrackingRepository,
+        TrackingDeletionRepository,
+        TrackingObservationRepository {
   FirebaseTrackingRepository(this._remoteService);
 
   final TrackingRemoteService _remoteService;
@@ -44,6 +49,38 @@ class FirebaseTrackingRepository
     } catch (_) {
       throw const TrackingFailure(
         'No fue posible cargar la información. '
+        'Inténtalo nuevamente.',
+      );
+    }
+  }
+
+  @override
+  Stream<List<AnonymousTrackingProfile>> watchProfiles() async* {
+    if (_remoteService is! TrackingObservationRemoteService) {
+      throw const TrackingFailure(
+        'No fue posible sincronizar los seguimientos.',
+      );
+    }
+
+    final observationService =
+        _remoteService as TrackingObservationRemoteService;
+
+    try {
+      await for (final profiles in observationService.watchProfiles()) {
+        yield profiles;
+      }
+    } on StateError {
+      throw const TrackingFailure(
+        'La sesión cambió o dejó de estar disponible. '
+        'Inicia sesión nuevamente para sincronizar tus seguimientos.',
+      );
+    } on FirebaseException catch (error) {
+      throw TrackingFailure(_safeRecoveryMessage(error.code));
+    } on TrackingFailure {
+      rethrow;
+    } catch (_) {
+      throw const TrackingFailure(
+        'No fue posible sincronizar los seguimientos. '
         'Inténtalo nuevamente.',
       );
     }
