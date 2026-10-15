@@ -1,6 +1,6 @@
 flutter_launcher_icons:
   android: true
-  ios: true
+  ios: false
 
   image_path: "assets/branding/sendaris_app_icon.png"
 
@@ -9,5 +9,3 @@ flutter_launcher_icons:
   adaptive_icon_background: "#EAFBF6"
   adaptive_icon_foreground: "assets/branding/sendaris_app_foreground.png"
   adaptive_icon_foreground_inset: 20
-
-  remove_alpha_ios: true
