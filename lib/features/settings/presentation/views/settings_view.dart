@@ -68,7 +68,6 @@ class _SettingsViewState extends State<SettingsView> {
 
     if (success) {
       trackingViewModel.clearAuthenticationState();
-
       return;
     }
 
@@ -114,7 +113,6 @@ class _SettingsViewState extends State<SettingsView> {
 
     bool isOriginalAuthenticationContext() {
       observeAuthenticationContext();
-
       return !authenticationContextChanged;
     }
 
@@ -312,17 +310,19 @@ class _SettingsViewState extends State<SettingsView> {
   @override
   Widget build(BuildContext context) {
     final themeModeController = context.watch<ThemeModeController>();
-
     final authViewModel = context.watch<AuthViewModel?>();
-
     final trackingViewModel = context.watch<TrackingViewModel?>();
 
     final theme = Theme.of(context);
-
     final colorScheme = theme.colorScheme;
 
     final accountManagementAvailable =
         authViewModel != null && trackingViewModel != null;
+
+    final hasAuthenticatedAccount =
+        accountManagementAvailable && authViewModel.isAuthenticated;
+
+    final currentEmail = authViewModel?.currentUserEmail?.trim() ?? '';
 
     final isSessionBusy =
         _isDeletingAccount ||
@@ -352,10 +352,10 @@ class _SettingsViewState extends State<SettingsView> {
                   const SizedBox(height: 7),
                   Text(
                     accountManagementAvailable
-                        ? 'Personaliza la apariencia '
-                              'y administra tu sesión.'
-                        : 'Personaliza la apariencia '
-                              'de Sendaris.',
+                        ? 'Consulta tu cuenta, revisa la privacidad '
+                              'y administra la configuración de Sendaris.'
+                        : 'Personaliza la apariencia y consulta '
+                              'la información de privacidad de Sendaris.',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
@@ -363,14 +363,157 @@ class _SettingsViewState extends State<SettingsView> {
                 ],
               ),
             ),
+
+            // Cuenta actual: solo para sesiones autenticadas.
+            if (hasAuthenticatedAccount) ...[
+              const SizedBox(height: 28),
+              const AnimatedEntrance(
+                delay: Duration(milliseconds: 60),
+                child: SendarisSectionLabel(label: 'Cuenta actual'),
+              ),
+              const SizedBox(height: 14),
+              AnimatedEntrance(
+                delay: const Duration(milliseconds: 110),
+                duration: const Duration(milliseconds: 450),
+                beginScale: 0.99,
+                child: Card(
+                  key: const Key('settings-current-account-card'),
+                  margin: EdgeInsets.zero,
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            color: colorScheme.primaryContainer.withValues(
+                              alpha: 0.62,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Icon(
+                            Icons.account_circle_outlined,
+                            color: colorScheme.primary,
+                            size: 26,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Correo de la cuenta',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                currentEmail.isNotEmpty
+                                    ? currentEmail
+                                    : 'Correo no disponible',
+                                key: const Key('settings-account-email'),
+                                softWrap: true,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+
+            // Privacidad: contenido recuperado de ambos stashes.
             const SizedBox(height: 28),
             const AnimatedEntrance(
-              delay: Duration(milliseconds: 90),
+              delay: Duration(milliseconds: 150),
+              child: SendarisSectionLabel(label: 'Privacidad'),
+            ),
+            const SizedBox(height: 14),
+            AnimatedEntrance(
+              delay: const Duration(milliseconds: 200),
+              duration: const Duration(milliseconds: 450),
+              beginScale: 0.99,
+              child: Card(
+                key: const Key('settings-privacy-card'),
+                margin: EdgeInsets.zero,
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 50,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: colorScheme.primaryContainer.withValues(
+                            alpha: 0.62,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(
+                          Icons.shield_outlined,
+                          color: colorScheme.primary,
+                          size: 26,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Seguimientos anónimos',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Los seguimientos no solicitan '
+                              'nombres ni identificadores '
+                              'personales del niño.',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 7),
+                            Text(
+                              'La información de cada seguimiento '
+                              'se mantiene separada.',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // Apariencia: conserva el comportamiento de HU-29.
+            const SizedBox(height: 28),
+            const AnimatedEntrance(
+              delay: Duration(milliseconds: 250),
               child: SendarisSectionLabel(label: 'Apariencia'),
             ),
             const SizedBox(height: 14),
             AnimatedEntrance(
-              delay: const Duration(milliseconds: 150),
+              delay: const Duration(milliseconds: 300),
               duration: const Duration(milliseconds: 450),
               beginScale: 0.99,
               child: Card(
@@ -441,172 +584,154 @@ class _SettingsViewState extends State<SettingsView> {
                 ),
               ),
             ),
-            if (accountManagementAvailable) ...[
+
+            // Acciones sensibles: se conservan los flujos existentes.
+            if (authViewModel != null && trackingViewModel != null) ...[
               const SizedBox(height: 28),
-              const AnimatedEntrance(
-                delay: Duration(milliseconds: 220),
-                child: SendarisSectionLabel(label: 'Sesión'),
-              ),
-              const SizedBox(height: 14),
               AnimatedEntrance(
-                delay: const Duration(milliseconds: 280),
-                duration: const Duration(milliseconds: 450),
-                beginScale: 0.99,
-                child: Card(
-                  margin: EdgeInsets.zero,
-                  child: InkWell(
-                    key: const Key('settings-sign-out-action'),
-                    borderRadius: BorderRadius.circular(22),
-                    onTap: isSessionBusy
-                        ? null
-                        : () {
-                            _confirmSignOut(
-                              context,
-                              authViewModel,
-                              trackingViewModel,
-                            );
-                          },
-                    child: Padding(
-                      padding: const EdgeInsets.all(18),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 46,
-                            height: 46,
-                            decoration: BoxDecoration(
-                              color: colorScheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Icon(
-                              Icons.logout_rounded,
-                              color: colorScheme.onSurface,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Cerrar sesión',
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                const SizedBox(height: 5),
-                                Text(
-                                  'Finaliza el acceso '
-                                  'actual a Sendaris.',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (authViewModel.isLoading && !_isDeletingAccount)
-                            const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          else
-                            Icon(
-                              Icons.chevron_right_rounded,
-                              color: colorScheme.outline,
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
+                delay: const Duration(milliseconds: 360),
+                child: _SettingsActionCard(
+                  cardKey: const Key('settings-delete-account-card'),
+                  actionKey: const Key('settings-delete-account-action'),
+                  title: 'Eliminar cuenta',
+                  subtitle:
+                      'Elimina definitivamente tu cuenta '
+                      'y todos los datos asociados.',
+                  icon: Icons.delete_forever_rounded,
+                  destructive: true,
+                  showProgress: _isDeletingAccount,
+                  onTap: isSessionBusy
+                      ? null
+                      : () {
+                          _confirmDeleteAccount(
+                            context,
+                            authViewModel,
+                            trackingViewModel,
+                          );
+                        },
                 ),
               ),
-              const SizedBox(height: 28),
-              const AnimatedEntrance(
-                delay: Duration(milliseconds: 340),
-                child: SendarisSectionLabel(label: 'Cuenta'),
-              ),
               const SizedBox(height: 14),
               AnimatedEntrance(
-                delay: const Duration(milliseconds: 400),
-                duration: const Duration(milliseconds: 450),
-                beginScale: 0.99,
-                child: Card(
-                  key: const Key('settings-delete-account-card'),
-                  margin: EdgeInsets.zero,
-                  child: InkWell(
-                    key: const Key('settings-delete-account-action'),
-                    borderRadius: BorderRadius.circular(22),
-                    onTap: isSessionBusy
-                        ? null
-                        : () {
-                            _confirmDeleteAccount(
-                              context,
-                              authViewModel,
-                              trackingViewModel,
-                            );
-                          },
-                    child: Padding(
-                      padding: const EdgeInsets.all(18),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 46,
-                            height: 46,
-                            decoration: BoxDecoration(
-                              color: colorScheme.errorContainer,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Icon(
-                              Icons.delete_forever_rounded,
-                              color: colorScheme.onErrorContainer,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Eliminar cuenta',
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    color: colorScheme.error,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                const SizedBox(height: 5),
-                                Text(
-                                  'Elimina definitivamente '
-                                  'tu cuenta y todos '
-                                  'los datos asociados.',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: colorScheme.onSurfaceVariant,
-                                    height: 1.35,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (_isDeletingAccount)
-                            const SizedBox(
-                              key: Key('settings-delete-account-progress'),
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          else
-                            Icon(
-                              Icons.chevron_right_rounded,
-                              color: colorScheme.error,
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
+                delay: const Duration(milliseconds: 410),
+                child: _SettingsActionCard(
+                  actionKey: const Key('settings-sign-out-action'),
+                  title: 'Cerrar sesión',
+                  subtitle: 'Finaliza el acceso actual a Sendaris.',
+                  icon: Icons.logout_rounded,
+                  showProgress: authViewModel.isLoading && !_isDeletingAccount,
+                  onTap: isSessionBusy
+                      ? null
+                      : () {
+                          _confirmSignOut(
+                            context,
+                            authViewModel,
+                            trackingViewModel,
+                          );
+                        },
                 ),
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsActionCard extends StatelessWidget {
+  const _SettingsActionCard({
+    required this.actionKey,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.showProgress,
+    required this.onTap,
+    this.cardKey,
+    this.destructive = false,
+  });
+
+  final Key? cardKey;
+  final Key actionKey;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final bool destructive;
+  final bool showProgress;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    final iconBackground = destructive
+        ? colorScheme.errorContainer
+        : colorScheme.surfaceContainerHighest;
+
+    final iconForeground = destructive
+        ? colorScheme.onErrorContainer
+        : colorScheme.onSurface;
+
+    return Card(
+      key: cardKey,
+      margin: EdgeInsets.zero,
+      child: InkWell(
+        key: actionKey,
+        borderRadius: BorderRadius.circular(22),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: iconBackground,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: iconForeground),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: destructive ? colorScheme.error : null,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (showProgress)
+                SizedBox(
+                  key: destructive
+                      ? const Key('settings-delete-account-progress')
+                      : null,
+                  width: 22,
+                  height: 22,
+                  child: const CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: destructive ? colorScheme.error : colorScheme.outline,
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -735,19 +860,14 @@ class _ThemeOption extends StatelessWidget {
   });
 
   final String title;
-
   final String subtitle;
-
   final IconData icon;
-
   final bool selected;
-
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
     final colorScheme = theme.colorScheme;
 
     return Semantics(
