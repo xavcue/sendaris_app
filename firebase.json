@@ -12,8 +12,7 @@
         "lib/firebase_options.dart": {
           "projectId": "sendaris-app-xavcue",
           "configurations": {
-            "android": "1:376836586691:android:cd6720943dbeef8f4c3676",
-            "ios": "1:376836586691:ios:c042e26fe658db084c3676"
+            "android": "1:376836586691:android:cd6720943dbeef8f4c3676"
           }
         }
       }

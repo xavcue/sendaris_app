@@ -1,50 +1,72 @@
 # Sendaris
 
-Sendaris es una aplicación móvil desarrollada como proyecto de titulación para el registro de conductas y rutinas, así como para el monitoreo descriptivo de indicadores biopsicosociales en niños con trastorno del espectro autista (TEA).
+Sendaris es una aplicación móvil para Android desarrollada como proyecto de titulación, destinada al registro de conductas y rutinas, así como al procesamiento y monitoreo descriptivo de indicadores biopsicosociales en niños con trastorno del espectro autista (TEA).
 
-El repositorio contiene el código fuente, la configuración técnica y los recursos necesarios para el desarrollo de la aplicación móvil.
+El repositorio contiene el código fuente, las configuraciones técnicas, las pruebas y los recursos necesarios para el desarrollo y mantenimiento de la aplicación.
 
 ## Objetivo
 
-Implementar una aplicación móvil que permita registrar conductas y rutinas, así como generar y monitorear indicadores biopsicosociales, para facilitar el seguimiento mediante una herramienta organizada, comprensible y segura.
+Desarrollar una aplicación móvil que permita registrar conductas y rutinas, procesar la información registrada y monitorear indicadores biopsicosociales descriptivos mediante historiales, tendencias, gráficos y reportes, proporcionando una herramienta organizada, comprensible y segura.
 
-## Plataformas
+## Plataforma
 
-Sendaris está planteada como una aplicación móvil multiplataforma desarrollada con Flutter para:
+Sendaris está desarrollada con Flutter y Dart exclusivamente para dispositivos móviles Android.
 
-- Android
-- iOS
+La aplicación se distribuye mediante un archivo APK que puede instalarse directamente en dispositivos Android compatibles.
 
-La aplicación comparte una misma base de código y utiliza servicios administrados de Firebase para autenticación, persistencia y controles de seguridad.
+No se contempla el desarrollo de versiones para iOS, web o escritorio, ni la publicación de la aplicación en Google Play Store u otras tiendas virtuales.
 
-## Alcance
+## Alcance funcional
 
-Sendaris permitirá:
+La aplicación contempla las siguientes funcionalidades:
 
-- Registrar conductas.
-- Registrar horas de sueño.
-- Registrar información general de alimentación.
-- Registrar interacción social.
-- Registrar episodios de desregulación emocional.
-- Registrar situaciones atípicas.
-- Crear y administrar rutinas.
-- Registrar el estado de las rutinas.
-- Consultar historial de registros.
-- Visualizar indicadores descriptivos.
-- Visualizar tendencias.
-- Comparar periodos.
-- Consultar cobertura de registros.
-- Generar reportes internos.
+- Autenticación y gestión de cuentas de usuario.
+- Administración de seguimientos asociados a identificadores internos anónimos.
+- Registro de conductas.
+- Registro de sueño.
+- Registro general de alimentación.
+- Registro de interacción social.
+- Registro de episodios de desregulación emocional.
+- Registro de otras situaciones.
+- Creación, edición y administración de rutinas.
+- Registro y consulta de estados de rutinas.
+- Consulta de historiales de registros.
+- Organización cronológica de la información.
+- Procesamiento de indicadores descriptivos.
+- Visualización de tendencias y gráficos.
+- Comparación descriptiva entre periodos.
+- Consulta de cobertura de registros.
+- Generación y consulta interna de reportes.
+
+Las funcionalidades se implementan y validan progresivamente de acuerdo con los requerimientos y las historias de usuario del proyecto.
 
 ## Privacidad y seguridad
 
-Los registros relacionados con los niños no utilizarán identificadores personales directos. El seguimiento se asociará a identificadores internos anónimos definidos por el sistema.
+Sendaris utiliza identificadores internos anónimos para organizar los seguimientos.
 
-Los datos de autenticación de los usuarios autorizados se mantienen separados lógicamente de los datos de seguimiento.
+Los registros no deben contener nombres, apellidos, números de identificación, fotografías, direcciones, instituciones educativas, historias clínicas ni otros datos que permitan identificar directamente a los niños.
 
-La aplicación incorpora controles de acceso y seguridad mediante Firebase Authentication, Cloud Firestore Security Rules y Firebase App Check.
+Los datos de autenticación de los usuarios autorizados se mantienen separados lógicamente de los registros de seguimiento.
 
-Sendaris no incluirá funciones destinadas a publicar, compartir, enviar o divulgar los registros de seguimiento a terceros.
+La aplicación incorpora mecanismos de protección mediante:
+
+- Firebase Authentication para autenticación y gestión de cuentas.
+- Cloud Firestore para persistencia remota.
+- Firestore Security Rules para autorización y control de acceso.
+- Firebase App Check para contribuir a proteger los servicios de Firebase.
+- Validaciones funcionales y controles de acceso asociados a cada usuario.
+
+La aplicación no incorpora funcionalidades destinadas a publicar, enviar o compartir registros y reportes de seguimiento con terceros.
+
+## Firebase App Check
+
+Durante el desarrollo y las pruebas en modo Debug se utiliza Android Debug Provider.
+
+Para las compilaciones Release se utiliza Android Play Integrity Provider.
+
+Las compilaciones destinadas a instalación directa mediante APK requieren una configuración de integridad compatible con la distribución fuera de Google Play Store.
+
+Los tokens Debug de Firebase App Check no deben incluirse en el código fuente, compartirse públicamente ni incorporarse a los APK de distribución.
 
 ## Tecnologías principales
 
@@ -62,51 +84,65 @@ Sendaris no incluirá funciones destinadas a publicar, compartir, enviar o divul
 
 ## Arquitectura
 
-La aplicación utiliza una arquitectura organizada por funcionalidades y separación de responsabilidades mediante:
+Sendaris utiliza una arquitectura modular organizada por funcionalidades, aplicando separación de responsabilidades mediante:
 
-- MVVM
-- Repositories
-- Services
+- MVVM (Model-View-ViewModel).
+- Repositories.
+- Services.
 
-La estructura del proyecto separa las capas de presentación, dominio y acceso a datos para facilitar el mantenimiento, las pruebas y la evolución de la aplicación.
+La organización del proyecto separa las capas de presentación, dominio y acceso a datos para facilitar su mantenimiento, evolución y comprobación funcional.
 
-## Persistencia
+## Persistencia y sincronización
 
-Cloud Firestore se utiliza como fuente remota de datos.
+Cloud Firestore constituye la fuente remota de almacenamiento de los registros.
 
-La aplicación contempla persistencia local y sincronización mediante las capacidades offline de Firestore, manteniendo el acceso remoto restringido al ámbito autorizado de cada usuario.
+La aplicación utiliza las capacidades de persistencia local y sincronización proporcionadas por Firestore.
+
+La recuperación y sincronización de información deben respetar los mecanismos de autenticación, autorización y aislamiento entre cuentas.
 
 ## Restricciones del proyecto
 
 Sendaris:
 
-- No realiza diagnósticos.
+- No realiza diagnósticos médicos, psicológicos ni nutricionales.
 - No prescribe tratamientos.
 - No predice conductas.
-- No emite recomendaciones clínicas.
-- No utiliza inteligencia artificial.
-- No calcula un índice de calidad de vida.
-- No publica ni comparte información de seguimiento con terceros.
+- No emite recomendaciones clínicas automáticas.
+- No utiliza inteligencia artificial ni aprendizaje automático para interpretar los registros.
+- No genera conclusiones clínicas a partir de indicadores descriptivos.
+- No calcula un índice biopsicosocial global.
+- No publica ni comparte los registros de seguimiento con terceros.
 
-Los indicadores generados son exclusivamente descriptivos y se basan en la información registrada en la aplicación.
+Los indicadores generados son exclusivamente descriptivos y se basan en la información registrada dentro de la aplicación.
 
 ## Metodología de desarrollo
 
-El desarrollo de Sendaris se realiza mediante una adaptación de Scrum para un proyecto individual.
+El proyecto utiliza Design Science Research Methodology (DSRM) como metodología general y una adaptación de Scrum para organizar el desarrollo de software.
 
-Se utilizan:
+El trabajo se estructura mediante:
 
-- Product Backlog
-- Historias de Usuario
-- Sprint Planning
-- Sprint Backlog
-- Sprints
-- Incrementos
-- Sprint Review
-- Sprint Retrospective
-- Definition of Done
+- Product Backlog.
+- Historias de usuario.
+- Sprint Planning.
+- Sprint Backlog.
+- Sprints.
+- Incrementos funcionales.
+- Sprint Review.
+- Sprint Retrospective.
+- Definition of Done.
 
-GitHub Issues y GitHub Projects se utilizan para la planificación y trazabilidad del desarrollo.
+GitHub Issues, Pull Requests y GitHub Projects se utilizan para la planificación, trazabilidad y control de cambios.
+
+## Requisitos de desarrollo
+
+Para trabajar con el proyecto se requiere:
+
+- Flutter SDK compatible con la versión indicada en el proyecto.
+- Dart SDK.
+- Android SDK.
+- Java y Gradle compatibles con la configuración Android.
+- Un dispositivo Android o emulador configurado.
+- Acceso autorizado al proyecto Firebase correspondiente.
 
 ## Ejecución del proyecto
 
@@ -122,13 +158,68 @@ Verificar el entorno:
 flutter doctor
 ```
 
-Ejecutar la aplicación en un dispositivo o emulador disponible:
+Consultar los dispositivos disponibles:
 
 ```bash
-flutter run
+flutter devices
 ```
+
+Ejecutar la aplicación en un emulador Android:
+
+```bash
+flutter run -d emulator-5554
+```
+
+El identificador del dispositivo puede variar según el entorno.
+
+## Validación
+
+Ejecutar el análisis estático:
+
+```bash
+flutter analyze
+```
+
+Ejecutar las pruebas Flutter:
+
+```bash
+flutter test
+```
+
+Compilar un APK Android de depuración:
+
+```bash
+flutter build apk --debug
+```
+
+Esta compilación se utiliza para desarrollo y pruebas. No debe confundirse con un APK Release preparado para distribución.
+
+Las modificaciones a las reglas de seguridad de Firestore deben validarse previamente mediante pruebas con el emulador de Firebase.
+
+## Compilación Android
+
+El producto de distribución se genera mediante una compilación Android Release.
+
+Antes de preparar un APK de distribución deben verificarse:
+
+- Firma Release con un certificado propio.
+- Configuración de Firebase App Check compatible con instalación directa.
+- Funcionamiento de Firebase Authentication.
+- Acceso autorizado a Cloud Firestore.
+- Persistencia y sincronización.
+- Instalación en dispositivos Android compatibles.
+- Cumplimiento de los requerimientos funcionales y de seguridad.
+
+## Pruebas y evaluación
+
+Durante el desarrollo y la evaluación académica se utilizan datos ficticios.
+
+Las pruebas contemplan validaciones funcionales, de integración, compatibilidad, rendimiento, seguridad, control de acceso y manejo de datos.
+
+Los resultados permiten comprobar el cumplimiento de los requerimientos funcionales y no funcionales definidos para la aplicación.
 
 ## Proyecto de titulación
 
-**Título académico:**  
+**Título académico:**
+
 *Desarrollo de una aplicación móvil para el registro de conductas y rutinas, así como para el monitoreo de indicadores biopsicosociales en niños con trastorno del espectro autista.*

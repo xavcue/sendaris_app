@@ -16,37 +16,13 @@ import 'package:flutter/foundation.dart'
 /// ```
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
-    if (kIsWeb) {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
       throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
+        'Sendaris está disponible exclusivamente para Android.',
       );
     }
-    switch (defaultTargetPlatform) {
-      case TargetPlatform.android:
-        return android;
-      case TargetPlatform.iOS:
-        return ios;
-      case TargetPlatform.macOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for macos - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
-      case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
-      case TargetPlatform.linux:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for linux - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
-      default:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions are not supported for this platform.',
-        );
-    }
+
+    return android;
   }
 
   static const FirebaseOptions android = FirebaseOptions(
@@ -55,13 +31,5 @@ class DefaultFirebaseOptions {
     messagingSenderId: '376836586691',
     projectId: 'sendaris-app-xavcue',
     storageBucket: 'sendaris-app-xavcue.firebasestorage.app',
-  );
-  static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyCHJrss0pf1Sy3UYec6Q_QCHjJjv4dc0Yg',
-    appId: '1:376836586691:ios:c042e26fe658db084c3676',
-    messagingSenderId: '376836586691',
-    projectId: 'sendaris-app-xavcue',
-    storageBucket: 'sendaris-app-xavcue.firebasestorage.app',
-    iosBundleId: 'com.xavcue.sendaris',
   );
 }
