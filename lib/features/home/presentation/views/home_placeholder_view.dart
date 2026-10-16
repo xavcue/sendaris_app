@@ -579,73 +579,78 @@ class _ActivityAreaTile extends StatelessWidget {
 
     final visual = _visualFor(area);
 
+    final isDark = theme.brightness == Brightness.dark;
+
     return AnimatedPressableScale(
       child: Material(
-        color: visual.color.withValues(
-          alpha: theme.brightness == Brightness.dark ? 0.16 : 0.10,
-        ),
+        color: visual.color.withValues(alpha: isDark ? 0.16 : 0.10),
         borderRadius: BorderRadius.circular(17),
         child: InkWell(
           key: Key('home-overview-area-${area.code}'),
           onTap: onTap,
           borderRadius: BorderRadius.circular(17),
           child: Container(
-            constraints: const BoxConstraints(minHeight: 74),
-            padding: const EdgeInsets.all(12),
+            constraints: const BoxConstraints(minHeight: 84),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(17),
               border: Border.all(color: visual.color.withValues(alpha: 0.24)),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: visual.color.withValues(
-                      alpha: theme.brightness == Brightness.dark ? 0.20 : 0.14,
+                // El icono y el contador ocupan una fila propia.
+                // El nombre queda debajo con el ancho completo.
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: visual.color.withValues(
+                          alpha: isDark ? 0.20 : 0.14,
+                        ),
+                        borderRadius: BorderRadius.circular(11),
+                      ),
+                      child: Icon(visual.icon, size: 17, color: visual.color),
                     ),
-                    borderRadius: BorderRadius.circular(11),
-                  ),
-                  child: Icon(visual.icon, size: 19, color: visual.color),
+                    const SizedBox(width: 8),
+                    Container(
+                      key: Key('home-overview-area-count-${area.code}'),
+                      constraints: const BoxConstraints(
+                        minWidth: 23,
+                        minHeight: 23,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: visual.color.withValues(
+                          alpha: isDark ? 0.24 : 0.17,
+                        ),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        '$count',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: colorScheme.onSurface,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    area.label,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: colorScheme.onSurface,
-                      fontWeight: FontWeight.w700,
-                      height: 1.15,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Container(
-                  key: Key('home-overview-area-count-${area.code}'),
-                  constraints: const BoxConstraints(
-                    minWidth: 25,
-                    minHeight: 25,
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 7,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: visual.color.withValues(
-                      alpha: theme.brightness == Brightness.dark ? 0.24 : 0.17,
-                    ),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    '$count',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: colorScheme.onSurface,
-                      fontWeight: FontWeight.w800,
-                    ),
+                const SizedBox(height: 6),
+                Text(
+                  area.label,
+                  softWrap: true,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: colorScheme.onSurface,
+                    fontWeight: FontWeight.w700,
+                    height: 1.2,
                   ),
                 ),
               ],

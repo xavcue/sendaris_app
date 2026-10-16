@@ -6,6 +6,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'app/app.dart';
+import 'app/session/session_timeout_guard.dart';
+import 'app/session/session_timeout_policy.dart';
+import 'app/session/session_timeout_store.dart';
 import 'features/atypical_situation/data/repositories/firebase_atypical_situation_repository.dart';
 import 'features/atypical_situation/data/services/firestore_atypical_situation_service.dart';
 import 'features/atypical_situation/data/services/uuid_atypical_situation_record_id_generator.dart';
@@ -177,30 +180,67 @@ Future<void> main() async {
     routineStatusRepository: routineStatusRepository,
   );
 
+  final sessionStore = PreferencesSessionTimeoutStore();
+
+  SessionTimeoutRecord? initialRecord;
+
+  try {
+    initialRecord = await SessionTimeoutBootstrap.prepare(
+      repository: authRepository,
+      store: sessionStore,
+    );
+  } catch (_) {
+    // Ante un error de validación inicial, nunca
+    // se construye la interfaz con datos privados.
+    runApp(
+      const MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Text(
+                'No se pudo comprobar la seguridad de tu sesión. '
+                'Cierra y vuelve a abrir Sendaris.',
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    return;
+  }
+
   runApp(
-    SendarisApp(
+    SessionTimeoutGuard(
       authRepository: authRepository,
-      trackingRepository: trackingRepository,
-      trackingProfileFactory: trackingProfileFactory,
-      behaviorRepository: behaviorRepository,
-      behaviorRecordFactory: behaviorRecordFactory,
-      sleepRepository: sleepRepository,
-      sleepRecordFactory: sleepRecordFactory,
-      feedingRepository: feedingRepository,
-      feedingRecordFactory: feedingRecordFactory,
-      socialInteractionRepository: socialInteractionRepository,
-      socialInteractionRecordFactory: socialInteractionRecordFactory,
-      dysregulationRepository: dysregulationRepository,
-      dysregulationRecordFactory: dysregulationRecordFactory,
-      frequencyRepository: frequencyRepository,
-      durationRepository: durationRepository,
-      routineRepository: routineRepository,
-      routineFactory: routineFactory,
-      routineStatusRepository: routineStatusRepository,
-      routineStatusRecordFactory: routineStatusRecordFactory,
-      routineComplianceRepository: routineComplianceRepository,
-      atypicalSituationRepository: atypicalSituationRepository,
-      atypicalSituationRecordFactory: atypicalSituationRecordFactory,
+      store: sessionStore,
+      initialRecord: initialRecord,
+      child: SendarisApp(
+        authRepository: authRepository,
+        trackingRepository: trackingRepository,
+        trackingProfileFactory: trackingProfileFactory,
+        behaviorRepository: behaviorRepository,
+        behaviorRecordFactory: behaviorRecordFactory,
+        sleepRepository: sleepRepository,
+        sleepRecordFactory: sleepRecordFactory,
+        feedingRepository: feedingRepository,
+        feedingRecordFactory: feedingRecordFactory,
+        socialInteractionRepository: socialInteractionRepository,
+        socialInteractionRecordFactory: socialInteractionRecordFactory,
+        dysregulationRepository: dysregulationRepository,
+        dysregulationRecordFactory: dysregulationRecordFactory,
+        frequencyRepository: frequencyRepository,
+        durationRepository: durationRepository,
+        routineRepository: routineRepository,
+        routineFactory: routineFactory,
+        routineStatusRepository: routineStatusRepository,
+        routineStatusRecordFactory: routineStatusRecordFactory,
+        routineComplianceRepository: routineComplianceRepository,
+        atypicalSituationRepository: atypicalSituationRepository,
+        atypicalSituationRecordFactory: atypicalSituationRecordFactory,
+      ),
     ),
   );
 }
