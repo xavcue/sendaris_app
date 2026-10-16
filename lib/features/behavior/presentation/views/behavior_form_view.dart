@@ -210,11 +210,9 @@ class _BehaviorFormContentState extends State<_BehaviorFormContent> {
         ),
       );
 
-    if (isEditing) {
-      Navigator.of(context).pop(true);
-    } else {
-      Navigator.of(context).pop();
-    }
+    // Tanto la creación como la edición devuelven true
+    // para que la pantalla de gestión actualice sus registros.
+    Navigator.of(context).pop(true);
   }
 
   @override

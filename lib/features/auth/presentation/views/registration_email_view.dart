@@ -792,36 +792,63 @@ class _RegistrationAccountForm extends StatelessWidget {
                     active: passwordWasEdited,
                   ),
                   const SizedBox(height: 16),
-                  TextFormField(
-                    key: const Key('registration-password-confirmation-field'),
-                    controller: passwordConfirmationController,
-                    enabled: !authViewModel.isLoading,
-                    obscureText: obscurePasswordConfirmation,
-                    textInputAction: TextInputAction.done,
-                    autofillHints: const [AutofillHints.newPassword],
-                    decoration: InputDecoration(
-                      labelText: 'Confirmar contraseña',
-                      prefixIcon: const Icon(Icons.lock_reset_rounded),
-                      suffixIcon: IconButton(
-                        key: const Key(
-                          'registration-password-confirmation-visibility-button',
-                        ),
-                        onPressed: authViewModel.isLoading
-                            ? null
-                            : onTogglePasswordConfirmationVisibility,
-                        icon: Icon(
-                          obscurePasswordConfirmation
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
+                  Actions(
+                    actions: <Type, Action<Intent>>{
+                      PasteTextIntent: CallbackAction<PasteTextIntent>(
+                        onInvoke: (_) => null,
+                      ),
+                    },
+                    child: TextFormField(
+                      key: const Key(
+                        'registration-password-confirmation-field',
+                      ),
+                      controller: passwordConfirmationController,
+                      enabled: !authViewModel.isLoading,
+                      obscureText: obscurePasswordConfirmation,
+                      textInputAction: TextInputAction.done,
+                      autofillHints: null,
+                      contextMenuBuilder: (context, editableTextState) {
+                        final availableButtons = editableTextState
+                            .contextMenuButtonItems
+                            .where(
+                              (item) =>
+                                  item.type != ContextMenuButtonType.paste,
+                            )
+                            .toList(growable: false);
+
+                        if (availableButtons.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+
+                        return AdaptiveTextSelectionToolbar.buttonItems(
+                          anchors: editableTextState.contextMenuAnchors,
+                          buttonItems: availableButtons,
+                        );
+                      },
+                      decoration: InputDecoration(
+                        labelText: 'Confirmar contraseña',
+                        prefixIcon: const Icon(Icons.lock_reset_rounded),
+                        suffixIcon: IconButton(
+                          key: const Key(
+                            'registration-password-confirmation-visibility-button',
+                          ),
+                          onPressed: authViewModel.isLoading
+                              ? null
+                              : onTogglePasswordConfirmationVisibility,
+                          icon: Icon(
+                            obscurePasswordConfirmation
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
                         ),
                       ),
+                      onChanged: onPasswordConfirmationChanged,
+                      onFieldSubmitted: (_) {
+                        if (canCreateAccount) {
+                          onCreateAccount();
+                        }
+                      },
                     ),
-                    onChanged: onPasswordConfirmationChanged,
-                    onFieldSubmitted: (_) {
-                      if (canCreateAccount) {
-                        onCreateAccount();
-                      }
-                    },
                   ),
                   if (passwordConfirmationController.text.isNotEmpty) ...[
                     const SizedBox(height: 12),
