@@ -1,14 +1,22 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/animation/app_motion.dart';
 import '../../../../app/theme/theme_mode_controller.dart';
+import '../../data/repositories/firebase_password_reset_repository.dart';
+import '../../domain/repositories/password_reset_repository.dart';
 import '../viewmodels/auth_view_model.dart';
 import '../widgets/auth_top_bar.dart';
+import 'password_reset_dialog.dart';
 import 'registration_email_view.dart';
 
 class LoginView extends StatefulWidget {
-  const LoginView({super.key});
+  const LoginView({this.passwordResetRepository, super.key});
+
+  // Permite utilizar un repositorio simulado durante las pruebas.
+  // En producción se utiliza Firebase Authentication.
+  final PasswordResetRepository? passwordResetRepository;
 
   @override
   State<LoginView> createState() => _LoginViewState();
@@ -115,6 +123,29 @@ class _LoginViewState extends State<LoginView>
     await context.read<AuthViewModel>().signIn(
       email: _emailController.text,
       password: _passwordController.text,
+    );
+  }
+
+  Future<void> _openPasswordReset(AuthViewModel authViewModel) async {
+    if (authViewModel.isLoading) {
+      return;
+    }
+
+    authViewModel.clearError();
+
+    final repository =
+        widget.passwordResetRepository ??
+        FirebasePasswordResetRepository(FirebaseAuth.instance);
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return PasswordResetDialog(
+          repository: repository,
+          initialEmail: _emailController.text.trim(),
+        );
+      },
     );
   }
 
@@ -420,6 +451,29 @@ class _LoginViewState extends State<LoginView>
                                                 _submit();
                                               }
                                             },
+                                          ),
+
+                                          // Recuperación de contraseña:
+                                          // no modifica el estado de sesión.
+                                          const SizedBox(height: 4),
+
+                                          Align(
+                                            alignment: Alignment.centerRight,
+                                            child: TextButton(
+                                              key: const Key(
+                                                'login-forgot-password-button',
+                                              ),
+                                              onPressed: authViewModel.isLoading
+                                                  ? null
+                                                  : () {
+                                                      _openPasswordReset(
+                                                        authViewModel,
+                                                      );
+                                                    },
+                                              child: const Text(
+                                                '¿Olvidaste tu contraseña?',
+                                              ),
+                                            ),
                                           ),
 
                                           if (authViewModel.errorMessage !=
