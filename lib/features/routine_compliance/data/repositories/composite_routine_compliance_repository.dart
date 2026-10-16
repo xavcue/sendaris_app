@@ -47,14 +47,14 @@ class CompositeRoutineComplianceRepository
       final routineStatuses = await _routineStatusRepository
           .recoverRoutineStatuses(anonymousId: normalizedAnonymousId);
 
-      final validRoutineIds = _buildValidRoutineIds(
+      final validRoutines = _buildValidRoutines(
         routines: routines,
         anonymousId: normalizedAnonymousId,
       );
 
       return _mapValidEntries(
         records: routineStatuses,
-        validRoutineIds: validRoutineIds,
+        validRoutines: validRoutines,
         anonymousId: normalizedAnonymousId,
       );
     } on RoutineComplianceFailure {
@@ -68,20 +68,26 @@ class CompositeRoutineComplianceRepository
     }
   }
 
-  Set<String> _buildValidRoutineIds({
+  Map<String, String> _buildValidRoutines({
     required Iterable<Routine> routines,
     required String anonymousId,
   }) {
-    return Set.unmodifiable(
-      routines
-          .where((routine) => routine.anonymousId == anonymousId)
-          .map((routine) => routine.routineId),
-    );
+    final validRoutines = <String, String>{};
+
+    for (final routine in routines) {
+      if (routine.anonymousId != anonymousId) {
+        continue;
+      }
+
+      validRoutines[routine.routineId] = routine.name.trim();
+    }
+
+    return Map<String, String>.unmodifiable(validRoutines);
   }
 
   List<RoutineComplianceEntry> _mapValidEntries({
     required Iterable<RoutineStatusRecord> records,
-    required Set<String> validRoutineIds,
+    required Map<String, String> validRoutines,
     required String anonymousId,
   }) {
     final entries =
@@ -89,7 +95,7 @@ class CompositeRoutineComplianceRepository
             .where(
               (record) =>
                   record.anonymousId == anonymousId &&
-                  validRoutineIds.contains(record.routineId),
+                  validRoutines.containsKey(record.routineId),
             )
             .map(
               (record) => RoutineComplianceEntry(
@@ -98,6 +104,7 @@ class CompositeRoutineComplianceRepository
                 routineId: record.routineId,
                 date: record.date,
                 status: record.status,
+                routineName: validRoutines[record.routineId],
               ),
             )
             .toList()
@@ -119,6 +126,6 @@ class CompositeRoutineComplianceRepository
             return first.recordId.compareTo(second.recordId);
           });
 
-    return List.unmodifiable(entries);
+    return List<RoutineComplianceEntry>.unmodifiable(entries);
   }
 }
