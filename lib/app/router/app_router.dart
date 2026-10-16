@@ -34,8 +34,8 @@ import '../../features/feeding/domain/services/feeding_record_factory.dart';
 import '../../features/feeding/presentation/views/feeding_detail_view.dart';
 import '../../features/feeding/presentation/views/feeding_form_view.dart';
 import '../../features/feeding/presentation/views/feeding_management_view.dart';
-import '../../features/frequency/domain/repositories/frequency_repository.dart';
-import '../../features/frequency/presentation/views/frequency_view.dart';
+import '../../features/frequency/data/repositories/composite_monthly_calendar_repository.dart';
+import '../../features/frequency/presentation/views/monthly_calendar_view.dart';
 import '../../features/home/presentation/views/home_placeholder_view.dart';
 import '../../features/indicators/presentation/views/indicators_view.dart';
 import '../../features/routine/domain/models/routine.dart';
@@ -90,7 +90,6 @@ abstract final class AppRouter {
     required SocialInteractionRecordFactory socialInteractionRecordFactory,
     required DysregulationRepository dysregulationRepository,
     required DysregulationRecordFactory dysregulationRecordFactory,
-    required FrequencyRepository frequencyRepository,
     required DurationRepository durationRepository,
     required RoutineRepository routineRepository,
     required RoutineFactory routineFactory,
@@ -134,6 +133,16 @@ abstract final class AppRouter {
         routineStatusRepository is RoutineStatusManagementRepository
         ? routineStatusRepository
         : null;
+
+    final monthlyCalendarRepository = CompositeMonthlyCalendarRepository(
+      behaviorRepository: behaviorRepository,
+      sleepRepository: sleepRepository,
+      feedingRepository: feedingRepository,
+      socialInteractionRepository: socialInteractionRepository,
+      dysregulationRepository: dysregulationRepository,
+      atypicalSituationRepository: atypicalSituationRepository,
+      routineStatusRepository: routineStatusRepository,
+    );
 
     Widget eventsLanding(BuildContext context) {
       final hasTracking = trackingViewModel.activeAnonymousId != null;
@@ -1136,8 +1145,8 @@ abstract final class AppRouter {
           },
         ),
         GoRoute(
-          path: '/frequencies',
-          name: 'frequencies',
+          path: '/calendar',
+          name: 'monthly-calendar',
           pageBuilder: (context, state) {
             final anonymousId = trackingViewModel.activeAnonymousId;
 
@@ -1154,8 +1163,9 @@ abstract final class AppRouter {
               state: state,
               child: _ambientScreen(
                 state: state,
-                child: FrequencyView(
-                  repository: frequencyRepository,
+                child: MonthlyCalendarView(
+                  key: ValueKey('monthly-calendar-$anonymousId'),
+                  repository: monthlyCalendarRepository,
                   anonymousId: anonymousId,
                 ),
               ),

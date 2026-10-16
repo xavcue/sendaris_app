@@ -12,7 +12,6 @@ import 'package:sendaris/features/behavior/domain/services/behavior_record_facto
 import 'package:sendaris/features/duration/data/repositories/composite_duration_repository.dart';
 import 'package:sendaris/features/dysregulation/domain/services/dysregulation_record_factory.dart';
 import 'package:sendaris/features/feeding/domain/services/feeding_record_factory.dart';
-import 'package:sendaris/features/frequency/data/repositories/composite_frequency_repository.dart';
 import 'package:sendaris/features/routine/domain/services/routine_factory.dart';
 import 'package:sendaris/features/routine_compliance/data/repositories/composite_routine_compliance_repository.dart';
 import 'package:sendaris/features/routine_status/domain/services/routine_status_record_factory.dart';
@@ -303,13 +302,6 @@ SendarisApp _buildApp(
     dysregulationRepository: dysregulationRepository,
     dysregulationRecordFactory: const DysregulationRecordFactory(
       fixtures.FakeDysregulationRecordIdGenerator(),
-    ),
-    frequencyRepository: CompositeFrequencyRepository(
-      behaviorRepository: behaviorRepository,
-      dysregulationRepository: dysregulationRepository,
-      socialInteractionRepository: socialInteractionRepository,
-      feedingRepository: feedingRepository,
-      atypicalSituationRepository: atypicalSituationRepository,
     ),
     durationRepository: CompositeDurationRepository(
       sleepRepository: sleepRepository,

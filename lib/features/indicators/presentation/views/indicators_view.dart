@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 
 import '../../../../app/animation/animated_entrance.dart';
 import '../../../../app/animation/animated_pressable_scale.dart';
-import '../../../../app/theme/sendaris_section_label.dart';
 import '../../../../app/widgets/sendaris_primary_app_bar.dart';
 import '../../../tracking/presentation/viewmodels/tracking_view_model.dart';
 
@@ -22,6 +21,7 @@ class IndicatorsView extends StatelessWidget {
     final hasTracking = trackingViewModel.hasActiveProfile;
 
     return Scaffold(
+      key: const Key('indicators-view'),
       backgroundColor: Colors.transparent,
       appBar: const SendarisPrimaryAppBar(),
       body: SafeArea(
@@ -49,87 +49,20 @@ class IndicatorsView extends StatelessWidget {
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    'Revisa indicadores descriptivos '
-                    'del seguimiento actual.',
+                    'Revisa los registros y los indicadores '
+                    'descriptivos del seguimiento actual.',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
+                      height: 1.4,
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 28),
-            const AnimatedEntrance(
-              delay: Duration(milliseconds: 90),
-              child: SendarisSectionLabel(label: 'Indicadores disponibles'),
-            ),
-            const SizedBox(height: 14),
-            AnimatedEntrance(
-              delay: const Duration(milliseconds: 150),
-              duration: const Duration(milliseconds: 450),
-              beginScale: 0.99,
-              child: AnimatedPressableScale(
-                child: _IndicatorOptionCard(
-                  key: const Key('indicators-frequency-option'),
-                  title: 'Frecuencias descriptivas',
-                  subtitle:
-                      'Consulta cuántos registros aparecen '
-                      'en el periodo seleccionado.',
-                  icon: Icons.bar_chart_rounded,
-                  accentColor: const Color(0xFF5D8EB8),
-                  enabled: hasTracking,
-                  onTap: () {
-                    context.push('/frequencies');
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            AnimatedEntrance(
-              delay: const Duration(milliseconds: 220),
-              duration: const Duration(milliseconds: 450),
-              beginScale: 0.99,
-              child: AnimatedPressableScale(
-                child: _IndicatorOptionCard(
-                  key: const Key('indicators-duration-option'),
-                  title: 'Duraciones y promedios',
-                  subtitle:
-                      'Consulta duraciones registradas '
-                      'y sus valores promedio.',
-                  icon: Icons.schedule_rounded,
-                  accentColor: const Color(0xFF8173AE),
-                  enabled: hasTracking,
-                  onTap: () {
-                    context.push('/durations');
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            AnimatedEntrance(
-              delay: const Duration(milliseconds: 290),
-              duration: const Duration(milliseconds: 450),
-              beginScale: 0.99,
-              child: AnimatedPressableScale(
-                child: _IndicatorOptionCard(
-                  key: const Key('indicators-routine-compliance-option'),
-                  title: 'Cumplimiento de rutinas',
-                  subtitle:
-                      'Consulta los estados registrados '
-                      'de las rutinas del seguimiento.',
-                  icon: Icons.fact_check_outlined,
-                  accentColor: const Color(0xFF5DAE98),
-                  enabled: hasTracking,
-                  onTap: () {
-                    context.push('/routine-compliance');
-                  },
-                ),
-              ),
-            ),
             if (!hasTracking) ...[
-              const SizedBox(height: 24),
+              const SizedBox(height: 22),
               AnimatedEntrance(
-                delay: const Duration(milliseconds: 350),
+                delay: const Duration(milliseconds: 90),
                 child: Container(
                   key: const Key('indicators-no-tracking-message'),
                   padding: const EdgeInsets.all(16),
@@ -153,9 +86,10 @@ class IndicatorsView extends StatelessWidget {
                       Expanded(
                         child: Text(
                           'Crea o selecciona un seguimiento '
-                          'para consultar sus indicadores.',
+                          'desde Inicio para consultar sus indicadores.',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: colorScheme.onErrorContainer,
+                            height: 1.4,
                           ),
                         ),
                       ),
@@ -164,6 +98,69 @@ class IndicatorsView extends StatelessWidget {
                 ),
               ),
             ],
+            const SizedBox(height: 28),
+            AnimatedEntrance(
+              delay: const Duration(milliseconds: 120),
+              duration: const Duration(milliseconds: 450),
+              beginScale: 0.99,
+              child: AnimatedPressableScale(
+                child: _IndicatorOptionCard(
+                  key: const Key('indicators-frequency-option'),
+                  title: 'Calendario de registros',
+                  subtitle:
+                      'Consulta los registros y sus conteos '
+                      'por fecha.',
+                  icon: Icons.event_note_rounded,
+                  accentColor: const Color(0xFF5D8EB8),
+                  enabled: hasTracking,
+                  onTap: () {
+                    context.push('/calendar');
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            AnimatedEntrance(
+              delay: const Duration(milliseconds: 170),
+              duration: const Duration(milliseconds: 450),
+              beginScale: 0.99,
+              child: AnimatedPressableScale(
+                child: _IndicatorOptionCard(
+                  key: const Key('indicators-duration-option'),
+                  title: 'Resumen de duraciones',
+                  subtitle:
+                      'Revisa las duraciones registradas '
+                      'y sus valores promedio.',
+                  icon: Icons.schedule_rounded,
+                  accentColor: const Color(0xFF8173AE),
+                  enabled: hasTracking,
+                  onTap: () {
+                    context.push('/durations');
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            AnimatedEntrance(
+              delay: const Duration(milliseconds: 220),
+              duration: const Duration(milliseconds: 450),
+              beginScale: 0.99,
+              child: AnimatedPressableScale(
+                child: _IndicatorOptionCard(
+                  key: const Key('indicators-routine-compliance-option'),
+                  title: 'Resumen de cumplimiento de rutinas',
+                  subtitle:
+                      'Consulta el porcentaje de cumplimiento '
+                      'y los estados registrados.',
+                  icon: Icons.fact_check_outlined,
+                  accentColor: const Color(0xFF5DAE98),
+                  enabled: hasTracking,
+                  onTap: () {
+                    context.push('/routine-compliance');
+                  },
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -200,7 +197,7 @@ class _IndicatorOptionCard extends StatelessWidget {
       enabled: enabled,
       label: enabled
           ? '$title. $subtitle'
-          : '$title. No disponible sin un seguimiento seleccionado.',
+          : '$title. Requiere un seguimiento actual.',
       child: Card(
         margin: EdgeInsets.zero,
         clipBehavior: Clip.antiAlias,
@@ -209,66 +206,64 @@ class _IndicatorOptionCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(22),
           child: Opacity(
             opacity: enabled ? 1 : 0.48,
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Row(
-                children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: accentColor.withValues(
-                        alpha: isDark ? 0.18 : 0.14,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Icon(
-                      icon,
-                      color: isDark
-                          ? Color.lerp(accentColor, Colors.white, 0.25)
-                          : accentColor,
-                      size: 26,
-                    ),
-                  ),
-                  const SizedBox(width: 15),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 5),
-                        Text(
-                          subtitle,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                            height: 1.35,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (enabled) ...[
-                    const SizedBox(width: 10),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 126),
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
                     Container(
-                      width: 34,
-                      height: 34,
+                      width: 54,
+                      height: 54,
                       decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerLow,
-                        shape: BoxShape.circle,
+                        color: accentColor.withValues(
+                          alpha: isDark ? 0.18 : 0.14,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
                       ),
                       child: Icon(
-                        Icons.arrow_forward_rounded,
-                        size: 18,
-                        color: colorScheme.onSurfaceVariant,
+                        icon,
+                        color: isDark
+                            ? Color.lerp(accentColor, Colors.white, 0.25)
+                            : accentColor,
+                        size: 27,
                       ),
                     ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            subtitle,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    if (enabled)
+                      Icon(
+                        Icons.arrow_forward_rounded,
+                        size: 22,
+                        color: colorScheme.onSurfaceVariant.withValues(
+                          alpha: 0.76,
+                        ),
+                      ),
                   ],
-                ],
+                ),
               ),
             ),
           ),

@@ -1,0 +1,184 @@
+enum CalendarRecordType {
+  behavior('Conducta'),
+  sleep('Sueño'),
+  feeding('Alimentación'),
+  socialInteraction('Interacción social'),
+  dysregulation('Desregulación'),
+  atypicalSituation('Otra situación'),
+  routineStatus('Estado de rutina');
+
+  const CalendarRecordType(this.label);
+
+  final String label;
+}
+
+class MonthlyCalendarRecord {
+  const MonthlyCalendarRecord({
+    required this.id,
+    required this.anonymousId,
+    required this.date,
+    required this.type,
+    required this.description,
+    this.sourceRecord,
+  });
+
+  final String id;
+  final String anonymousId;
+  final DateTime date;
+  final CalendarRecordType type;
+  final String description;
+
+  // Registro original que consumen las pantallas de detalle.
+  // No se persiste ni constituye una copia en Firestore.
+  final Object? sourceRecord;
+}
+
+class MonthlyCalendarIndex {
+  MonthlyCalendarIndex({
+    required String anonymousId,
+    required Iterable<MonthlyCalendarRecord> records,
+  }) : _anonymousId = anonymousId.trim(),
+       _byDate = _group(anonymousId.trim(), records);
+
+  final String _anonymousId;
+  final Map<DateTime, List<MonthlyCalendarRecord>> _byDate;
+
+  String get anonymousId => _anonymousId;
+
+  List<MonthlyCalendarRecord> recordsFor(
+    DateTime date, {
+    Set<CalendarRecordType>? selectedTypes,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) {
+    final day = _dayOnly(date);
+
+    if (!_withinRange(day, startDate, endDate)) {
+      return const <MonthlyCalendarRecord>[];
+    }
+
+    final records = _byDate[day] ?? const <MonthlyCalendarRecord>[];
+
+    if (selectedTypes == null) {
+      return records;
+    }
+
+    return List.unmodifiable(
+      records.where((record) => selectedTypes.contains(record.type)),
+    );
+  }
+
+  int countFor(
+    DateTime date, {
+    Set<CalendarRecordType>? selectedTypes,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) {
+    return recordsFor(
+      date,
+      selectedTypes: selectedTypes,
+      startDate: startDate,
+      endDate: endDate,
+    ).length;
+  }
+
+  int countForMonth(
+    DateTime month, {
+    Set<CalendarRecordType>? selectedTypes,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) {
+    var count = 0;
+
+    for (final entry in _byDate.entries) {
+      final day = entry.key;
+
+      if (day.year != month.year ||
+          day.month != month.month ||
+          !_withinRange(day, startDate, endDate)) {
+        continue;
+      }
+
+      if (selectedTypes == null) {
+        count += entry.value.length;
+      } else {
+        count += entry.value
+            .where((record) => selectedTypes.contains(record.type))
+            .length;
+      }
+    }
+
+    return count;
+  }
+
+  static DateTime _dayOnly(DateTime date) {
+    return DateTime(date.year, date.month, date.day);
+  }
+
+  static bool _withinRange(
+    DateTime date,
+    DateTime? startDate,
+    DateTime? endDate,
+  ) {
+    final start = startDate == null ? null : _dayOnly(startDate);
+
+    final end = endDate == null ? null : _dayOnly(endDate);
+
+    if (start != null && date.isBefore(start)) {
+      return false;
+    }
+
+    if (end != null && date.isAfter(end)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  static Map<DateTime, List<MonthlyCalendarRecord>> _group(
+    String anonymousId,
+    Iterable<MonthlyCalendarRecord> records,
+  ) {
+    if (anonymousId.isEmpty || anonymousId.contains('/')) {
+      throw ArgumentError.value(anonymousId, 'anonymousId');
+    }
+
+    final grouped = <DateTime, List<MonthlyCalendarRecord>>{};
+    final seen = <String>{};
+
+    for (final record in records) {
+      if (record.anonymousId != anonymousId) {
+        continue;
+      }
+
+      final identifier = '${record.type.name}:${record.id}';
+
+      if (!seen.add(identifier)) {
+        continue;
+      }
+
+      final day = _dayOnly(record.date);
+
+      grouped.putIfAbsent(day, () => <MonthlyCalendarRecord>[]).add(record);
+    }
+
+    for (final values in grouped.values) {
+      values.sort((a, b) {
+        final dateOrder = a.date.compareTo(b.date);
+
+        if (dateOrder != 0) {
+          return dateOrder;
+        }
+
+        return a.id.compareTo(b.id);
+      });
+    }
+
+    return Map.unmodifiable(
+      grouped.map(
+        (key, value) =>
+            MapEntry(key, List<MonthlyCalendarRecord>.unmodifiable(value)),
+      ),
+    );
+  }
+}

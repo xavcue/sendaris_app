@@ -7,6 +7,7 @@ class RoutineComplianceEntry {
     required this.routineId,
     required this.date,
     required this.status,
+    this.routineName,
   });
 
   final String recordId;
@@ -18,4 +19,6 @@ class RoutineComplianceEntry {
   final DateTime date;
 
   final RoutineStatus status;
+
+  final String? routineName;
 }
