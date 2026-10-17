@@ -12,7 +12,20 @@
           "package_name": "com.xavcue.sendaris"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "376836586691-0uchmjotmf9ldmf7mjeb84g9orict36r.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.xavcue.sendaris",
+            "certificate_hash": "be39d09ef2754360ce0445784608593c9e4e1136"
+          }
+        },
+        {
+          "client_id": "376836586691-bhhinjgdvuq575m07ikslljllgbhugfi.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyA3kS6QhT1a5foEYtspiuxS744L72EAPrM"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "376836586691-bhhinjgdvuq575m07ikslljllgbhugfi.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "376836586691-r2n5r4mqghqb2k3gbhs34naf059n7dcj.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.xavcue.sendaris"
+              }
+            }
+          ]
         }
       }
     }

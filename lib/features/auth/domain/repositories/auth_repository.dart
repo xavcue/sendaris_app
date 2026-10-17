@@ -51,6 +51,20 @@ abstract interface class AuthAccountManagementRepository {
   Future<void> deleteCurrentAccount();
 }
 
+/// Capacidad opcional para confirmar nuevamente la identidad
+/// mediante Google sin sustituir la sesión autenticada.
+///
+/// No realiza vinculaciones de cuentas ni elimina datos.
+abstract interface class AuthGoogleAccountManagementRepository {
+  /// Indica si la cuenta actual tiene Google como proveedor
+  /// de autenticación vinculado.
+  bool get canReauthenticateWithGoogle;
+
+  /// Devuelve true si Firebase confirma la identidad.
+  /// Devuelve false únicamente si el usuario cancela.
+  Future<bool> reauthenticateWithGoogle();
+}
+
 /// Capacidad opcional que devuelve el UID producido
 /// por una operación concreta de autenticación.
 abstract interface class AuthIdentitySessionOperationsRepository {
@@ -83,5 +97,20 @@ abstract interface class AuthObservedSessionOperationsRepository {
     required void Function() onExecutionStarted,
     required void Function(String userId) onProvisionalAccountCreated,
     required void Function(String userId) onProvisionalAccountCleaned,
+  });
+}
+
+/// Capacidad adicional para iniciar sesión con Google.
+///
+/// El inicio de sesión utiliza la cola de operaciones protegida
+/// del servicio Firebase y devuelve el UID autenticado.
+///
+/// Si el usuario cancela el selector, devuelve null.
+/// La cancelación no se considera un error de autenticación.
+///
+/// Este contrato no vincula proveedores ni fusiona cuentas.
+abstract interface class AuthGoogleSignInRepository {
+  Future<String?> signInWithGoogleObserved({
+    required void Function() onExecutionStarted,
   });
 }

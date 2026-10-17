@@ -71,6 +71,20 @@ class AuthViewModel extends ChangeNotifier {
   bool? get isEmailVerified => _isEmailVerified;
   String? get errorMessage => _errorMessage;
 
+  /// Indica si la cuenta actual permite confirmar su identidad con Google.
+  ///
+  /// No intenta autenticar ni modifica la sesión.
+  bool get canReauthenticateWithGoogle {
+    if (_isDisposed ||
+        !_isAuthenticated ||
+        _repository is! AuthGoogleAccountManagementRepository) {
+      return false;
+    }
+
+    return (_repository as AuthGoogleAccountManagementRepository)
+        .canReauthenticateWithGoogle;
+  }
+
   Future<bool> signIn({required String email, required String password}) async {
     if (_isDisposed) return false;
 
@@ -103,6 +117,37 @@ class AuthViewModel extends ChangeNotifier {
         await _repository.signIn(email: normalizedEmail, password: password);
 
         return null;
+      },
+    );
+  }
+
+  /// Inicia sesión con Google reutilizando las protecciones de sesión.
+  ///
+  /// La cancelación devuelve false sin mostrar un error.
+  /// El repositorio es responsable de ejecutar la selección de Google
+  /// dentro de la cola serializada de Firebase Authentication.
+  Future<bool> signInWithGoogle() async {
+    if (_isDisposed) return false;
+
+    if (_repository is! AuthGoogleSignInRepository) {
+      _errorMessage =
+          'El inicio de sesión con Google no está disponible '
+          'en este momento.';
+      notifyListeners();
+      return false;
+    }
+
+    final googleRepository = _repository as AuthGoogleSignInRepository;
+
+    return _runSessionOperation(
+      signsOut: false,
+      fallbackMessage:
+          'No fue posible iniciar sesión con Google. '
+          'Inténtalo nuevamente.',
+      action: (observation) {
+        return googleRepository.signInWithGoogleObserved(
+          onExecutionStarted: observation.onExecutionStarted,
+        );
       },
     );
   }
@@ -719,6 +764,90 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
+  /// Confirma nuevamente la identidad con Google, sin cambiar de cuenta.
+  ///
+  /// Devuelve false si se cancela el selector, si la sesión cambia
+  /// o si Firebase no puede comprobar la credencial.
+  Future<bool> reauthenticateWithGoogle() async {
+    if (_isDisposed) {
+      return false;
+    }
+
+    if (!_isAuthenticated) {
+      _errorMessage = 'Debes iniciar sesión nuevamente antes de continuar.';
+      notifyListeners();
+      return false;
+    }
+
+    if (!canReauthenticateWithGoogle) {
+      _errorMessage =
+          'La confirmación con Google no está disponible para esta cuenta.';
+      notifyListeners();
+      return false;
+    }
+
+    final accountRepository =
+        _repository as AuthGoogleAccountManagementRepository;
+
+    final requestedGeneration = _authenticationGeneration;
+    final requestedUserId = _currentUserId;
+    final loadingOperation = _beginLoadingOperation();
+
+    _errorMessage = null;
+
+    try {
+      if (!_isCurrentAuthenticatedContext(
+        generation: requestedGeneration,
+        userId: requestedUserId,
+      )) {
+        return false;
+      }
+
+      final confirmed = await accountRepository.reauthenticateWithGoogle();
+
+      // Actualiza el contexto antes de aceptar el resultado.
+      _synchronizeAuthenticationState();
+
+      if (!_isCurrentAuthenticatedContext(
+        generation: requestedGeneration,
+        userId: requestedUserId,
+      )) {
+        return false;
+      }
+
+      // Cancelar Google no genera un mensaje de error.
+      return confirmed;
+    } on AuthFailure catch (error) {
+      _synchronizeAuthenticationState();
+
+      if (!_isCurrentAuthenticatedContext(
+        generation: requestedGeneration,
+        userId: requestedUserId,
+      )) {
+        return false;
+      }
+
+      _errorMessage = error.message;
+      return false;
+    } catch (_) {
+      _synchronizeAuthenticationState();
+
+      if (!_isCurrentAuthenticatedContext(
+        generation: requestedGeneration,
+        userId: requestedUserId,
+      )) {
+        return false;
+      }
+
+      _errorMessage =
+          'No fue posible confirmar tu identidad con Google. '
+          'Inténtalo nuevamente.';
+      return false;
+    } finally {
+      _finishLoadingOperation(loadingOperation);
+    }
+  }
+
   Future<bool> cancelUnverifiedAccount() async {
     if (!_isAuthenticated) {
       _errorMessage =
@@ -896,7 +1025,8 @@ class AuthViewModel extends ChangeNotifier {
       }
 
       _errorMessage =
-          'No fue posible eliminar la cuenta. Inténtalo nuevamente.';
+          'No fue posible eliminar la cuenta. '
+          'Inténtalo nuevamente.';
       return false;
     } finally {
       _finishLoadingOperation(loadingOperation);
