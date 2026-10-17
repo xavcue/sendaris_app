@@ -2,12 +2,20 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../domain/repositories/google_identity_token_provider.dart';
+import 'google_identity_token_service.dart';
+
 class FirebaseAuthService {
-  FirebaseAuthService(this._firebaseAuth);
+  FirebaseAuthService(
+    this._firebaseAuth, {
+    GoogleIdentityTokenProvider? googleIdentityTokenProvider,
+  }) : _googleIdentityTokenProvider =
+           googleIdentityTokenProvider ?? GoogleIdentityTokenService();
 
   static const String _authenticationEmailLanguageCode = 'es-419';
 
   final FirebaseAuth _firebaseAuth;
+  final GoogleIdentityTokenProvider _googleIdentityTokenProvider;
 
   // La cola siempre se libera, incluso cuando falla una operación.
   Future<void>? _sessionOperationTail;
@@ -77,6 +85,62 @@ class FirebaseAuthService {
     }
 
     return user.uid;
+  }
+
+  /// Obtiene la identidad de Google y la intercambia por una sesión Firebase.
+  ///
+  /// La selección de la cuenta se ejecuta dentro de la misma cola que las
+  /// operaciones de correo/contraseña para evitar solapamientos.
+  /// Devuelve null únicamente cuando el usuario cancela el selector.
+  /// No vincula ni fusiona cuentas de manera explícita.
+  Future<String?> signInWithGoogleObserved({
+    required void Function() onExecutionStarted,
+  }) {
+    return _runSessionOperation(() async {
+      onExecutionStarted();
+
+      final initialContext = _AuthOperationContext(
+        _firebaseAuth,
+        _firebaseAuth.currentUser?.uid,
+      );
+
+      try {
+        final idToken = await _googleIdentityTokenProvider.requestIdToken();
+
+        if (idToken == null) {
+          return null;
+        }
+
+        // El usuario pudo cambiar de sesión durante el selector de Google.
+        // Incluye la protección frente a la secuencia A -> B -> A.
+        initialContext.requireCurrent();
+
+        final credential = await _firebaseAuth.signInWithCredential(
+          GoogleAuthProvider.credential(idToken: idToken),
+        );
+
+        final user = credential.user;
+
+        if (user == null) {
+          throw FirebaseAuthException(
+            code: 'internal-error',
+            message: 'The authenticated Google user is unavailable.',
+          );
+        }
+
+        final refreshedUser = await _reloadUserAndRefreshIdToken(user);
+
+        if (refreshedUser == null || refreshedUser.uid != user.uid) {
+          throw StateError(
+            'Authentication identity changed during Google sign-in.',
+          );
+        }
+
+        return user.uid;
+      } finally {
+        await initialContext.dispose();
+      }
+    });
   }
 
   Future<void> createUnverifiedAccount({
@@ -301,6 +365,63 @@ class FirebaseAuthService {
 
     await _runInCapturedContext(user.uid, () async {
       await user.reauthenticateWithCredential(credential);
+    });
+  }
+
+  /// Reautentica la cuenta Firebase vigente sin reemplazar la sesión.
+  ///
+  /// Devuelve false solamente si se cancela la selección de Google.
+  /// No vincula proveedores, no cambia el UID y no elimina datos.
+  Future<bool> reauthenticateCurrentUserWithGoogle() async {
+    final user = _firebaseAuth.currentUser;
+
+    if (user == null) {
+      throw StateError(
+        'Google reauthentication requires an authenticated user.',
+      );
+    }
+
+    final supportsGoogle = user.providerData.any(
+      (provider) => provider.providerId == 'google.com',
+    );
+
+    if (!supportsGoogle) {
+      throw StateError(
+        'Google reauthentication is unavailable for this account.',
+      );
+    }
+
+    return _runInCapturedContext(user.uid, () async {
+      final context = _AuthOperationContext(_firebaseAuth, user.uid);
+
+      try {
+        context.requireCurrent();
+
+        final idToken = await _googleIdentityTokenProvider.requestIdToken();
+
+        // No se deben borrar datos cuando el usuario cancela.
+        if (idToken == null) {
+          context.requireCurrent();
+          return false;
+        }
+
+        // El selector puede permanecer abierto mientras cambia la sesión.
+        context.requireCurrent();
+
+        await user.reauthenticateWithCredential(
+          GoogleAuthProvider.credential(idToken: idToken),
+        );
+
+        context.requireCurrent();
+
+        await user.getIdToken(true);
+
+        context.requireCurrent();
+
+        return true;
+      } finally {
+        await context.dispose();
+      }
     });
   }
 

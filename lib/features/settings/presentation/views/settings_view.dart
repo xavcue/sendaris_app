@@ -93,7 +93,7 @@ class _SettingsViewState extends State<SettingsView> {
 
     // Captura la cuenta que inicia el procedimiento.
     //
-    // La autorizacion de esta cuenta nunca debe
+    // La autorización de esta cuenta nunca debe
     // utilizarse para eliminar datos de otra.
     final initiatingUserId = authViewModel.currentUserId;
     final initiatingAuthenticated = authViewModel.isAuthenticated;
@@ -117,7 +117,7 @@ class _SettingsViewState extends State<SettingsView> {
     }
 
     // El observador se activa antes de mostrar
-    // cualquier dialogo o esperar una operacion.
+    // cualquier diálogo o esperar una operación.
     authViewModel.addListener(observeAuthenticationContext);
 
     try {
@@ -166,11 +166,27 @@ class _SettingsViewState extends State<SettingsView> {
         return;
       }
 
-      final password = await _requestDeletionPassword(context);
+      // Las cuentas con proveedor Google pueden confirmar
+      // su identidad sin disponer de una contraseña local.
+      //
+      // Si ambos proveedores están vinculados, se utiliza
+      // Google en este incremento. Las cuentas tradicionales
+      // conservan el procedimiento mediante contraseña.
+      final useGoogle = authViewModel.canReauthenticateWithGoogle;
 
-      if (password == null ||
-          !context.mounted ||
-          !isOriginalAuthenticationContext()) {
+      String? password;
+
+      if (!useGoogle) {
+        password = await _requestDeletionPassword(context);
+
+        if (password == null ||
+            !context.mounted ||
+            !isOriginalAuthenticationContext()) {
+          return;
+        }
+      }
+
+      if (!context.mounted || !isOriginalAuthenticationContext()) {
         return;
       }
 
@@ -178,20 +194,26 @@ class _SettingsViewState extends State<SettingsView> {
         _isDeletingAccount = true;
       });
 
-      final reauthenticated = await authViewModel.reauthenticateWithPassword(
-        password: password,
-      );
+      // Ningún dato se elimina antes de que Firebase
+      // confirme nuevamente la identidad vigente.
+      final reauthenticated = useGoogle
+          ? await authViewModel.reauthenticateWithGoogle()
+          : await authViewModel.reauthenticateWithPassword(password: password!);
 
-      // Proteccion principal:
-      //
-      // Aunque la contrasena de A sea correcta,
-      // la operacion no puede continuar si ahora
-      // esta autenticada B.
+      // Aunque Firebase haya confirmado la identidad
+      // de A, la operación no puede continuar si la
+      // sesión cambió a B o atravesó A -> B -> A.
       if (!isOriginalAuthenticationContext()) {
         return;
       }
 
       if (!reauthenticated) {
+        // Una cancelación del selector Google no es un
+        // error y jamás autoriza una eliminación.
+        if (useGoogle && authViewModel.errorMessage == null) {
+          return;
+        }
+
         if (context.mounted) {
           _showErrorMessage(
             context,
@@ -206,12 +228,12 @@ class _SettingsViewState extends State<SettingsView> {
       }
 
       // Solo se inicia la limpieza cuando la cuenta
-      // autorizada continua autenticada.
+      // autorizada continúa autenticada.
       final dataDeleted = await trackingViewModel.deleteAllProfilesForAccount();
 
       // Una limpieza iniciada en A no debe autorizar
-      // posteriormente la eliminacion de Authentication
-      // si la sesion cambio durante el proceso.
+      // posteriormente la eliminación de Authentication
+      // si la sesión cambió durante el proceso.
       if (!isOriginalAuthenticationContext()) {
         return;
       }
@@ -230,8 +252,8 @@ class _SettingsViewState extends State<SettingsView> {
         return;
       }
 
-      // Ultima comprobacion antes de invocar
-      // la eliminacion de Firebase Authentication.
+      // Última comprobación antes de invocar
+      // la eliminación de Firebase Authentication.
       if (!isOriginalAuthenticationContext()) {
         return;
       }
@@ -240,7 +262,7 @@ class _SettingsViewState extends State<SettingsView> {
 
       if (!accountDeleted) {
         // No se muestran errores pertenecientes a
-        // otra sesion que pudo iniciar mientras tanto.
+        // otra sesión que pudo iniciar mientras tanto.
         if (!isOriginalAuthenticationContext()) {
           return;
         }
@@ -267,12 +289,12 @@ class _SettingsViewState extends State<SettingsView> {
         return;
       }
 
-      // La eliminacion correcta de la cuenta produce
-      // una transicion esperada a sesion no autenticada.
+      // La eliminación correcta de la cuenta produce
+      // una transición esperada a sesión no autenticada.
       //
       // No debemos limpiar el estado de seguimiento
-      // de una nueva cuenta B si aparecio mientras
-      // terminaba la operacion anterior.
+      // de una nueva cuenta B si apareció mientras
+      // terminaba la operación anterior.
       if (!authViewModel.isAuthenticated &&
           authViewModel.currentUserId == null) {
         trackingViewModel.clearAuthenticationState();
@@ -280,7 +302,7 @@ class _SettingsViewState extends State<SettingsView> {
     } finally {
       // El observador es temporal y siempre se retira,
       // incluyendo cancelaciones, errores o cambios
-      // de identidad durante cualquier dialogo.
+      // de identidad durante cualquier diálogo.
       authViewModel.removeListener(observeAuthenticationContext);
 
       if (mounted && _isDeletingAccount) {
@@ -752,7 +774,6 @@ class _DeleteAccountPasswordDialogState
   final TextEditingController _controller = TextEditingController();
 
   bool _obscureText = true;
-
   String? _errorText;
 
   void _submit() {

@@ -27,27 +27,19 @@ class _LoginViewState extends State<LoginView>
   final _formKey = GlobalKey<FormState>();
 
   final _emailController = TextEditingController();
-
   final _passwordController = TextEditingController();
 
   late final AnimationController _entranceController;
 
   late final Animation<double> _logoOpacity;
-
   late final Animation<double> _logoScale;
-
   late final Animation<double> _headingOpacity;
-
   late final Animation<Offset> _headingSlide;
-
   late final Animation<double> _formOpacity;
-
   late final Animation<Offset> _formSlide;
-
   late final Animation<double> _footerOpacity;
 
   bool _obscurePassword = true;
-
   bool _showRegistration = false;
 
   @override
@@ -108,7 +100,6 @@ class _LoginViewState extends State<LoginView>
   @override
   void dispose() {
     _entranceController.dispose();
-
     _emailController.dispose();
     _passwordController.dispose();
 
@@ -124,6 +115,18 @@ class _LoginViewState extends State<LoginView>
       email: _emailController.text,
       password: _passwordController.text,
     );
+  }
+
+  /// Permite autenticarse mediante Google sin validar el formulario
+  /// de correo y contraseña.
+  Future<void> _signInWithGoogle() async {
+    final authViewModel = context.read<AuthViewModel>();
+
+    if (authViewModel.isLoading) {
+      return;
+    }
+
+    await authViewModel.signInWithGoogle();
   }
 
   Future<void> _openPasswordReset(AuthViewModel authViewModel) async {
@@ -197,11 +200,8 @@ class _LoginViewState extends State<LoginView>
     }
 
     final theme = Theme.of(context);
-
     final colorScheme = theme.colorScheme;
-
     final isDark = theme.brightness == Brightness.dark;
-
     final themeModeController = context.watch<ThemeModeController?>();
 
     return Scaffold(
@@ -554,6 +554,81 @@ class _LoginViewState extends State<LoginView>
                                               authViewModel.isLoading
                                                   ? 'Ingresando...'
                                                   : 'Iniciar sesión',
+                                            ),
+                                          ),
+
+                                          // Inicio de sesión alternativo:
+                                          // no requiere rellenar el formulario.
+                                          const SizedBox(height: 20),
+
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Divider(
+                                                  color: colorScheme
+                                                      .outlineVariant,
+                                                ),
+                                              ),
+                                              Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                    ),
+                                                child: Text(
+                                                  'o continúa con',
+                                                  style: theme
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                        color: colorScheme
+                                                            .onSurfaceVariant,
+                                                      ),
+                                                ),
+                                              ),
+                                              Expanded(
+                                                child: Divider(
+                                                  color: colorScheme
+                                                      .outlineVariant,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+
+                                          const SizedBox(height: 16),
+
+                                          OutlinedButton.icon(
+                                            key: const Key(
+                                              'login-google-button',
+                                            ),
+                                            onPressed: authViewModel.isLoading
+                                                ? null
+                                                : _signInWithGoogle,
+                                            style: OutlinedButton.styleFrom(
+                                              minimumSize:
+                                                  const Size.fromHeight(52),
+                                            ),
+                                            icon: Container(
+                                              width: 28,
+                                              height: 28,
+                                              alignment: Alignment.center,
+                                              decoration: BoxDecoration(
+                                                color: Colors.transparent,
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                              ),
+                                              child: Image.asset(
+                                                'assets/branding/google_g_logo.png',
+                                                key: const Key(
+                                                  'login-google-logo',
+                                                ),
+                                                width: 24,
+                                                height: 24,
+                                                fit: BoxFit.contain,
+                                                semanticLabel: 'Google',
+                                              ),
+                                            ),
+                                            label: const Text(
+                                              'Continuar con Google',
                                             ),
                                           ),
 

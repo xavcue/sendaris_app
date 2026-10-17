@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../domain/exceptions/auth_failure.dart';
+import '../../domain/exceptions/google_identity_failure.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../services/firebase_auth_service.dart';
 
@@ -10,6 +11,8 @@ class FirebaseAuthRepository
         AuthIdentityRepository,
         AuthIdentitySessionOperationsRepository,
         AuthObservedSessionOperationsRepository,
+        AuthGoogleSignInRepository,
+        AuthGoogleAccountManagementRepository,
         AuthRegistrationRepository,
         AuthEmailVerificationRepository,
         AuthSessionValidationRepository,
@@ -39,6 +42,19 @@ class FirebaseAuthRepository
       _service.authStateChanges.map((user) => user != null).distinct();
 
   @override
+  bool get canReauthenticateWithGoogle {
+    final user = _service.currentUser;
+
+    if (user == null) {
+      return false;
+    }
+
+    return user.providerData.any(
+      (provider) => provider.providerId == 'google.com',
+    );
+  }
+
+  @override
   Future<void> signIn({required String email, required String password}) async {
     try {
       await _service.signIn(email: email, password: password);
@@ -47,6 +63,28 @@ class FirebaseAuthRepository
     } catch (_) {
       throw const AuthFailure(
         'No fue posible iniciar sesión. Inténtalo nuevamente.',
+      );
+    }
+  }
+
+  @override
+  Future<String?> signInWithGoogleObserved({
+    required void Function() onExecutionStarted,
+  }) async {
+    try {
+      return await _service.signInWithGoogleObserved(
+        onExecutionStarted: onExecutionStarted,
+      );
+    } on GoogleIdentityFailure catch (error) {
+      throw AuthFailure(error.message);
+    } on FirebaseAuthException catch (error) {
+      throw AuthFailure(_safeGoogleSignInMessage(error.code));
+    } on AuthFailure {
+      rethrow;
+    } catch (_) {
+      throw const AuthFailure(
+        'No fue posible iniciar sesión con Google. '
+        'Inténtalo nuevamente.',
       );
     }
   }
@@ -326,6 +364,28 @@ class FirebaseAuthRepository
   }
 
   @override
+  Future<bool> reauthenticateWithGoogle() async {
+    try {
+      return await _service.reauthenticateCurrentUserWithGoogle();
+    } on GoogleIdentityFailure catch (error) {
+      throw AuthFailure(error.message);
+    } on StateError {
+      throw const AuthFailure(
+        'Debes iniciar sesión nuevamente antes de continuar.',
+      );
+    } on FirebaseAuthException catch (error) {
+      throw AuthFailure(_safeGoogleReauthenticationMessage(error.code));
+    } on AuthFailure {
+      rethrow;
+    } catch (_) {
+      throw const AuthFailure(
+        'No fue posible confirmar tu identidad con Google. '
+        'Inténtalo nuevamente.',
+      );
+    }
+  }
+
+  @override
   Future<void> deleteCurrentAccount() async {
     try {
       await _service.deleteCurrentUser();
@@ -372,6 +432,69 @@ class FirebaseAuthRepository
     'user-token-expired',
     'invalid-user-token',
   };
+
+  String _safeGoogleReauthenticationMessage(String code) {
+    switch (code) {
+      case 'user-mismatch':
+        return 'La cuenta de Google seleccionada no coincide '
+            'con la cuenta actual.';
+
+      case 'network-request-failed':
+        return 'No fue posible confirmar tu identidad con Google. '
+            'Comprueba tu conexión.';
+
+      case 'too-many-requests':
+        return 'Demasiados intentos. '
+            'Inténtalo nuevamente más tarde.';
+
+      case 'invalid-credential':
+      case 'invalid-idp-response':
+        return 'No fue posible verificar la cuenta de Google '
+            'seleccionada. Inténtalo nuevamente.';
+
+      case 'user-disabled':
+      case 'user-not-found':
+      case 'user-token-expired':
+      case 'invalid-user-token':
+        return 'Debes iniciar sesión nuevamente antes de continuar.';
+
+      default:
+        return 'No fue posible confirmar tu identidad con Google. '
+            'Inténtalo nuevamente.';
+    }
+  }
+
+  String _safeGoogleSignInMessage(String code) {
+    switch (code) {
+      case 'network-request-failed':
+        return 'No fue posible conectar con Google. '
+            'Comprueba tu conexión.';
+
+      case 'too-many-requests':
+        return 'Demasiados intentos. '
+            'Inténtalo nuevamente más tarde.';
+
+      case 'operation-not-allowed':
+        return 'El inicio de sesión con Google no está disponible '
+            'en este momento.';
+
+      case 'user-disabled':
+        return 'No fue posible iniciar sesión con esta cuenta.';
+
+      case 'invalid-credential':
+      case 'invalid-idp-response':
+      case 'account-exists-with-different-credential':
+      case 'credential-already-in-use':
+      case 'email-already-in-use':
+        return 'No fue posible completar el acceso con Google. '
+            'Comprueba el método que utilizabas anteriormente '
+            'o inténtalo nuevamente.';
+
+      default:
+        return 'No fue posible iniciar sesión con Google. '
+            'Inténtalo nuevamente.';
+    }
+  }
 
   String _safeSignInMessage(String code) {
     switch (code) {
