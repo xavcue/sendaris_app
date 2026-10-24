@@ -1,236 +1,104 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import 'app/app.dart';
-import 'app/session/session_timeout_guard.dart';
-import 'app/session/session_timeout_policy.dart';
+import 'app/session/acknowledged_session_timeout_store.dart';
+import 'app/session/biometric_vault_gateway.dart';
+import 'app/session/firebase_account_contexts.dart';
+import 'app/session/sendaris_dual_account_root.dart';
 import 'app/session/session_timeout_store.dart';
-import 'features/atypical_situation/data/repositories/firebase_atypical_situation_repository.dart';
-import 'features/atypical_situation/data/services/firestore_atypical_situation_service.dart';
-import 'features/atypical_situation/data/services/uuid_atypical_situation_record_id_generator.dart';
-import 'features/atypical_situation/domain/services/atypical_situation_record_factory.dart';
-import 'features/auth/data/repositories/firebase_auth_repository.dart';
-import 'features/auth/data/services/firebase_auth_service.dart';
-import 'features/behavior/data/repositories/firebase_behavior_repository.dart';
-import 'features/behavior/data/services/firestore_behavior_service.dart';
-import 'features/behavior/data/services/uuid_behavior_record_id_generator.dart';
-import 'features/behavior/domain/services/behavior_record_factory.dart';
-import 'features/duration/data/repositories/composite_duration_repository.dart';
-import 'features/dysregulation/data/repositories/firebase_dysregulation_repository.dart';
-import 'features/dysregulation/data/services/firestore_dysregulation_service.dart';
-import 'features/dysregulation/data/services/uuid_dysregulation_record_id_generator.dart';
-import 'features/dysregulation/domain/services/dysregulation_record_factory.dart';
-import 'features/feeding/data/repositories/firebase_feeding_repository.dart';
-import 'features/feeding/data/services/firestore_feeding_service.dart';
-import 'features/feeding/data/services/uuid_feeding_record_id_generator.dart';
-import 'features/feeding/domain/services/feeding_record_factory.dart';
-import 'features/routine/data/repositories/firebase_routine_repository.dart';
-import 'features/routine/data/services/firestore_routine_service.dart';
-import 'features/routine/data/services/uuid_routine_id_generator.dart';
-import 'features/routine/domain/services/routine_factory.dart';
-import 'features/routine_compliance/data/repositories/composite_routine_compliance_repository.dart';
-import 'features/routine_status/data/repositories/firebase_routine_status_repository.dart';
-import 'features/routine_status/data/services/firestore_routine_status_service.dart';
-import 'features/routine_status/data/services/uuid_routine_status_record_id_generator.dart';
-import 'features/routine_status/domain/services/routine_status_record_factory.dart';
-import 'features/sleep/data/repositories/firebase_sleep_repository.dart';
-import 'features/sleep/data/services/firestore_sleep_service.dart';
-import 'features/sleep/data/services/uuid_sleep_record_id_generator.dart';
-import 'features/sleep/domain/services/sleep_record_factory.dart';
-import 'features/social_interaction/data/repositories/firebase_social_interaction_repository.dart';
-import 'features/social_interaction/data/services/firestore_social_interaction_service.dart';
-import 'features/social_interaction/data/services/uuid_social_interaction_record_id_generator.dart';
-import 'features/social_interaction/domain/services/social_interaction_record_factory.dart';
-import 'features/tracking/data/repositories/firebase_tracking_repository.dart';
-import 'features/tracking/data/services/firestore_tracking_service.dart';
-import 'features/tracking/data/services/uuid_anonymous_id_generator.dart';
-import 'features/tracking/domain/services/anonymous_tracking_profile_factory.dart';
+import 'app/theme/sendaris_theme_preference.dart';
 import 'firebase_options.dart';
 
+/// Punto de entrada principal de Sendaris.
+///
+/// La arquitectura de dos cuentas es ahora el funcionamiento
+/// habitual de la aplicacion.
+///
+/// No requiere SENDARIS_DUAL_ACCOUNT_PREVIEW ni otras
+/// opciones --dart-define para habilitar AUTH-03.
+///
+/// Conserva:
+/// - Cuenta A vinculada a biometria.
+/// - Cuenta B convencional.
+/// - Restauracion independiente de sesiones.
+/// - Android Keystore.
+/// - Limites temporales.
+/// - Revocacion por cierre manual.
+/// - Registros, rutinas e indicadores.
+/// - Tema Claro, Oscuro o Sistema.
+///
+/// Las autorizaciones privadas siguen siendo responsabilidad
+/// de SendarisDualAccountRoot y sus coordinadores.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Recuperar la apariencia elegida en el dispositivo.
+  //
+  // Es independiente de la identidad Firebase
+  // que se restaure durante el arranque.
+  await SendarisThemePreference.initialize();
+
+  // Inicializar Firebase antes de utilizar sus servicios.
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
+  // Utilizar el proveedor Debug solamente durante
+  // el desarrollo.
+  //
+  // Las compilaciones release utilizan Play Integrity.
   await FirebaseAppCheck.instance.activate(
     providerAndroid: kDebugMode
         ? const AndroidDebugProvider()
         : const AndroidPlayIntegrityProvider(),
   );
 
-  final firebaseAuth = FirebaseAuth.instance;
+  // Inicializar los contextos Firebase independientes
+  // utilizados por la arquitectura dual de Sendaris.
+  //
+  // El mismo flujo se utiliza en debug y release.
+  final contexts = await FirebaseAccountContextManager.initialize();
 
-  final firestore = FirebaseFirestore.instance;
-
-  firestore.settings = const Settings(persistenceEnabled: true);
-
-  final authService = FirebaseAuthService(firebaseAuth);
-
-  final authRepository = FirebaseAuthRepository(authService);
-
-  final trackingService = FirestoreTrackingService(firestore, firebaseAuth);
-
-  final trackingRepository = FirebaseTrackingRepository(trackingService);
-
-  final trackingProfileFactory = AnonymousTrackingProfileFactory(
-    UuidAnonymousIdGenerator(),
+  // El segundo contexto necesita su propia instancia
+  // de App Check y el proveedor correspondiente al
+  // tipo de compilacion.
+  await FirebaseAppCheck.instanceFor(app: contexts.secondary.app).activate(
+    providerAndroid: kDebugMode
+        ? const AndroidDebugProvider()
+        : const AndroidPlayIntegrityProvider(),
   );
 
-  final behaviorService = FirestoreBehaviorService(firestore, firebaseAuth);
-
-  final behaviorRepository = FirebaseBehaviorRepository(behaviorService);
-
-  final behaviorRecordFactory = BehaviorRecordFactory(
-    UuidBehaviorRecordIdGenerator(),
+  // Conservar la persistencia de Firestore existente.
+  contexts.primary.firestore.settings = const Settings(
+    persistenceEnabled: true,
   );
 
-  final sleepService = FirestoreSleepService(firestore, firebaseAuth);
-
-  final sleepRepository = FirebaseSleepRepository(sleepService);
-
-  final sleepRecordFactory = SleepRecordFactory(UuidSleepRecordIdGenerator());
-
-  final feedingService = FirestoreFeedingService(firestore, firebaseAuth);
-
-  final feedingRepository = FirebaseFeedingRepository(feedingService);
-
-  final feedingRecordFactory = FeedingRecordFactory(
-    UuidFeedingRecordIdGenerator(),
+  contexts.secondary.firestore.settings = const Settings(
+    persistenceEnabled: true,
   );
 
-  final socialInteractionService = FirestoreSocialInteractionService(
-    firestore,
-    firebaseAuth,
+  // Almacenamiento temporal usado por el guard
+  // convencional. La raiz dual mantiene el diario
+  // independiente de sesiones A y B.
+  final sessionStore = AcknowledgedSessionTimeoutStore(
+    delegate: PreferencesSessionTimeoutStore(),
   );
 
-  final socialInteractionRepository = FirebaseSocialInteractionRepository(
-    socialInteractionService,
-  );
+  // Adaptador nativo de Android Keystore.
+  //
+  // No altera las vinculaciones biometricas existentes.
+  final biometricGateway = AndroidBiometricVaultGateway();
 
-  final socialInteractionRecordFactory = SocialInteractionRecordFactory(
-    UuidSocialInteractionRecordIdGenerator(),
-  );
-
-  final dysregulationService = FirestoreDysregulationService(
-    firestore,
-    firebaseAuth,
-  );
-
-  final dysregulationRepository = FirebaseDysregulationRepository(
-    dysregulationService,
-  );
-
-  final dysregulationRecordFactory = DysregulationRecordFactory(
-    UuidDysregulationRecordIdGenerator(),
-  );
-
-  final routineService = FirestoreRoutineService(firestore, firebaseAuth);
-
-  final routineRepository = FirebaseRoutineRepository(routineService);
-
-  final routineFactory = RoutineFactory(UuidRoutineIdGenerator());
-
-  final routineStatusService = FirestoreRoutineStatusService(
-    firestore,
-    firebaseAuth,
-  );
-
-  final routineStatusRepository = FirebaseRoutineStatusRepository(
-    routineStatusService,
-  );
-
-  final routineStatusRecordFactory = RoutineStatusRecordFactory(
-    UuidRoutineStatusRecordIdGenerator(),
-  );
-
-  final atypicalSituationService = FirestoreAtypicalSituationService(
-    firestore,
-    firebaseAuth,
-  );
-
-  final atypicalSituationRepository = FirebaseAtypicalSituationRepository(
-    atypicalSituationService,
-  );
-
-  final atypicalSituationRecordFactory = AtypicalSituationRecordFactory(
-    UuidAtypicalSituationRecordIdGenerator(),
-  );
-
-  final durationRepository = CompositeDurationRepository(
-    sleepRepository: sleepRepository,
-    behaviorRepository: behaviorRepository,
-    dysregulationRepository: dysregulationRepository,
-  );
-
-  final routineComplianceRepository = CompositeRoutineComplianceRepository(
-    routineRepository: routineRepository,
-    routineStatusRepository: routineStatusRepository,
-  );
-
-  final sessionStore = PreferencesSessionTimeoutStore();
-
-  SessionTimeoutRecord? initialRecord;
-
-  try {
-    initialRecord = await SessionTimeoutBootstrap.prepare(
-      repository: authRepository,
-      store: sessionStore,
-    );
-  } catch (_) {
-    // Ante un error de validación inicial, nunca
-    // se construye la interfaz con datos privados.
-    runApp(
-      const MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Text(
-                'No se pudo comprobar la seguridad de tu sesión. '
-                'Cierra y vuelve a abrir Sendaris.',
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-
-    return;
-  }
-
+  // Arquitectura oficial de Sendaris.
+  //
+  // Ya no existe un camino alternativo condicionado
+  // por SENDARIS_DUAL_ACCOUNT_PREVIEW.
   runApp(
-    SessionTimeoutGuard(
-      authRepository: authRepository,
+    SendarisDualAccountRoot(
+      contexts: contexts,
       store: sessionStore,
-      initialRecord: initialRecord,
-      child: SendarisApp(
-        authRepository: authRepository,
-        trackingRepository: trackingRepository,
-        trackingProfileFactory: trackingProfileFactory,
-        behaviorRepository: behaviorRepository,
-        behaviorRecordFactory: behaviorRecordFactory,
-        sleepRepository: sleepRepository,
-        sleepRecordFactory: sleepRecordFactory,
-        feedingRepository: feedingRepository,
-        feedingRecordFactory: feedingRecordFactory,
-        socialInteractionRepository: socialInteractionRepository,
-        socialInteractionRecordFactory: socialInteractionRecordFactory,
-        dysregulationRepository: dysregulationRepository,
-        dysregulationRecordFactory: dysregulationRecordFactory,
-        durationRepository: durationRepository,
-        routineRepository: routineRepository,
-        routineFactory: routineFactory,
-        routineStatusRepository: routineStatusRepository,
-        routineStatusRecordFactory: routineStatusRecordFactory,
-        routineComplianceRepository: routineComplianceRepository,
-        atypicalSituationRepository: atypicalSituationRepository,
-        atypicalSituationRecordFactory: atypicalSituationRecordFactory,
-      ),
+      gateway: biometricGateway,
     ),
   );
 }

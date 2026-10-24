@@ -1,8 +1,15 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/animation/app_motion.dart';
+import '../../../../app/session/account_biometric_access_coordinator.dart';
+import '../../../../app/session/account_conventional_access_coordinator.dart';
+import '../../../../app/session/firebase_account_contexts.dart';
+import '../../../../app/session/sendaris_dual_account_root.dart';
 import '../../../../app/theme/theme_mode_controller.dart';
 import '../../data/repositories/firebase_password_reset_repository.dart';
 import '../../domain/repositories/password_reset_repository.dart';
@@ -11,11 +18,16 @@ import '../widgets/auth_top_bar.dart';
 import 'password_reset_dialog.dart';
 import 'registration_email_view.dart';
 
+/// Pantalla única de inicio de sesión de Sendaris.
+///
+/// Mantiene correo, contraseña, Google, recuperación,
+/// registro y verificación del correo electrónico.
+///
+/// El acceso biométrico solo se habilita cuando la raíz
+/// dual proporciona una cuenta vinculada y su coordinador.
 class LoginView extends StatefulWidget {
   const LoginView({this.passwordResetRepository, super.key});
 
-  // Permite utilizar un repositorio simulado durante las pruebas.
-  // En producción se utiliza Firebase Authentication.
   final PasswordResetRepository? passwordResetRepository;
 
   @override
@@ -24,10 +36,10 @@ class LoginView extends StatefulWidget {
 
 class _LoginViewState extends State<LoginView>
     with SingleTickerProviderStateMixin {
-  final _formKey = GlobalKey<FormState>();
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   late final AnimationController _entranceController;
 
@@ -41,6 +53,42 @@ class _LoginViewState extends State<LoginView>
 
   bool _obscurePassword = true;
   bool _showRegistration = false;
+  bool _localAccessBusy = false;
+
+  String? _accessError;
+
+  bool _showFieldErrors = false;
+  Timer? _fieldErrorTimer;
+  int _errorAttemptRevision = 0;
+
+  static const Duration _errorVisibility = Duration(seconds: 6);
+
+  bool _validateLoginFields() {
+    _fieldErrorTimer?.cancel();
+    _showFieldErrors = true;
+
+    final valid = _formKey.currentState!.validate();
+
+    if (valid) {
+      _showFieldErrors = false;
+      return true;
+    }
+
+    _fieldErrorTimer = Timer(_errorVisibility, () {
+      if (!mounted) {
+        return;
+      }
+
+      _showFieldErrors = false;
+      _formKey.currentState?.validate();
+    });
+
+    return false;
+  }
+
+  bool _accessBusy(AuthViewModel model) {
+    return model.isLoading || _localAccessBusy;
+  }
 
   @override
   void initState() {
@@ -99,6 +147,7 @@ class _LoginViewState extends State<LoginView>
 
   @override
   void dispose() {
+    _fieldErrorTimer?.cancel();
     _entranceController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -106,39 +155,320 @@ class _LoginViewState extends State<LoginView>
     super.dispose();
   }
 
+  /// Autenticación convencional por correo y contraseña.
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    await context.read<AuthViewModel>().signIn(
-      email: _emailController.text,
-      password: _passwordController.text,
-    );
-  }
-
-  /// Permite autenticarse mediante Google sin validar el formulario
-  /// de correo y contraseña.
-  Future<void> _signInWithGoogle() async {
     final authViewModel = context.read<AuthViewModel>();
 
-    if (authViewModel.isLoading) {
+    if (_accessBusy(authViewModel)) {
       return;
     }
 
-    await authViewModel.signInWithGoogle();
+    _errorAttemptRevision++;
+
+    if (!_validateLoginFields()) {
+      return;
+    }
+
+    final conventionalCoordinator = context
+        .read<AccountConventionalAccessCoordinator?>();
+
+    final configuration = context.read<SendarisAccountSessionConfiguration?>();
+
+    if (conventionalCoordinator == null && configuration == null) {
+      await authViewModel.signIn(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
+      return;
+    }
+
+    if (conventionalCoordinator == null || configuration == null) {
+      setState(() {
+        _accessError = 'El acceso no está disponible en este momento.';
+      });
+      return;
+    }
+
+    final email = _emailController.text;
+    final password = _passwordController.text;
+
+    setState(() {
+      _localAccessBusy = true;
+      _accessError = null;
+    });
+
+    try {
+      final granted = await conventionalCoordinator.signIn(
+        slot: configuration.conventionalSlot,
+        authenticate: () {
+          return authViewModel.signIn(email: email, password: password);
+        },
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (!granted &&
+          authViewModel.errorMessage == null &&
+          authViewModel.isEmailVerified != false) {
+        setState(() {
+          _accessError =
+              'No se pudo autorizar esta sesión. '
+              'Comprueba tu conexión y vuelve a intentarlo.';
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _accessError =
+              'No fue posible comprobar el acceso. '
+              'Inténtalo nuevamente.';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _localAccessBusy = false;
+        });
+      }
+    }
+  }
+
+  /// Inicio convencional con Google.
+  Future<void> _signInWithGoogle() async {
+    _errorAttemptRevision++;
+
+    final authViewModel = context.read<AuthViewModel>();
+
+    if (_accessBusy(authViewModel)) {
+      return;
+    }
+
+    final conventionalCoordinator = context
+        .read<AccountConventionalAccessCoordinator?>();
+
+    final configuration = context.read<SendarisAccountSessionConfiguration?>();
+
+    if (conventionalCoordinator == null && configuration == null) {
+      await authViewModel.signInWithGoogle();
+      return;
+    }
+
+    if (conventionalCoordinator == null || configuration == null) {
+      setState(() {
+        _accessError = 'El acceso no está disponible en este momento.';
+      });
+      return;
+    }
+
+    setState(() {
+      _localAccessBusy = true;
+      _accessError = null;
+    });
+
+    try {
+      final granted = await conventionalCoordinator.signIn(
+        slot: configuration.conventionalSlot,
+        authenticate: authViewModel.signInWithGoogle,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (!granted &&
+          authViewModel.errorMessage == null &&
+          authViewModel.isEmailVerified != false &&
+          authViewModel.isAuthenticated) {
+        setState(() {
+          _accessError =
+              'No se pudo autorizar esta sesión. '
+              'Comprueba tu conexión y vuelve a intentarlo.';
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _accessError = 'No fue posible comprobar el acceso con Google.';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _localAccessBusy = false;
+        });
+      }
+    }
+  }
+
+  /// Acceso mediante la cuenta vinculada a Android Keystore.
+  ///
+  /// Cancelar no constituye un fallo y no produce mensajes.
+  /// Solo el coordinador puede autorizar el acceso privado.
+  Future<void> _signInWithBiometrics() async {
+    _errorAttemptRevision++;
+
+    final authViewModel = context.read<AuthViewModel>();
+
+    if (_accessBusy(authViewModel)) {
+      return;
+    }
+
+    final configuration = context.read<SendarisAccountSessionConfiguration?>();
+
+    final biometricCoordinator = context
+        .read<AccountBiometricAccessCoordinator?>();
+
+    final linkedSlot = configuration?.linkedSlot;
+
+    if (configuration == null ||
+        biometricCoordinator == null ||
+        linkedSlot == null) {
+      return;
+    }
+
+    // Evita que un error anterior permanezca visible
+    // después de cancelar el diálogo de huella.
+    authViewModel.clearError();
+
+    setState(() {
+      _localAccessBusy = true;
+      _accessError = null;
+    });
+
+    try {
+      final outcome = await biometricCoordinator.unlockLinkedAccountWithOutcome(
+        slot: linkedSlot,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      final message = switch (outcome) {
+        AccountBiometricAccessOutcome.granted => null,
+        AccountBiometricAccessOutcome.cancelled => null,
+        AccountBiometricAccessOutcome.denied =>
+          'No se pudo verificar tu identidad. '
+              'Inténtalo de nuevo con una huella registrada en este dispositivo.',
+        AccountBiometricAccessOutcome.unavailable =>
+          'La autenticación biométrica no está disponible en este momento. '
+              'Inténtalo nuevamente.',
+        AccountBiometricAccessOutcome.sessionUnavailable =>
+          'No se pudo confirmar la sesión vinculada. '
+              'Comprueba tu conexión e inténtalo nuevamente.',
+      };
+
+      if (message != null) {
+        setState(() {
+          _accessError = message;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _accessError =
+              'No fue posible comprobar el acceso biométrico. '
+              'Inténtalo nuevamente.';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _localAccessBusy = false;
+        });
+      }
+    }
+  }
+
+  /// Reinicia la autenticación convencional después de
+  /// una verificación de correo completada.
+  Future<void> _restartConventionalSignIn() async {
+    _errorAttemptRevision++;
+
+    final authViewModel = context.read<AuthViewModel>();
+
+    final configuration = context.read<SendarisAccountSessionConfiguration?>();
+
+    if (configuration == null ||
+        _accessBusy(authViewModel) ||
+        !authViewModel.isAuthenticated ||
+        authViewModel.isEmailVerified != true) {
+      return;
+    }
+
+    setState(() {
+      _localAccessBusy = true;
+      _accessError = null;
+    });
+
+    try {
+      final signedOut = await authViewModel.signOut();
+
+      if (!mounted) {
+        return;
+      }
+
+      if (!signedOut) {
+        setState(() {
+          _accessError =
+              authViewModel.errorMessage ??
+              'No fue posible reiniciar el acceso. Inténtalo nuevamente.';
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _accessError = 'No fue posible reiniciar el acceso.';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _localAccessBusy = false;
+        });
+      }
+    }
+  }
+
+  PasswordResetRepository _passwordResetRepository() {
+    final provided = widget.passwordResetRepository;
+
+    if (provided != null) {
+      return provided;
+    }
+
+    final configuration = context.read<SendarisAccountSessionConfiguration?>();
+
+    final FirebaseAuth auth;
+
+    if (configuration == null ||
+        configuration.conventionalSlot == FirebaseAccountSlot.primary) {
+      auth = FirebaseAuth.instance;
+    } else {
+      final secondaryApp = Firebase.app(
+        FirebaseAccountContextManager.secondaryApplicationName,
+      );
+
+      auth = FirebaseAuth.instanceFor(app: secondaryApp);
+    }
+
+    return FirebasePasswordResetRepository(auth);
   }
 
   Future<void> _openPasswordReset(AuthViewModel authViewModel) async {
-    if (authViewModel.isLoading) {
+    if (_accessBusy(authViewModel)) {
       return;
     }
 
     authViewModel.clearError();
 
-    final repository =
-        widget.passwordResetRepository ??
-        FirebasePasswordResetRepository(FirebaseAuth.instance);
+    final repository = _passwordResetRepository();
+
+    if (!mounted) {
+      return;
+    }
 
     await showDialog<void>(
       context: context,
@@ -153,9 +483,14 @@ class _LoginViewState extends State<LoginView>
   }
 
   void _openRegistration(AuthViewModel authViewModel) {
+    if (_accessBusy(authViewModel)) {
+      return;
+    }
+
     authViewModel.clearError();
 
     setState(() {
+      _accessError = null;
       _showRegistration = true;
     });
   }
@@ -202,7 +537,23 @@ class _LoginViewState extends State<LoginView>
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
+
     final themeModeController = context.watch<ThemeModeController?>();
+
+    final configuration = context.watch<SendarisAccountSessionConfiguration?>();
+
+    final biometricCoordinator = context
+        .read<AccountBiometricAccessCoordinator?>();
+
+    final biometricAvailable =
+        configuration?.linkedSlot != null && biometricCoordinator != null;
+
+    final mustRestartVerifiedSession =
+        configuration != null &&
+        authViewModel.isAuthenticated &&
+        authViewModel.isEmailVerified == true;
+
+    final isBusy = _accessBusy(authViewModel);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -279,11 +630,10 @@ class _LoginViewState extends State<LoginView>
                                             letterSpacing: -1.25,
                                           ),
                                     ),
-
                                     const SizedBox(height: 9),
-
                                     Text(
-                                      'Organiza registros y rutinas en un solo lugar.',
+                                      'Organiza registros y rutinas '
+                                      'en un solo lugar.',
                                       textAlign: TextAlign.center,
                                       style: theme.textTheme.bodyLarge
                                           ?.copyWith(
@@ -333,9 +683,7 @@ class _LoginViewState extends State<LoginView>
                                                   size: 22,
                                                 ),
                                               ),
-
                                               const SizedBox(width: 13),
-
                                               Expanded(
                                                 child: Column(
                                                   crossAxisAlignment:
@@ -349,7 +697,8 @@ class _LoginViewState extends State<LoginView>
                                                     ),
                                                     const SizedBox(height: 3),
                                                     Text(
-                                                      'Ingresa tus datos para continuar.',
+                                                      'Ingresa tus datos '
+                                                      'para continuar.',
                                                       style: theme
                                                           .textTheme
                                                           .bodySmall,
@@ -365,7 +714,7 @@ class _LoginViewState extends State<LoginView>
                                           TextFormField(
                                             key: const Key('login-email-field'),
                                             controller: _emailController,
-                                            enabled: !authViewModel.isLoading,
+                                            enabled: !isBusy,
                                             keyboardType:
                                                 TextInputType.emailAddress,
                                             textInputAction:
@@ -382,15 +731,23 @@ class _LoginViewState extends State<LoginView>
                                               ),
                                             ),
                                             validator: (value) {
+                                              if (!_showFieldErrors) {
+                                                return null;
+                                              }
                                               if (value == null ||
                                                   value.trim().isEmpty) {
-                                                return 'Ingresa tu correo electrónico.';
+                                                return 'Ingresa tu '
+                                                    'correo electrónico.';
                                               }
-
                                               return null;
                                             },
                                             onChanged: (_) {
                                               authViewModel.clearError();
+                                              if (_accessError != null) {
+                                                setState(() {
+                                                  _accessError = null;
+                                                });
+                                              }
                                             },
                                           ),
 
@@ -401,7 +758,7 @@ class _LoginViewState extends State<LoginView>
                                               'login-password-field',
                                             ),
                                             controller: _passwordController,
-                                            enabled: !authViewModel.isLoading,
+                                            enabled: !isBusy,
                                             obscureText: _obscurePassword,
                                             textInputAction:
                                                 TextInputAction.done,
@@ -417,8 +774,7 @@ class _LoginViewState extends State<LoginView>
                                                 tooltip: _obscurePassword
                                                     ? 'Mostrar contraseña'
                                                     : 'Ocultar contraseña',
-                                                onPressed:
-                                                    authViewModel.isLoading
+                                                onPressed: isBusy
                                                     ? null
                                                     : () {
                                                         setState(() {
@@ -436,25 +792,31 @@ class _LoginViewState extends State<LoginView>
                                               ),
                                             ),
                                             validator: (value) {
+                                              if (!_showFieldErrors) {
+                                                return null;
+                                              }
                                               if (value == null ||
                                                   value.isEmpty) {
-                                                return 'Ingresa tu contraseña.';
+                                                return 'Ingresa tu '
+                                                    'contraseña.';
                                               }
-
                                               return null;
                                             },
                                             onChanged: (_) {
                                               authViewModel.clearError();
+                                              if (_accessError != null) {
+                                                setState(() {
+                                                  _accessError = null;
+                                                });
+                                              }
                                             },
                                             onFieldSubmitted: (_) {
-                                              if (!authViewModel.isLoading) {
+                                              if (!isBusy) {
                                                 _submit();
                                               }
                                             },
                                           ),
 
-                                          // Recuperación de contraseña:
-                                          // no modifica el estado de sesión.
                                           const SizedBox(height: 4),
 
                                           Align(
@@ -463,7 +825,7 @@ class _LoginViewState extends State<LoginView>
                                               key: const Key(
                                                 'login-forgot-password-button',
                                               ),
-                                              onPressed: authViewModel.isLoading
+                                              onPressed: isBusy
                                                   ? null
                                                   : () {
                                                       _openPasswordReset(
@@ -476,53 +838,52 @@ class _LoginViewState extends State<LoginView>
                                             ),
                                           ),
 
-                                          if (authViewModel.errorMessage !=
-                                              null) ...[
+                                          if (_accessError != null ||
+                                              authViewModel.errorMessage !=
+                                                  null) ...[
                                             const SizedBox(height: 16),
+                                            _TimedLoginErrorBanner(
+                                              key: ValueKey<int>(
+                                                _errorAttemptRevision,
+                                              ),
+                                              message:
+                                                  _accessError ??
+                                                  authViewModel.errorMessage!,
+                                              isAccessError:
+                                                  _accessError != null,
+                                              visibility: _errorVisibility,
+                                              onDismiss: () {
+                                                if (!mounted) {
+                                                  return;
+                                                }
+                                                if (_accessError != null) {
+                                                  setState(() {
+                                                    _accessError = null;
+                                                  });
+                                                }
+                                                authViewModel.clearError();
+                                              },
+                                            ),
+                                          ],
 
-                                            Semantics(
-                                              liveRegion: true,
-                                              child: Container(
-                                                padding: const EdgeInsets.all(
-                                                  14,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color: colorScheme
-                                                      .errorContainer
-                                                      .withValues(
-                                                        alpha: isDark
-                                                            ? 0.64
-                                                            : 0.86,
-                                                      ),
-                                                  borderRadius:
-                                                      BorderRadius.circular(14),
-                                                ),
-                                                child: Row(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    Icon(
-                                                      Icons
-                                                          .error_outline_rounded,
-                                                      size: 20,
-                                                      color: colorScheme
-                                                          .onErrorContainer,
-                                                    ),
-
-                                                    const SizedBox(width: 8),
-
-                                                    Expanded(
-                                                      child: Text(
-                                                        authViewModel
-                                                            .errorMessage!,
-                                                        style: TextStyle(
-                                                          color: colorScheme
-                                                              .onErrorContainer,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
+                                          if (mustRestartVerifiedSession) ...[
+                                            const SizedBox(height: 12),
+                                            Text(
+                                              'Tu correo ya está '
+                                              'verificado. Vuelve a '
+                                              'iniciar sesión para '
+                                              'continuar de forma segura.',
+                                              style: theme.textTheme.bodySmall,
+                                            ),
+                                            TextButton(
+                                              key: const Key(
+                                                'login-restart-verified-session',
+                                              ),
+                                              onPressed: isBusy
+                                                  ? null
+                                                  : _restartConventionalSignIn,
+                                              child: const Text(
+                                                'Volver a iniciar sesión',
                                               ),
                                             ),
                                           ],
@@ -533,10 +894,12 @@ class _LoginViewState extends State<LoginView>
                                             key: const Key(
                                               'login-submit-button',
                                             ),
-                                            onPressed: authViewModel.isLoading
+                                            onPressed:
+                                                isBusy ||
+                                                    mustRestartVerifiedSession
                                                 ? null
                                                 : _submit,
-                                            icon: authViewModel.isLoading
+                                            icon: isBusy
                                                 ? SizedBox(
                                                     width: 20,
                                                     height: 20,
@@ -551,14 +914,12 @@ class _LoginViewState extends State<LoginView>
                                                     Icons.login_rounded,
                                                   ),
                                             label: Text(
-                                              authViewModel.isLoading
+                                              isBusy
                                                   ? 'Ingresando...'
                                                   : 'Iniciar sesión',
                                             ),
                                           ),
 
-                                          // Inicio de sesión alternativo:
-                                          // no requiere rellenar el formulario.
                                           const SizedBox(height: 20),
 
                                           Row(
@@ -600,7 +961,9 @@ class _LoginViewState extends State<LoginView>
                                             key: const Key(
                                               'login-google-button',
                                             ),
-                                            onPressed: authViewModel.isLoading
+                                            onPressed:
+                                                isBusy ||
+                                                    mustRestartVerifiedSession
                                                 ? null
                                                 : _signInWithGoogle,
                                             style: OutlinedButton.styleFrom(
@@ -631,6 +994,46 @@ class _LoginViewState extends State<LoginView>
                                               'Continuar con Google',
                                             ),
                                           ),
+
+                                          if (biometricAvailable) ...[
+                                            const SizedBox(height: 14),
+                                            OutlinedButton(
+                                              key: const Key(
+                                                'login-biometric-button',
+                                              ),
+                                              onPressed: isBusy
+                                                  ? null
+                                                  : _signInWithBiometrics,
+                                              style: OutlinedButton.styleFrom(
+                                                minimumSize:
+                                                    const Size.fromHeight(64),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 16,
+                                                      vertical: 12,
+                                                    ),
+                                              ),
+                                              child: const Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.fingerprint_rounded,
+                                                    size: 20,
+                                                  ),
+                                                  SizedBox(width: 8),
+                                                  Expanded(
+                                                    child: Text(
+                                                      'Ingresar con huella o '
+                                                      'reconocimiento facial',
+                                                      textAlign:
+                                                          TextAlign.center,
+                                                      softWrap: true,
+                                                    ),
+                                                  ),
+                                                  SizedBox(width: 28),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
 
                                           const SizedBox(height: 22),
 
@@ -673,7 +1076,7 @@ class _LoginViewState extends State<LoginView>
                                             key: const Key(
                                               'login-create-account-button',
                                             ),
-                                            onPressed: authViewModel.isLoading
+                                            onPressed: isBusy
                                                 ? null
                                                 : () {
                                                     _openRegistration(
@@ -710,13 +1113,12 @@ class _LoginViewState extends State<LoginView>
                                     size: 18,
                                     color: colorScheme.primary,
                                   ),
-
                                   const SizedBox(width: 7),
-
                                   Flexible(
                                     child: Text(
-                                      'Sendaris utiliza tu cuenta para mantener '
-                                      'tus registros disponibles de forma privada.',
+                                      'Sendaris utiliza tu cuenta '
+                                      'para mantener tus registros '
+                                      'disponibles de forma privada.',
                                       textAlign: TextAlign.center,
                                       style: theme.textTheme.bodySmall
                                           ?.copyWith(
@@ -740,6 +1142,104 @@ class _LoginViewState extends State<LoginView>
             Align(
               alignment: Alignment.topCenter,
               child: AuthTopBar(themeModeController: themeModeController),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Aviso temporal utilizado para errores reales de autenticación.
+///
+/// Las cancelaciones biométricas nunca crean este componente.
+final class _TimedLoginErrorBanner extends StatefulWidget {
+  const _TimedLoginErrorBanner({
+    required this.message,
+    required this.isAccessError,
+    required this.visibility,
+    required this.onDismiss,
+    super.key,
+  });
+
+  final String message;
+  final bool isAccessError;
+  final Duration visibility;
+  final VoidCallback onDismiss;
+
+  @override
+  State<_TimedLoginErrorBanner> createState() => _TimedLoginErrorBannerState();
+}
+
+final class _TimedLoginErrorBannerState extends State<_TimedLoginErrorBanner> {
+  Timer? _dismissTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startDismissal();
+  }
+
+  void _startDismissal() {
+    _dismissTimer?.cancel();
+
+    _dismissTimer = Timer(widget.visibility, () {
+      if (!mounted) {
+        return;
+      }
+
+      widget.onDismiss();
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _TimedLoginErrorBanner oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.message != widget.message ||
+        oldWidget.isAccessError != widget.isAccessError ||
+        oldWidget.visibility != widget.visibility) {
+      _startDismissal();
+    }
+  }
+
+  @override
+  void dispose() {
+    _dismissTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        key: const Key('login-error-banner'),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: colors.errorContainer.withValues(alpha: isDark ? 0.64 : 0.86),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.error_outline_rounded,
+              size: 20,
+              color: colors.onErrorContainer,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                widget.message,
+                key: widget.isAccessError
+                    ? const Key('login-account-access-error')
+                    : const Key('login-authentication-error'),
+                style: TextStyle(color: colors.onErrorContainer),
+              ),
             ),
           ],
         ),

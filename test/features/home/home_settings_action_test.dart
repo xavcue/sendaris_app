@@ -27,7 +27,6 @@ void main() {
 
     addTearDown(() {
       tester.view.resetPhysicalSize();
-
       tester.view.resetDevicePixelRatio();
     });
 
@@ -52,9 +51,22 @@ void main() {
       timerFactory: (_, _) => _NoopTimer(),
     );
 
-    addTearDown(trackingViewModel.dispose);
+    // Mantiene sincronizados los dos ViewModels,
+    // reproduciendo la coordinación de la aplicación.
+    void synchronizeHomeTracking() {
+      unawaited(
+        homeViewModel.setActiveTracking(trackingViewModel.activeAnonymousId),
+      );
+    }
 
-    addTearDown(homeViewModel.dispose);
+    trackingViewModel.addListener(synchronizeHomeTracking);
+
+    addTearDown(() {
+      trackingViewModel.removeListener(synchronizeHomeTracking);
+
+      trackingViewModel.dispose();
+      homeViewModel.dispose();
+    });
 
     final router = GoRouter(
       initialLocation: AppRoutes.home,
@@ -92,6 +104,23 @@ void main() {
 
     await tester.pumpAndSettle();
 
+    // Se comprueba que la inicialización y
+    // sincronización finalizaron correctamente.
+    expect(trackingViewModel.isInitialized, isTrue);
+
+    expect(trackingViewModel.activeAnonymousId, 'seguimiento-prueba');
+
+    expect(homeViewModel.activeAnonymousId, 'seguimiento-prueba');
+
+    expect(homeViewModel.hasOverview, isTrue);
+
+    // No debe quedar un indicador de carga
+    // después de recuperar el seguimiento.
+    expect(find.byKey(const Key('home-overview-loading')), findsNothing);
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+
+    // Verificación de la barra principal.
     expect(find.byKey(const Key('sendaris-primary-app-bar')), findsOneWidget);
 
     expect(
@@ -111,6 +140,7 @@ void main() {
 
     expect(find.byTooltip('Ajustes'), findsOneWidget);
 
+    // Navegación desde Inicio hacia Ajustes.
     await tester.tap(
       find.byKey(const Key('sendaris-primary-app-bar-settings-button')),
     );

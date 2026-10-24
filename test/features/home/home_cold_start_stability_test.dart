@@ -16,7 +16,7 @@ import 'package:sendaris/features/tracking/domain/services/anonymous_tracking_pr
 import 'package:sendaris/features/tracking/presentation/viewmodels/tracking_view_model.dart';
 
 void main() {
-  testWidgets('inicio en frío evita estados vacíos transitorios '
+  testWidgets('inicio en frío muestra carga desde el primer momento '
       'y presenta seguimiento y panorama juntos', (tester) async {
     tester.view.physicalSize = const Size(1000, 1800);
 
@@ -54,7 +54,6 @@ void main() {
       trackingViewModel.removeListener(synchronizeHomeTracking);
 
       trackingViewModel.dispose();
-
       homeViewModel.dispose();
     });
 
@@ -89,7 +88,11 @@ void main() {
 
     expect(find.byKey(const Key('home-overview-empty-state')), findsNothing);
 
-    expect(find.byType(CircularProgressIndicator), findsNothing);
+    // La animación debe aparecer mientras todavía
+    // se recuperan los seguimientos.
+    expect(find.byKey(const Key('home-overview-loading')), findsOneWidget);
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
     trackingRepository.completeRecovery([
       AnonymousTrackingProfile(
@@ -110,6 +113,8 @@ void main() {
 
     expect(overviewRepository.requestReceived, isTrue);
 
+    // Mientras Panorama se recupera, no se deben
+    // presentar tarjetas ni estados vacíos provisionales.
     expect(find.byKey(const Key('home-tracking-selector-card')), findsNothing);
 
     expect(find.byKey(const Key('home-day-overview-card')), findsNothing);
@@ -124,7 +129,11 @@ void main() {
       findsNothing,
     );
 
-    expect(find.byType(CircularProgressIndicator), findsNothing);
+    // La misma animación debe continuar visible
+    // durante la segunda fase de recuperación.
+    expect(find.byKey(const Key('home-overview-loading')), findsOneWidget);
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
     overviewRepository.completeRecovery(
       HomeDayOverview(
@@ -145,6 +154,8 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
 
+    // Ambos componentes deben mostrarse cuando
+    // el estado de seguimiento y Panorama estén listos.
     expect(
       find.byKey(const Key('home-tracking-selector-card')),
       findsOneWidget,
@@ -187,6 +198,10 @@ void main() {
       ),
       findsNothing,
     );
+
+    // La animación desaparece cuando ambos componentes
+    // están disponibles.
+    expect(find.byKey(const Key('home-overview-loading')), findsNothing);
 
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
