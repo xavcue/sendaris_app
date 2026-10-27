@@ -4,6 +4,7 @@ package com.xavcue.sendaris
 import android.content.Context
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import androidx.biometric.BiometricManager
@@ -17,31 +18,12 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-/**
- * Almacen biometrico nativo de Sendaris.
- *
- * Vincula una identidad Firebase con una clave AES de
- * Android Keystore. Cada operacion sensible requiere
- * autenticacion biometrica fuerte y un CryptoObject.
- *
- * Este servicio no concede acceso a Firebase ni a
- * datos privados. La autorizacion de la aplicacion
- * se verifica de manera independiente en Flutter.
- */
 internal class BiometricVaultBridge(
     private val activity: MainActivity
 ) : MethodChannel.MethodCallHandler {
 
     companion object {
-        /*
-         * Identificadores persistentes existentes.
-         *
-         * Se conservan exactamente sus valores para
-         * no invalidar las vinculaciones anteriores.
-         *
-         * No renombrar ni borrar estas claves sin una
-         * migracion de almacenamiento comprobada.
-         */
+        // Identificadores originales: no cambiar sin migracion.
         private const val KEY_ALIAS =
             "sendaris." + "auth" + "03.biometric.v1"
 
@@ -52,9 +34,7 @@ internal class BiometricVaultBridge(
         private const val PREF_IV = "iv"
         private const val PREF_CIPHERTEXT = "ciphertext"
 
-        private const val TRANSFORMATION =
-            "AES/GCM/NoPadding"
-
+        private const val TRANSFORMATION = "AES/GCM/NoPadding"
         private const val TAG_BITS = 128
         private const val IV_BYTES = 12
 
@@ -69,7 +49,8 @@ internal class BiometricVaultBridge(
     private enum class Operation {
         ENROLL,
         UNLOCK,
-        DEACTIVATE
+        DEACTIVATE,
+        RECOVER_INVALIDATED
     }
 
     private data class BindingState(
@@ -147,13 +128,31 @@ internal class BiometricVaultBridge(
                 )
             }
 
-            /*
-             * API antigua sin autenticacion.
-             *
-             * Nunca debe borrar una vinculacion.
-             * La unica desvinculacion permitida
-             * requiere BiometricPrompt en deactivate.
-             */
+            "recoverInvalidated" -> {
+                startInvalidatedRecovery(
+                    uid = call.argument<String>("uid"),
+                    result = result
+                )
+            }
+
+            "checkInvalidated" -> {
+                val expectedUid = call.argument<String>("uid")
+                val state = try {
+                    readBindingState()
+                } catch (_: Exception) {
+                    BindingState(STATUS_UNAVAILABLE)
+                }
+
+                result.success(
+                    validUid(expectedUid) &&
+                        pendingRequest == null &&
+                        state.status == STATUS_ENABLED &&
+                        state.uid == expectedUid &&
+                        isPermanentlyInvalidated()
+                )
+            }
+
+            // La API antigua sin autenticacion nunca borra datos.
             "clearBinding" -> {
                 result.success(status(STATUS_DENIED))
             }
@@ -162,17 +161,13 @@ internal class BiometricVaultBridge(
         }
     }
 
-    /**
-     * Cancela la operacion nativa pendiente cuando
-     * Android destruye la actividad.
-     */
     fun cancelPending() {
         val request = pendingRequest ?: return
 
         try {
             request.prompt.cancelAuthentication()
         } catch (_: Exception) {
-            // La operacion se tratara como cancelada.
+            // La operacion se trata como cancelada.
         }
 
         finish(request, STATUS_CANCELLED)
@@ -203,17 +198,19 @@ internal class BiometricVaultBridge(
 
         when (operation) {
             Operation.ENROLL -> {
-                // No reemplazar vinculaciones existentes.
                 if (binding.status != STATUS_DISABLED) {
                     result.success(status(STATUS_DENIED))
                     return
                 }
             }
 
+            Operation.RECOVER_INVALIDATED -> {
+                result.success(status(STATUS_DENIED))
+                return
+            }
+
             Operation.UNLOCK,
             Operation.DEACTIVATE -> {
-                // La clave de A nunca puede utilizarse
-                // para autorizar operaciones de B.
                 if (
                     binding.status != STATUS_ENABLED ||
                     binding.uid != expectedUid
@@ -230,6 +227,9 @@ internal class BiometricVaultBridge(
 
                 Operation.UNLOCK,
                 Operation.DEACTIVATE -> createUnlockCipher()
+
+                Operation.RECOVER_INVALIDATED ->
+                    throw IllegalStateException("Operacion excepcional")
             }
 
             showPrompt(
@@ -244,6 +244,156 @@ internal class BiometricVaultBridge(
             }
 
             result.success(status(STATUS_UNAVAILABLE))
+        }
+    }
+
+    /**
+     * Solo reconoce invalidacion permanente del Keystore.
+     * Fallos temporales, bloqueos o cancelaciones no autorizan
+     * recuperar ni eliminar la vinculacion.
+     */
+    private fun isPermanentlyInvalidated(): Boolean {
+        return try {
+            createUnlockCipher()
+            false
+        } catch (error: Exception) {
+            var cause: Throwable? = error
+            var remaining = 8
+
+            while (cause != null && remaining-- > 0) {
+                if (cause is KeyPermanentlyInvalidatedException) {
+                    return true
+                }
+
+                cause = cause.cause
+            }
+
+            false
+        }
+    }
+
+    /**
+     * Flutter debe haber reautenticado recientemente el mismo UID
+     * mediante Firebase antes de solicitar esta operacion.
+     * Android exige ademas PIN, patron o bloqueo del dispositivo.
+     */
+    private fun startInvalidatedRecovery(
+        uid: String?,
+        result: MethodChannel.Result
+    ) {
+        if (pendingRequest != null || !validUid(uid)) {
+            result.success(status(STATUS_DENIED))
+            return
+        }
+
+        val expectedUid = uid!!
+
+        val binding = try {
+            readBindingState()
+        } catch (_: Exception) {
+            BindingState(STATUS_UNAVAILABLE)
+        }
+
+        if (
+            binding.status != STATUS_ENABLED ||
+            binding.uid != expectedUid ||
+            !isPermanentlyInvalidated() ||
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.R
+        ) {
+            result.success(status(STATUS_DENIED))
+            return
+        }
+
+        lateinit var request: PendingRequest
+
+        val callback =
+            object : BiometricPrompt.AuthenticationCallback() {
+
+                override fun onAuthenticationSucceeded(
+                    authenticationResult: BiometricPrompt.AuthenticationResult
+                ) {
+                    if (pendingRequest !== request) {
+                        return
+                    }
+
+                    val accepted = try {
+                        val current = readBindingState()
+
+                        current.status == STATUS_ENABLED &&
+                            current.uid == expectedUid &&
+                            isPermanentlyInvalidated() &&
+                            clearStoredBinding()
+                    } catch (_: Exception) {
+                        false
+                    }
+
+                    finish(
+                        request,
+                        if (accepted) {
+                            STATUS_VERIFIED
+                        } else {
+                            STATUS_DENIED
+                        }
+                    )
+                }
+
+                override fun onAuthenticationError(
+                    errorCode: Int,
+                    errString: CharSequence
+                ) {
+                    if (pendingRequest !== request) {
+                        return
+                    }
+
+                    val cancelled =
+                        errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
+                            errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON ||
+                            errorCode == BiometricPrompt.ERROR_CANCELED
+
+                    finish(
+                        request,
+                        if (cancelled) {
+                            STATUS_CANCELLED
+                        } else {
+                            STATUS_UNAVAILABLE
+                        }
+                    )
+                }
+            }
+
+        val prompt = BiometricPrompt(
+            activity,
+            ContextCompat.getMainExecutor(activity),
+            callback
+        )
+
+        val promptInfo = try {
+            BiometricPrompt.PromptInfo.Builder()
+                .setTitle("Recuperar acceso seguro")
+                .setSubtitle("Confirma el bloqueo del dispositivo")
+                .setAllowedAuthenticators(
+                    BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                )
+                .build()
+        } catch (_: Exception) {
+            result.success(status(STATUS_UNAVAILABLE))
+            return
+        }
+
+        request = PendingRequest(
+            operation = Operation.RECOVER_INVALIDATED,
+            uid = expectedUid,
+            result = result,
+            prompt = prompt
+        )
+
+        pendingRequest = request
+
+        try {
+            // No se utiliza la antigua clave invalidada.
+            prompt.authenticate(promptInfo)
+        } catch (_: Exception) {
+            finish(request, STATUS_UNAVAILABLE)
         }
     }
 
@@ -269,102 +419,95 @@ internal class BiometricVaultBridge(
     ) {
         lateinit var request: PendingRequest
 
-        val callback = object :
-            BiometricPrompt.AuthenticationCallback() {
+        val callback =
+            object : BiometricPrompt.AuthenticationCallback() {
 
-            override fun onAuthenticationSucceeded(
-                authenticationResult:
-                    BiometricPrompt.AuthenticationResult
-            ) {
-                if (pendingRequest !== request) {
-                    return
-                }
-
-                val authenticatedCipher =
-                    authenticationResult.cryptoObject?.cipher
-
-                if (authenticatedCipher == null) {
-                    finish(request, STATUS_DENIED)
-                    return
-                }
-
-                val accepted = try {
-                    when (operation) {
-                        Operation.ENROLL -> {
-                            completeEnrollment(
-                                uid,
-                                authenticatedCipher
-                            )
-                        }
-
-                        Operation.UNLOCK -> {
-                            completeUnlock(
-                                uid,
-                                authenticatedCipher
-                            )
-                        }
-
-                        Operation.DEACTIVATE -> {
-                            // La huella debe haber autorizado
-                            // el descifrado de la vinculacion.
-                            //
-                            // Solo despues puede eliminarse
-                            // la clave de Android Keystore.
-                            completeUnlock(
-                                uid,
-                                authenticatedCipher
-                            ) &&
-                                readBindingState().let { state ->
-                                    state.status == STATUS_ENABLED &&
-                                        state.uid == uid
-                                } &&
-                                clearStoredBinding()
-                        }
+                override fun onAuthenticationSucceeded(
+                    authenticationResult: BiometricPrompt.AuthenticationResult
+                ) {
+                    if (pendingRequest !== request) {
+                        return
                     }
-                } catch (_: Exception) {
-                    false
+
+                    val authenticatedCipher =
+                        authenticationResult.cryptoObject?.cipher
+
+                    if (authenticatedCipher == null) {
+                        finish(request, STATUS_DENIED)
+                        return
+                    }
+
+                    val accepted = try {
+                        when (operation) {
+                            Operation.ENROLL -> {
+                                completeEnrollment(
+                                    uid,
+                                    authenticatedCipher
+                                )
+                            }
+
+                            Operation.UNLOCK -> {
+                                completeUnlock(
+                                    uid,
+                                    authenticatedCipher
+                                )
+                            }
+
+                            Operation.RECOVER_INVALIDATED -> false
+
+                            Operation.DEACTIVATE -> {
+                                completeUnlock(
+                                    uid,
+                                    authenticatedCipher
+                                ) &&
+                                    readBindingState().let { state ->
+                                        state.status == STATUS_ENABLED &&
+                                            state.uid == uid
+                                    } &&
+                                    clearStoredBinding()
+                            }
+                        }
+                    } catch (_: Exception) {
+                        false
+                    }
+
+                    finish(
+                        request,
+                        if (accepted) {
+                            STATUS_VERIFIED
+                        } else {
+                            STATUS_DENIED
+                        }
+                    )
                 }
 
-                finish(
-                    request,
-                    if (accepted) {
-                        STATUS_VERIFIED
-                    } else {
-                        STATUS_DENIED
+                override fun onAuthenticationError(
+                    errorCode: Int,
+                    errString: CharSequence
+                ) {
+                    if (pendingRequest !== request) {
+                        return
                     }
-                )
-            }
 
-            override fun onAuthenticationError(
-                errorCode: Int,
-                errString: CharSequence
-            ) {
-                if (pendingRequest !== request) {
-                    return
+                    val cancelled =
+                        errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
+                            errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON ||
+                            errorCode == BiometricPrompt.ERROR_CANCELED
+
+                    finish(
+                        request,
+                        if (cancelled) {
+                            STATUS_CANCELLED
+                        } else {
+                            STATUS_UNAVAILABLE
+                        }
+                    )
                 }
 
-                val cancelled =
-                    errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
-                        errorCode ==
-                            BiometricPrompt.ERROR_NEGATIVE_BUTTON ||
-                        errorCode ==
-                            BiometricPrompt.ERROR_CANCELED
-
-                finish(
-                    request,
-                    if (cancelled) {
-                        STATUS_CANCELLED
-                    } else {
-                        STATUS_UNAVAILABLE
-                    }
-                )
+                override fun onAuthenticationFailed() {
+                    // Una huella incorrecta no concede acceso.
+                }
             }
-
-            override fun onAuthenticationFailed() {
-                // Una huella incorrecta nunca concede
-                // acceso ni elimina una vinculacion.
-            }
-        }
 
         val prompt = BiometricPrompt(
             activity,
@@ -381,6 +524,9 @@ internal class BiometricVaultBridge(
 
             Operation.DEACTIVATE ->
                 "Confirma tu identidad para desactivar el acceso seguro"
+
+            Operation.RECOVER_INVALIDATED ->
+                "Confirma el bloqueo del dispositivo para recuperar el vinculo"
         }
 
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
@@ -416,8 +562,6 @@ internal class BiometricVaultBridge(
         request: PendingRequest,
         outcome: String
     ) {
-        // Una respuesta antigua no completa
-        // un desafio biometrico posterior.
         if (pendingRequest !== request) {
             return
         }
@@ -431,24 +575,19 @@ internal class BiometricVaultBridge(
             discardUncommittedEnrollment()
         }
 
-        val response = if (outcome == STATUS_VERIFIED) {
-            mapOf(
-                "status" to STATUS_VERIFIED,
-                "uid" to request.uid
-            )
-        } else {
-            status(outcome)
-        }
+        val response =
+            if (outcome == STATUS_VERIFIED) {
+                mapOf(
+                    "status" to STATUS_VERIFIED,
+                    "uid" to request.uid
+                )
+            } else {
+                status(outcome)
+            }
 
         request.result.success(response)
     }
 
-    /**
-     * Crea la clave biometrica y prepara el cifrado.
-     *
-     * La clave se invalida ante cambios de enrolamiento
-     * biometrico, segun las garantias de Android.
-     */
     private fun createEnrollmentCipher(): Cipher {
         val builder = KeyGenParameterSpec.Builder(
             KEY_ALIAS,
@@ -488,13 +627,15 @@ internal class BiometricVaultBridge(
     }
 
     private fun createUnlockCipher(): Cipher {
-        val key = loadKey()
-            ?: throw IllegalStateException("Clave inexistente")
+        val key =
+            loadKey()
+                ?: throw IllegalStateException("Clave inexistente")
 
-        val encodedIv = preferences.getString(
-            PREF_IV,
-            null
-        ) ?: throw IllegalStateException("IV inexistente")
+        val encodedIv =
+            preferences.getString(
+                PREF_IV,
+                null
+            ) ?: throw IllegalStateException("IV inexistente")
 
         val iv = Base64.decode(
             encodedIv,
@@ -551,10 +692,11 @@ internal class BiometricVaultBridge(
         uid: String,
         cipher: Cipher
     ): Boolean {
-        val encoded = preferences.getString(
-            PREF_CIPHERTEXT,
-            null
-        ) ?: return false
+        val encoded =
+            preferences.getString(
+                PREF_CIPHERTEXT,
+                null
+            ) ?: return false
 
         val encrypted = Base64.decode(
             encoded,
@@ -570,20 +712,11 @@ internal class BiometricVaultBridge(
         )
     }
 
-    /**
-     * Devuelve informacion estructural.
-     *
-     * Leer el UID no equivale a autenticarlo:
-     * la prueba criptografica sucede con la huella.
-     */
     private fun readBindingState(): BindingState {
         val uid = preferences.getString(PREF_UID, null)
         val iv = preferences.getString(PREF_IV, null)
-
-        val ciphertext = preferences.getString(
-            PREF_CIPHERTEXT,
-            null
-        )
+        val ciphertext =
+            preferences.getString(PREF_CIPHERTEXT, null)
 
         val hasKey = keyStore().containsAlias(KEY_ALIAS)
 
@@ -621,14 +754,6 @@ internal class BiometricVaultBridge(
         )
     }
 
-    /**
-     * Eliminacion interna.
-     *
-     * No se expone directamente a Flutter.
-     *
-     * Se utiliza despues de autenticar deactivate
-     * o para descartar una activacion inconclusa.
-     */
     private fun clearStoredBinding(): Boolean {
         return try {
             val store = keyStore()
@@ -651,8 +776,6 @@ internal class BiometricVaultBridge(
     }
 
     private fun discardUncommittedEnrollment() {
-        // Solo se ejecuta cuando la activacion comenzo
-        // sobre un almacen previamente desactivado.
         clearStoredBinding()
     }
 
@@ -672,7 +795,6 @@ internal class BiometricVaultBridge(
     }
 
     private fun protectedValue(uid: String): ByteArray {
-        // Mantener el valor criptografico existente.
         return ("SENDARIS_AUTH" + "03_V1:$uid")
             .toByteArray(Charsets.UTF_8)
     }

@@ -2,15 +2,8 @@ import 'package:flutter/services.dart';
 
 import 'biometric_binding_policy.dart';
 
-/// Resultado de una operacion biometrica nativa.
-///
-/// VERIFIED solo representa una autenticacion valida
-/// cuando Android completa la operacion criptografica
-/// protegida por BiometricPrompt y Android Keystore.
 enum BiometricVaultOutcome { verified, cancelled, unavailable, denied }
 
-/// Contrato biometrico conservado por compatibilidad
-/// con los componentes y pruebas existentes.
 abstract interface class BiometricVaultGateway {
   Future<BiometricBindingState> readBinding();
 
@@ -18,33 +11,32 @@ abstract interface class BiometricVaultGateway {
 
   Future<BiometricVaultOutcome> unlock({required String expectedUserId});
 
-  /// Operacion heredada.
-  ///
-  /// La nueva implementacion Android nunca permite
-  /// eliminar una vinculacion mediante esta llamada.
-  ///
-  /// Se conserva temporalmente porque los flujos
-  /// antiguos aun deben migrarse.
+  /// Se conserva para compatibilidad; no permite borrar
+  /// una vinculacion sin autenticacion.
   Future<bool> clearBinding();
 }
 
-/// Contrato separado para desvinculacion autenticada.
-///
-/// Una implementacion valida exige biometria fuerte
-/// y autorizacion criptografica nativa antes de
-/// eliminar las credenciales locales.
 abstract interface class BiometricUnlinkGateway {
   Future<BiometricVaultOutcome> deactivate({required String expectedUserId});
 }
 
-/// Adaptador al servicio nativo Android.
+/// Recuperacion excepcional de una clave invalidada permanentemente.
 ///
-/// No almacena contrasenas ni concede permisos Firebase.
-/// Los coordinadores superiores deben comprobar la
-/// identidad Firebase, su vigencia y la autorizacion
-/// privada antes y despues de estas operaciones.
+/// El controlador exige reautenticacion Firebase reciente.
+/// Android solicita ademas credencial del dispositivo.
+abstract interface class BiometricInvalidatedRecoveryGateway {
+  Future<bool> isPermanentlyInvalidated({required String expectedUserId});
+
+  Future<BiometricVaultOutcome> recoverInvalidated({
+    required String expectedUserId,
+  });
+}
+
 final class AndroidBiometricVaultGateway
-    implements BiometricVaultGateway, BiometricUnlinkGateway {
+    implements
+        BiometricVaultGateway,
+        BiometricUnlinkGateway,
+        BiometricInvalidatedRecoveryGateway {
   AndroidBiometricVaultGateway({MethodChannel? channel})
     : _channel =
           channel ?? const MethodChannel('com.xavcue.sendaris/biometric_vault');
@@ -70,8 +62,6 @@ final class AndroidBiometricVaultGateway
 
       return const BiometricBindingUnavailable();
     } catch (_) {
-      // Un almacenamiento ilegible nunca se trata
-      // como una vinculacion desactivada.
       return const BiometricBindingUnavailable();
     }
   }
@@ -94,8 +84,6 @@ final class AndroidBiometricVaultGateway
       return BiometricVaultOutcome.denied;
     }
 
-    // Comprobar que la vinculacion existente
-    // corresponde a la cuenta esperada.
     final before = await readBinding();
 
     if (before is! BiometricBindingEnabled || before.userId != expectedUserId) {
@@ -111,25 +99,65 @@ final class AndroidBiometricVaultGateway
       return result;
     }
 
-    // La respuesta del canal no basta.
-    // Android debe confirmar tambien que el
-    // almacenamiento ya no contiene la clave.
     final after = await readBinding();
 
-    if (after is! BiometricBindingDisabled) {
+    return after is BiometricBindingDisabled
+        ? BiometricVaultOutcome.verified
+        : BiometricVaultOutcome.denied;
+  }
+
+  @override
+  Future<bool> isPermanentlyInvalidated({
+    required String expectedUserId,
+  }) async {
+    if (!_isValidUserId(expectedUserId)) {
+      return false;
+    }
+
+    try {
+      final response = await _channel.invokeMethod<Object?>(
+        'checkInvalidated',
+        <String, String>{'uid': expectedUserId},
+      );
+
+      return response == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  Future<BiometricVaultOutcome> recoverInvalidated({
+    required String expectedUserId,
+  }) async {
+    if (!_isValidUserId(expectedUserId)) {
       return BiometricVaultOutcome.denied;
     }
 
-    return BiometricVaultOutcome.verified;
+    final before = await readBinding();
+
+    if (before is! BiometricBindingEnabled || before.userId != expectedUserId) {
+      return BiometricVaultOutcome.denied;
+    }
+
+    final result = await _perform(
+      method: 'recoverInvalidated',
+      expectedUserId: expectedUserId,
+    );
+
+    if (result != BiometricVaultOutcome.verified) {
+      return result;
+    }
+
+    final after = await readBinding();
+
+    return after is BiometricBindingDisabled
+        ? BiometricVaultOutcome.verified
+        : BiometricVaultOutcome.denied;
   }
 
   @override
   Future<bool> clearBinding() async {
-    // Compatibilidad temporal con la interfaz
-    // antigua sin permitir una eliminacion silenciosa.
-    //
-    // La desvinculacion real utiliza deactivate(),
-    // que exige BiometricPrompt criptografico.
     return false;
   }
 
@@ -154,8 +182,6 @@ final class AndroidBiometricVaultGateway
       final status = response['status'];
 
       if (status == 'verified') {
-        // Una respuesta sin UID o correspondiente
-        // a otra cuenta no autoriza nada.
         if (response['uid'] != expectedUserId) {
           return BiometricVaultOutcome.denied;
         }

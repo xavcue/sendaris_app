@@ -165,6 +165,173 @@ final class AccountBiometricSettingsController extends ChangeNotifier {
     return _execute(activateBinding: false);
   }
 
+  /// Recupera una vinculacion que Keystore invalido
+  /// permanentemente.
+  ///
+  /// No sustituye una huella valida. Android vuelve a
+  /// comprobar la invalidacion, pide PIN/patron y solo
+  /// despues elimina la clave irreparable.
+  ///
+  /// La capa de UI debe proporcionar un proceso de
+  /// reautenticacion Firebase NUEVO para el UID seleccionado.
+  Future<AccountBiometricSettingsResult> recoverInvalidated({
+    required Future<bool> Function() reauthenticate,
+  }) async {
+    if (_disposed) {
+      return AccountBiometricSettingsResult.unavailable;
+    }
+
+    if (_busy) {
+      return AccountBiometricSettingsResult.busy;
+    }
+
+    final slot = selection.selectedSlot;
+    final uid = selection.selectedUserId;
+
+    if (!selection.value || slot == null || uid == null || !_validUid(uid)) {
+      return AccountBiometricSettingsResult.notAuthorized;
+    }
+
+    final session = _sessionFor(slot);
+
+    if (session.currentUserId != uid) {
+      selection.lock();
+      return AccountBiometricSettingsResult.identityChanged;
+    }
+
+    // Verificar que el gateway dispone de recuperacion
+    // para claves permanentemente invalidadas.
+    if (gateway is! BiometricInvalidatedRecoveryGateway) {
+      return AccountBiometricSettingsResult.unavailable;
+    }
+
+    // CORRECCION:
+    // gateway esta declarado como BiometricVaultGateway.
+    // La operacion recoverInvalidated pertenece a otra
+    // interfaz, por lo que usamos una referencia tipada.
+    //
+    // El cast solo se realiza despues de comprobar que
+    // el gateway implementa esa interfaz.
+    final BiometricInvalidatedRecoveryGateway recovery =
+        gateway as BiometricInvalidatedRecoveryGateway;
+
+    _busy = true;
+    notifyListeners();
+
+    var changed = false;
+
+    bool sameIdentity() {
+      return !_disposed &&
+          !changed &&
+          selection.value &&
+          selection.selectedSlot == slot &&
+          selection.selectedUserId == uid &&
+          session.currentUserId == uid;
+    }
+
+    void observe() {
+      if (!sameIdentity()) {
+        changed = true;
+      }
+    }
+
+    selection.addListener(observe);
+
+    try {
+      if (!await session.validate(expectedUserId: uid) || !sameIdentity()) {
+        selection.lock();
+        return AccountBiometricSettingsResult.invalidSession;
+      }
+
+      final before = await gateway.readBinding();
+
+      if (before is! BiometricBindingEnabled || before.userId != uid) {
+        return AccountBiometricSettingsResult.denied;
+      }
+
+      // Una sesion ya abierta NO sustituye
+      // una reautenticacion Firebase reciente.
+      final proved = await reauthenticate();
+
+      if (!proved || !sameIdentity()) {
+        return AccountBiometricSettingsResult.denied;
+      }
+
+      if (!await session.validate(expectedUserId: uid) || !sameIdentity()) {
+        selection.lock();
+        return AccountBiometricSettingsResult.invalidSession;
+      }
+
+      // La llamada ahora utiliza la interfaz correcta.
+      final outcome = await recovery.recoverInvalidated(expectedUserId: uid);
+
+      final after = await gateway.readBinding();
+
+      if (outcome != BiometricVaultOutcome.verified) {
+        if (after is BiometricBindingDisabled) {
+          selection.lock();
+        }
+
+        return _nativeFailure(outcome);
+      }
+
+      if (after is! BiometricBindingDisabled) {
+        selection.lock();
+        return AccountBiometricSettingsResult.denied;
+      }
+
+      // Las credenciales de continuidad anteriores deben
+      // revocarse y la raiz debe convertir A en una
+      // sesion convencional.
+      final change = AccountBiometricBindingChange(
+        slot: slot,
+        userId: uid,
+        operation: AccountBiometricBindingOperation.deactivation,
+      );
+
+      final authorizedAfter =
+          sameIdentity() && await session.validate(expectedUserId: uid);
+
+      if (!authorizedAfter || !sameIdentity()) {
+        selection.lock();
+
+        await _applyBindingChange(change);
+
+        return AccountBiometricSettingsResult.invalidSession;
+      }
+
+      final applied = await _applyBindingChange(change);
+
+      if (!applied ||
+          changed ||
+          !selection.value ||
+          selection.selectedSlot != slot ||
+          selection.selectedUserId != uid ||
+          session.currentUserId != uid) {
+        selection.lock();
+        return AccountBiometricSettingsResult.unavailable;
+      }
+
+      if ((await gateway.readBinding()) is! BiometricBindingDisabled) {
+        selection.lock();
+        return AccountBiometricSettingsResult.denied;
+      }
+
+      return AccountBiometricSettingsResult.deactivated;
+    } catch (_) {
+      selection.lock();
+      return AccountBiometricSettingsResult.unavailable;
+    } finally {
+      selection.removeListener(observe);
+
+      _busy = false;
+
+      if (!_disposed) {
+        notifyListeners();
+      }
+    }
+  }
+
   Future<AccountBiometricSettingsResult> _execute({
     required bool activateBinding,
   }) async {
@@ -323,9 +490,6 @@ final class AccountBiometricSettingsController extends ChangeNotifier {
 
         // La raiz confirma que ya actualizo su
         // distribucion de cuentas y sus protecciones.
-        //
-        // Nunca utilizar aqui _prepare() si este
-        // desconecta la cuenta actualmente abierta.
         final applied = await _applyBindingChange(change);
 
         if (!applied) {
@@ -351,16 +515,14 @@ final class AccountBiometricSettingsController extends ChangeNotifier {
           return AccountBiometricSettingsResult.identityChanged;
         }
 
-        // Si el estado cambio a pesar de una cancelacion
-        // o denegacion nativa, nunca tratamos el resultado
-        // como una autenticacion biometrica correcta.
+        // Una cancelacion o denegacion no puede tratarse
+        // como una autenticacion correcta.
         if (nativeOutcome != BiometricVaultOutcome.verified) {
           selection.lock();
           return _nativeFailure(nativeOutcome);
         }
 
-        // No bloquear A tras una transicion completa
-        // y verificada. Se conserva Ajustes montado.
+        // No bloquear A tras una transicion completa.
         return activateBinding
             ? AccountBiometricSettingsResult.activated
             : AccountBiometricSettingsResult.deactivated;
@@ -377,14 +539,14 @@ final class AccountBiometricSettingsController extends ChangeNotifier {
       }
 
       if (nativeOutcome == BiometricVaultOutcome.verified) {
-        // La respuesta nativa no coincide con el
-        // estado persistido: denegar y bloquear.
+        // Respuesta nativa inconsistente con
+        // el estado persistido.
         selection.lock();
         return AccountBiometricSettingsResult.denied;
       }
 
-      // Una cancelacion normal que no modifico la
-      // vinculacion no exige cerrar la cuenta.
+      // Una cancelacion normal sin mutacion no
+      // exige cerrar la cuenta.
       return _nativeFailure(nativeOutcome);
     } catch (_) {
       selection.lock();
