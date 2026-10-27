@@ -46,6 +46,11 @@ kotlin {
     }
 }
 
+// AUTH-03: servicio biometrico nativo con CryptoObject.
+dependencies {
+    implementation("androidx.biometric:biometric:1.1.0")
+}
+
 flutter {
     source = "../.."
 }

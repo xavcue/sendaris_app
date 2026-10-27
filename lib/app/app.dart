@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -32,6 +33,7 @@ import '../features/tracking/domain/services/anonymous_tracking_profile_factory.
 import '../features/tracking/presentation/viewmodels/tracking_view_model.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
+import 'theme/sendaris_theme_preference.dart';
 import 'theme/theme_mode_controller.dart';
 
 class SendarisApp extends StatefulWidget {
@@ -57,10 +59,13 @@ class SendarisApp extends StatefulWidget {
     required this.routineComplianceRepository,
     required this.atypicalSituationRepository,
     required this.atypicalSituationRecordFactory,
+    this.privateAccessPermission,
     super.key,
   });
 
   final AuthRepository authRepository;
+  final ValueListenable<bool>? privateAccessPermission;
+
   final TrackingRepository trackingRepository;
   final AnonymousTrackingProfileFactory trackingProfileFactory;
 
@@ -98,13 +103,9 @@ class SendarisApp extends StatefulWidget {
 
 class _SendarisAppState extends State<SendarisApp> with WidgetsBindingObserver {
   late final AuthViewModel _authViewModel;
-
   late final TrackingViewModel _trackingViewModel;
-
   late final HomeViewModel _homeViewModel;
-
   late final ThemeModeController _themeModeController;
-
   late final GoRouter _router;
 
   // Recuerda el ultimo UID habilitado para utilizar
@@ -142,7 +143,19 @@ class _SendarisAppState extends State<SendarisApp> with WidgetsBindingObserver {
       overviewRepository: homeOverviewRepository,
     );
 
-    _themeModeController = ThemeModeController();
+    // En produccion, main() ya recupero la preferencia
+    // persistida antes de construir esta instancia.
+    //
+    // Los tests que no inicializan almacenamiento
+    // conservan el comportamiento original: Sistema.
+    _themeModeController = ThemeModeController(
+      initialMode: SendarisThemePreference.isInitialized
+          ? SendarisThemePreference.selectedMode
+          : ThemeMode.system,
+      onChanged: (mode) {
+        unawaited(SendarisThemePreference.save(mode));
+      },
+    );
 
     _trackingViewModel.addListener(_handleTrackingChange);
 
@@ -151,7 +164,6 @@ class _SendarisAppState extends State<SendarisApp> with WidgetsBindingObserver {
     // Sincroniza el contexto inicial antes de preparar
     // la navegacion de la aplicacion.
     _handleTrackingChange();
-
     _handleAuthenticationChange();
 
     if (_authViewModel.isAuthenticated) {
@@ -160,6 +172,7 @@ class _SendarisAppState extends State<SendarisApp> with WidgetsBindingObserver {
 
     _router = AppRouter.create(
       _authViewModel,
+      privateAccessPermission: widget.privateAccessPermission,
       trackingViewModel: _trackingViewModel,
       behaviorRepository: widget.behaviorRepository,
       behaviorRecordFactory: widget.behaviorRecordFactory,
@@ -269,11 +282,8 @@ class _SendarisAppState extends State<SendarisApp> with WidgetsBindingObserver {
     _trackingViewModel.removeListener(_handleTrackingChange);
 
     _authViewModel.dispose();
-
     _trackingViewModel.dispose();
-
     _homeViewModel.dispose();
-
     _themeModeController.dispose();
 
     super.dispose();
@@ -284,13 +294,10 @@ class _SendarisAppState extends State<SendarisApp> with WidgetsBindingObserver {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<AuthViewModel>.value(value: _authViewModel),
-
         ChangeNotifierProvider<TrackingViewModel>.value(
           value: _trackingViewModel,
         ),
-
         ChangeNotifierProvider<HomeViewModel>.value(value: _homeViewModel),
-
         ChangeNotifierProvider<ThemeModeController>.value(
           value: _themeModeController,
         ),

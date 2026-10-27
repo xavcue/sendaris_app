@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -79,6 +80,7 @@ import 'app_routes.dart';
 abstract final class AppRouter {
   static GoRouter create(
     AuthViewModel authViewModel, {
+    ValueListenable<bool>? privateAccessPermission,
     required TrackingViewModel trackingViewModel,
     required BehaviorRepository behaviorRepository,
     required BehaviorRecordFactory behaviorRecordFactory,
@@ -191,10 +193,13 @@ abstract final class AppRouter {
 
     return GoRouter(
       initialLocation: AppRoutes.home,
-      refreshListenable: authViewModel,
+      refreshListenable: privateAccessPermission == null
+          ? authViewModel
+          : Listenable.merge([authViewModel, privateAccessPermission]),
       redirect: (context, state) {
         return AuthRouteGuard.redirect(
           isAuthenticated: authViewModel.isAuthenticatedAppReady,
+          privateAccessGranted: privateAccessPermission?.value ?? true,
           matchedLocation: state.matchedLocation,
         );
       },

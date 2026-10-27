@@ -37,7 +37,11 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
     _ambientBackgroundController = AmbientBackgroundController();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      widget.trackingViewModel.initialize();
+      if (!mounted) {
+        return;
+      }
+
+      unawaited(widget.trackingViewModel.initialize());
     });
   }
 
@@ -145,6 +149,14 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
         activeTrackingIsSynchronized &&
         initialOverviewResolved;
 
+    final trackingInitializationFailed =
+        !trackingViewModel.isInitialized &&
+        trackingViewModel.errorMessage != null &&
+        !trackingViewModel.isLoading;
+
+    final showInitialLoading =
+        !trackingContextReady && !trackingInitializationFailed;
+
     return AmbientBackground(
       controller: _ambientBackgroundController,
       child: Scaffold(
@@ -163,6 +175,7 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                       greeting: homeViewModel.greeting,
                       date: homeViewModel.localDate,
                     ),
+
                     if (trackingContextReady) ...[
                       const SizedBox(height: 24),
                       _TrackingContextCard(
@@ -177,6 +190,53 @@ class _HomePlaceholderViewState extends State<HomePlaceholderView> {
                         onAreaTap: (area) {
                           _openArea(area, homeViewModel.localDate);
                         },
+                      ),
+                    ],
+
+                    if (showInitialLoading) ...[
+                      const SizedBox(height: 70),
+                      Center(
+                        child: Semantics(
+                          label: 'Cargando seguimiento y panorama',
+                          child: const CircularProgressIndicator(
+                            key: Key('home-overview-loading'),
+                          ),
+                        ),
+                      ),
+                    ],
+
+                    if (trackingInitializationFailed) ...[
+                      const SizedBox(height: 24),
+                      Card(
+                        key: const Key('home-tracking-load-error'),
+                        margin: EdgeInsets.zero,
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                trackingViewModel.errorMessage!,
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                              const SizedBox(height: 10),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(
+                                  key: const Key('home-tracking-retry-button'),
+                                  onPressed: trackingViewModel.isLoading
+                                      ? null
+                                      : () {
+                                          unawaited(
+                                            trackingViewModel.initialize(),
+                                          );
+                                        },
+                                  child: const Text('Reintentar'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ],
                   ]),
@@ -412,6 +472,7 @@ class _DayOverviewCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
+
               if (homeViewModel.errorMessage != null) ...[
                 Container(
                   key: const Key('home-overview-error'),
@@ -453,7 +514,7 @@ class _DayOverviewCard extends StatelessWidget {
                           onPressed: homeViewModel.activeAnonymousId == null
                               ? null
                               : () {
-                                  homeViewModel.refreshOverview();
+                                  unawaited(homeViewModel.refreshOverview());
                                 },
                           child: const Text('Reintentar'),
                         ),
@@ -463,6 +524,7 @@ class _DayOverviewCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
               ],
+
               if (orderedAreas.isEmpty)
                 _EmptyOverviewState(
                   hasTracking: homeViewModel.activeAnonymousId != null,
@@ -599,8 +661,6 @@ class _ActivityAreaTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // El icono y el contador ocupan una fila propia.
-                // El nombre queda debajo con el ancho completo.
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [

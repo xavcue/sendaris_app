@@ -2,11 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/animation/animated_entrance.dart';
+import '../../../../app/session/account_biometric_settings_controller.dart';
+import '../../../../app/session/account_session_exit_coordinator.dart';
+import '../../../../app/session/account_session_selection_controller.dart';
+import '../../../../app/session/biometric_enrollment_controller.dart';
+import '../../../../app/session/sendaris_dual_account_root.dart';
 import '../../../../app/theme/sendaris_section_label.dart';
 import '../../../../app/theme/theme_mode_controller.dart';
 import '../../../../app/widgets/sendaris_primary_app_bar.dart';
 import '../../../auth/presentation/viewmodels/auth_view_model.dart';
 import '../../../tracking/presentation/viewmodels/tracking_view_model.dart';
+import '../widgets/account_biometric_settings_card.dart';
+import '../widgets/biometric_enrollment_settings_card.dart';
 
 class SettingsView extends StatefulWidget {
   const SettingsView({super.key});
@@ -19,89 +26,189 @@ class SettingsView extends StatefulWidget {
 
 class _SettingsViewState extends State<SettingsView> {
   bool _isDeletingAccount = false;
+  bool _isSigningOut = false;
 
+  /// Cierra el acceso a la cuenta seleccionada.
+  ///
+  /// En el nuevo componente raiz:
+  /// - Cuenta vinculada: bloqueo visual sin Firebase signOut.
+  /// - Cuenta convencional: signOut de su contexto.
+  ///
+  /// En el arranque anterior conserva el flujo existente.
+  ///
+  /// Cualquier cambio de identidad durante el dialogo
+  /// invalida la confirmacion, incluyendo A -> B -> A.
   Future<void> _confirmSignOut(
     BuildContext context,
     AuthViewModel authViewModel,
     TrackingViewModel trackingViewModel,
+    AccountSessionExitCoordinator? exitCoordinator,
+    AccountSessionSelectionController? selection,
+    SendarisAccountSessionConfiguration? configuration,
   ) async {
-    if (authViewModel.isLoading ||
+    if (_isSigningOut ||
+        authViewModel.isLoading ||
         trackingViewModel.isLoading ||
         _isDeletingAccount) {
       return;
     }
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('¿Cerrar sesión?'),
-          content: const Text(
-            'Se cerrará tu sesión actual. '
-            'Podrás volver a ingresar con tu cuenta.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(false);
-              },
-              child: const Text('Cancelar'),
-            ),
-            FilledButton.icon(
-              key: const Key('settings-confirm-sign-out-button'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop(true);
-              },
-              icon: const Icon(Icons.logout_rounded),
-              label: const Text('Cerrar sesión'),
-            ),
-          ],
-        );
-      },
-    );
+    final dualMode =
+        exitCoordinator != null || selection != null || configuration != null;
 
-    if (confirmed != true || !context.mounted) {
-      return;
-    }
-
-    final success = await authViewModel.signOut();
-
-    if (success) {
-      trackingViewModel.clearAuthenticationState();
-      return;
-    }
-
-    if (context.mounted) {
+    // No utilizar el cierre de sesion antiguo si
+    // el nuevo contexto existe pero esta incompleto.
+    if (dualMode &&
+        (exitCoordinator == null ||
+            selection == null ||
+            configuration == null ||
+            !selection.value ||
+            selection.selectedUserId != authViewModel.currentUserId)) {
       _showErrorMessage(
         context,
-        authViewModel.errorMessage ?? 'No fue posible cerrar la sesión.',
+        'No fue posible comprobar la cuenta actual. '
+        'Vuelve a intentarlo.',
       );
+      return;
+    }
+
+    final initialSlot = selection?.selectedSlot;
+    final initialUserId = selection?.selectedUserId;
+
+    // Este indicador queda invalidado si el selector
+    // cambia mientras se muestra la confirmacion.
+    var authorizationChanged = false;
+
+    void observeAuthorization() {
+      if (selection?.selectedSlot != initialSlot ||
+          selection?.selectedUserId != initialUserId ||
+          selection?.value != true) {
+        authorizationChanged = true;
+      }
+    }
+
+    if (dualMode) {
+      selection!.addListener(observeAuthorization);
+    }
+
+    final bool? confirmed;
+
+    try {
+      confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text('¿Cerrar sesión?'),
+            content: const Text('¿Estás seguro de que deseas cerrar sesión?'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop(false);
+                },
+                child: const Text('Cancelar'),
+              ),
+              FilledButton.icon(
+                key: const Key('settings-confirm-sign-out-button'),
+                onPressed: () {
+                  Navigator.of(dialogContext).pop(true);
+                },
+                icon: const Icon(Icons.logout_rounded),
+                label: const Text('Cerrar sesión'),
+              ),
+            ],
+          );
+        },
+      );
+    } finally {
+      if (dualMode) {
+        selection!.removeListener(observeAuthorization);
+      }
+    }
+
+    if (confirmed != true || !mounted || !context.mounted) {
+      return;
+    }
+
+    if (dualMode &&
+        (authorizationChanged ||
+            selection!.selectedSlot != initialSlot ||
+            selection.selectedUserId != initialUserId ||
+            !selection.value ||
+            authViewModel.currentUserId != initialUserId)) {
+      _showErrorMessage(
+        context,
+        'La cuenta cambió durante la confirmación. '
+        'Vuelve a intentarlo.',
+      );
+      return;
+    }
+
+    setState(() {
+      _isSigningOut = true;
+    });
+
+    try {
+      if (dualMode) {
+        // El coordinador revoca primero el permiso
+        // privado y solo cierra Firebase cuando
+        // la cuenta activa no es la vinculada.
+        final success = await exitCoordinator!.closeActiveSession();
+
+        if (!success && mounted && context.mounted) {
+          _showErrorMessage(
+            context,
+            'No se pudo cerrar la sesión. Inténtalo nuevamente.',
+          );
+        }
+
+        return;
+      }
+
+      // Compatibilidad con el arranque actual.
+      final success = await authViewModel.signOut();
+
+      if (success) {
+        trackingViewModel.clearAuthenticationState();
+        return;
+      }
+
+      if (mounted && context.mounted) {
+        _showErrorMessage(
+          context,
+          authViewModel.errorMessage ?? 'No fue posible cerrar la sesión.',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSigningOut = false;
+        });
+      }
     }
   }
 
+  /// Conserva el procedimiento actual de eliminacion
+  /// de cuenta, incluyendo reautenticacion y limpieza.
+  ///
+  /// La eliminacion de una cuenta vinculada a biometria
+  /// se deshabilita en la interfaz mientras no exista
+  /// una desvinculacion autenticada integrada.
   Future<void> _confirmDeleteAccount(
     BuildContext context,
     AuthViewModel authViewModel,
     TrackingViewModel trackingViewModel,
   ) async {
     if (_isDeletingAccount ||
+        _isSigningOut ||
         authViewModel.isLoading ||
         trackingViewModel.isLoading ||
         !authViewModel.isAuthenticated) {
       return;
     }
 
-    // Captura la cuenta que inicia el procedimiento.
-    //
-    // La autorización de esta cuenta nunca debe
-    // utilizarse para eliminar datos de otra.
     final initiatingUserId = authViewModel.currentUserId;
     final initiatingAuthenticated = authViewModel.isAuthenticated;
 
-    // Este indicador permanece invalidado incluso
-    // cuando el usuario cambia A -> B -> A.
-    //
-    // No es suficiente comparar el UID al finalizar.
     var authenticationContextChanged = false;
 
     void observeAuthenticationContext() {
@@ -116,8 +223,6 @@ class _SettingsViewState extends State<SettingsView> {
       return !authenticationContextChanged;
     }
 
-    // El observador se activa antes de mostrar
-    // cualquier diálogo o esperar una operación.
     authViewModel.addListener(observeAuthenticationContext);
 
     try {
@@ -166,12 +271,6 @@ class _SettingsViewState extends State<SettingsView> {
         return;
       }
 
-      // Las cuentas con proveedor Google pueden confirmar
-      // su identidad sin disponer de una contraseña local.
-      //
-      // Si ambos proveedores están vinculados, se utiliza
-      // Google en este incremento. Las cuentas tradicionales
-      // conservan el procedimiento mediante contraseña.
       final useGoogle = authViewModel.canReauthenticateWithGoogle;
 
       String? password;
@@ -194,22 +293,16 @@ class _SettingsViewState extends State<SettingsView> {
         _isDeletingAccount = true;
       });
 
-      // Ningún dato se elimina antes de que Firebase
-      // confirme nuevamente la identidad vigente.
+      // No se eliminan los datos sin reautenticacion.
       final reauthenticated = useGoogle
           ? await authViewModel.reauthenticateWithGoogle()
           : await authViewModel.reauthenticateWithPassword(password: password!);
 
-      // Aunque Firebase haya confirmado la identidad
-      // de A, la operación no puede continuar si la
-      // sesión cambió a B o atravesó A -> B -> A.
       if (!isOriginalAuthenticationContext()) {
         return;
       }
 
       if (!reauthenticated) {
-        // Una cancelación del selector Google no es un
-        // error y jamás autoriza una eliminación.
         if (useGoogle && authViewModel.errorMessage == null) {
           return;
         }
@@ -227,13 +320,8 @@ class _SettingsViewState extends State<SettingsView> {
         return;
       }
 
-      // Solo se inicia la limpieza cuando la cuenta
-      // autorizada continúa autenticada.
       final dataDeleted = await trackingViewModel.deleteAllProfilesForAccount();
 
-      // Una limpieza iniciada en A no debe autorizar
-      // posteriormente la eliminación de Authentication
-      // si la sesión cambió durante el proceso.
       if (!isOriginalAuthenticationContext()) {
         return;
       }
@@ -252,8 +340,6 @@ class _SettingsViewState extends State<SettingsView> {
         return;
       }
 
-      // Última comprobación antes de invocar
-      // la eliminación de Firebase Authentication.
       if (!isOriginalAuthenticationContext()) {
         return;
       }
@@ -261,8 +347,6 @@ class _SettingsViewState extends State<SettingsView> {
       final accountDeleted = await authViewModel.deleteCurrentAccount();
 
       if (!accountDeleted) {
-        // No se muestran errores pertenecientes a
-        // otra sesión que pudo iniciar mientras tanto.
         if (!isOriginalAuthenticationContext()) {
           return;
         }
@@ -289,20 +373,11 @@ class _SettingsViewState extends State<SettingsView> {
         return;
       }
 
-      // La eliminación correcta de la cuenta produce
-      // una transición esperada a sesión no autenticada.
-      //
-      // No debemos limpiar el estado de seguimiento
-      // de una nueva cuenta B si apareció mientras
-      // terminaba la operación anterior.
       if (!authViewModel.isAuthenticated &&
           authViewModel.currentUserId == null) {
         trackingViewModel.clearAuthenticationState();
       }
     } finally {
-      // El observador es temporal y siempre se retira,
-      // incluyendo cancelaciones, errores o cambios
-      // de identidad durante cualquier diálogo.
       authViewModel.removeListener(observeAuthenticationContext);
 
       if (mounted && _isDeletingAccount) {
@@ -332,8 +407,21 @@ class _SettingsViewState extends State<SettingsView> {
   @override
   Widget build(BuildContext context) {
     final themeModeController = context.watch<ThemeModeController>();
+
     final authViewModel = context.watch<AuthViewModel?>();
     final trackingViewModel = context.watch<TrackingViewModel?>();
+
+    final biometricController = context.watch<BiometricEnrollmentController?>();
+
+    final accountBiometricController = context
+        .watch<AccountBiometricSettingsController?>();
+
+    final exitCoordinator = context.watch<AccountSessionExitCoordinator?>();
+
+    final selection = exitCoordinator?.selection;
+
+    final accountConfiguration = context
+        .watch<SendarisAccountSessionConfiguration?>();
 
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -348,8 +436,58 @@ class _SettingsViewState extends State<SettingsView> {
 
     final isSessionBusy =
         _isDeletingAccount ||
+        _isSigningOut ||
+        exitCoordinator?.isBusy == true ||
+        accountBiometricController?.isBusy == true ||
         authViewModel?.isLoading == true ||
         trackingViewModel?.isLoading == true;
+
+    // El contexto nuevo tiene prioridad. Nunca usar el controlador
+    // anterior como respaldo de una configuracion dual incompleta.
+    final dualMode =
+        exitCoordinator != null ||
+        accountConfiguration != null ||
+        accountBiometricController != null;
+
+    final dualAuthorizationReady =
+        exitCoordinator != null &&
+        accountConfiguration != null &&
+        accountBiometricController != null &&
+        selection != null &&
+        selection.value &&
+        selection.selectedSlot != null &&
+        selection.selectedUserId != null &&
+        selection.selectedUserId == authViewModel?.currentUserId &&
+        (selection.selectedSlot == accountConfiguration.conventionalSlot ||
+            selection.selectedSlot == accountConfiguration.linkedSlot);
+
+    // Si existe una cuenta vinculada, esta configuracion se reserva
+    // exclusivamente para ella. Las cuentas convencionales no ven
+    // ni la tarjeta ni el encabezado de Seguridad.
+    //
+    // Cuando no existe vinculacion, cualquier cuenta convencional
+    // autenticada y autorizada puede configurar el acceso seguro.
+    final showDualBiometrics =
+        dualMode &&
+        hasAuthenticatedAccount &&
+        dualAuthorizationReady &&
+        (accountConfiguration.linkedSlot == null ||
+            selection.selectedSlot == accountConfiguration.linkedSlot);
+
+    final showConventionalBiometrics =
+        !dualMode && hasAuthenticatedAccount && biometricController != null;
+
+    // En modo dual, una identidad no seleccionada no puede realizar
+    // operaciones destructivas ni cerrar una sesion por error.
+    final sensitiveActionBlocked =
+        isSessionBusy || (dualMode && !dualAuthorizationReady);
+
+    // Una cuenta vinculada solo puede eliminarse despues de una
+    // desvinculacion biometrica autenticada.
+    final protectedLinkedAccount =
+        dualAuthorizationReady &&
+        accountConfiguration.linkedSlot != null &&
+        selection.selectedSlot == accountConfiguration.linkedSlot;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -386,14 +524,17 @@ class _SettingsViewState extends State<SettingsView> {
               ),
             ),
 
-            // Cuenta actual: solo para sesiones autenticadas.
+            // Cuenta actual.
             if (hasAuthenticatedAccount) ...[
               const SizedBox(height: 28),
+
               const AnimatedEntrance(
                 delay: Duration(milliseconds: 60),
                 child: SendarisSectionLabel(label: 'Cuenta actual'),
               ),
+
               const SizedBox(height: 14),
+
               AnimatedEntrance(
                 delay: const Duration(milliseconds: 110),
                 duration: const Duration(milliseconds: 450),
@@ -421,7 +562,9 @@ class _SettingsViewState extends State<SettingsView> {
                             size: 26,
                           ),
                         ),
+
                         const SizedBox(width: 14),
+
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -432,7 +575,9 @@ class _SettingsViewState extends State<SettingsView> {
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
+
                               const SizedBox(height: 6),
+
                               Text(
                                 currentEmail.isNotEmpty
                                     ? currentEmail
@@ -454,13 +599,16 @@ class _SettingsViewState extends State<SettingsView> {
               ),
             ],
 
-            // Privacidad: contenido recuperado de ambos stashes.
+            // Privacidad.
             const SizedBox(height: 28),
+
             const AnimatedEntrance(
               delay: Duration(milliseconds: 150),
               child: SendarisSectionLabel(label: 'Privacidad'),
             ),
+
             const SizedBox(height: 14),
+
             AnimatedEntrance(
               delay: const Duration(milliseconds: 200),
               duration: const Duration(milliseconds: 450),
@@ -488,7 +636,9 @@ class _SettingsViewState extends State<SettingsView> {
                           size: 26,
                         ),
                       ),
+
                       const SizedBox(width: 14),
+
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -499,7 +649,9 @@ class _SettingsViewState extends State<SettingsView> {
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
+
                             const SizedBox(height: 6),
+
                             Text(
                               'Los seguimientos no solicitan '
                               'nombres ni identificadores '
@@ -509,7 +661,9 @@ class _SettingsViewState extends State<SettingsView> {
                                 height: 1.4,
                               ),
                             ),
+
                             const SizedBox(height: 7),
+
                             Text(
                               'La información de cada seguimiento '
                               'se mantiene separada.',
@@ -527,13 +681,16 @@ class _SettingsViewState extends State<SettingsView> {
               ),
             ),
 
-            // Apariencia: conserva el comportamiento de HU-29.
+            // Apariencia.
             const SizedBox(height: 28),
+
             const AnimatedEntrance(
               delay: Duration(milliseconds: 250),
               child: SendarisSectionLabel(label: 'Apariencia'),
             ),
+
             const SizedBox(height: 14),
+
             AnimatedEntrance(
               delay: const Duration(milliseconds: 300),
               duration: const Duration(milliseconds: 450),
@@ -552,14 +709,18 @@ class _SettingsViewState extends State<SettingsView> {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
+
                       const SizedBox(height: 5),
+
                       Text(
                         'Elige cómo quieres ver Sendaris.',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                         ),
                       ),
+
                       const SizedBox(height: 16),
+
                       _ThemeOption(
                         key: const Key('settings-theme-system'),
                         title: 'Sistema',
@@ -573,7 +734,9 @@ class _SettingsViewState extends State<SettingsView> {
                           themeModeController.setThemeMode(ThemeMode.system);
                         },
                       ),
+
                       const SizedBox(height: 10),
+
                       _ThemeOption(
                         key: const Key('settings-theme-light'),
                         title: 'Claro',
@@ -587,7 +750,9 @@ class _SettingsViewState extends State<SettingsView> {
                           themeModeController.setThemeMode(ThemeMode.light);
                         },
                       ),
+
                       const SizedBox(height: 10),
+
                       _ThemeOption(
                         key: const Key('settings-theme-dark'),
                         title: 'Oscuro',
@@ -607,9 +772,69 @@ class _SettingsViewState extends State<SettingsView> {
               ),
             ),
 
-            // Acciones sensibles: se conservan los flujos existentes.
+            // Seguridad biometrica.
+            // La configuracion dual solo utiliza su propio controlador.
+            // El arranque convencional conserva la tarjeta anterior.
+            if (showDualBiometrics || showConventionalBiometrics) ...[
+              const SizedBox(height: 28),
+
+              const AnimatedEntrance(
+                delay: Duration(milliseconds: 330),
+                child: SendarisSectionLabel(label: 'Seguridad'),
+              ),
+
+              const SizedBox(height: 14),
+
+              AnimatedEntrance(
+                delay: const Duration(milliseconds: 345),
+                duration: const Duration(milliseconds: 450),
+                beginScale: 0.99,
+                child: showDualBiometrics
+                    ? AccountBiometricSettingsCard(
+                        key: ValueKey<String>(
+                          'settings-biometric-identity-'
+                          '${authViewModel.currentUserId}',
+                        ),
+                        controller: accountBiometricController,
+                        isAccountReady:
+                            authViewModel.isAuthenticatedAppReady &&
+                            authViewModel.isEmailVerified == true &&
+                            authViewModel.currentUserId != null &&
+                            authViewModel.currentUserId!.isNotEmpty &&
+                            dualAuthorizationReady &&
+                            !isSessionBusy,
+                      )
+                    : BiometricEnrollmentSettingsCard(
+                        key: ValueKey<String>(
+                          'settings-biometric-identity-'
+                          '${authViewModel.currentUserId}',
+                        ),
+                        controller: biometricController!,
+                        isAccountReady:
+                            authViewModel.isAuthenticatedAppReady &&
+                            authViewModel.isEmailVerified == true &&
+                            authViewModel.currentUserId != null &&
+                            authViewModel.currentUserId!.isNotEmpty &&
+                            !isSessionBusy,
+                      ),
+              ),
+            ],
+
+            // Acciones sensibles.
             if (authViewModel != null && trackingViewModel != null) ...[
               const SizedBox(height: 28),
+
+              if (protectedLinkedAccount) ...[
+                const Text(
+                  'Para eliminar esta cuenta, primero desactiva '
+                  'el acceso con huella o reconocimiento facial '
+                  'desde Seguridad.',
+                  key: Key('settings-linked-delete-protection'),
+                ),
+
+                const SizedBox(height: 12),
+              ],
+
               AnimatedEntrance(
                 delay: const Duration(milliseconds: 360),
                 child: _SettingsActionCard(
@@ -622,7 +847,7 @@ class _SettingsViewState extends State<SettingsView> {
                   icon: Icons.delete_forever_rounded,
                   destructive: true,
                   showProgress: _isDeletingAccount,
-                  onTap: isSessionBusy
+                  onTap: sensitiveActionBlocked || protectedLinkedAccount
                       ? null
                       : () {
                           _confirmDeleteAccount(
@@ -633,7 +858,10 @@ class _SettingsViewState extends State<SettingsView> {
                         },
                 ),
               ),
+
               const SizedBox(height: 14),
+
+              // Un unico boton para ambos modos.
               AnimatedEntrance(
                 delay: const Duration(milliseconds: 410),
                 child: _SettingsActionCard(
@@ -641,14 +869,19 @@ class _SettingsViewState extends State<SettingsView> {
                   title: 'Cerrar sesión',
                   subtitle: 'Finaliza el acceso actual a Sendaris.',
                   icon: Icons.logout_rounded,
-                  showProgress: authViewModel.isLoading && !_isDeletingAccount,
-                  onTap: isSessionBusy
+                  showProgress:
+                      _isSigningOut ||
+                      (authViewModel.isLoading && !_isDeletingAccount),
+                  onTap: sensitiveActionBlocked
                       ? null
                       : () {
                           _confirmSignOut(
                             context,
                             authViewModel,
                             trackingViewModel,
+                            exitCoordinator,
+                            selection,
+                            accountConfiguration,
                           );
                         },
                 ),
@@ -715,7 +948,9 @@ class _SettingsActionCard extends StatelessWidget {
                 ),
                 child: Icon(icon, color: iconForeground),
               ),
+
               const SizedBox(width: 14),
+
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -727,7 +962,9 @@ class _SettingsActionCard extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
+
                     const SizedBox(height: 5),
+
                     Text(
                       subtitle,
                       style: theme.textTheme.bodySmall?.copyWith(
@@ -738,6 +975,7 @@ class _SettingsActionCard extends StatelessWidget {
                   ],
                 ),
               ),
+
               if (showProgress)
                 SizedBox(
                   key: destructive
@@ -783,7 +1021,6 @@ class _DeleteAccountPasswordDialogState
       setState(() {
         _errorText = 'Ingresa tu contraseña.';
       });
-
       return;
     }
 
@@ -793,7 +1030,6 @@ class _DeleteAccountPasswordDialogState
   @override
   void dispose() {
     _controller.dispose();
-
     super.dispose();
   }
 
@@ -813,7 +1049,9 @@ class _DeleteAccountPasswordDialogState
             'Ingresa tu contraseña actual '
             'para autorizar la eliminación definitiva.',
           ),
+
           const SizedBox(height: 18),
+
           TextField(
             key: const Key('settings-delete-account-password-field'),
             controller: _controller,
@@ -924,7 +1162,9 @@ class _ThemeOption extends StatelessWidget {
                         : colorScheme.onSurfaceVariant,
                   ),
                 ),
+
                 const SizedBox(width: 12),
+
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -935,7 +1175,9 @@ class _ThemeOption extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
+
                       const SizedBox(height: 3),
+
                       Text(
                         subtitle,
                         style: theme.textTheme.bodySmall?.copyWith(
@@ -945,7 +1187,9 @@ class _ThemeOption extends StatelessWidget {
                     ],
                   ),
                 ),
+
                 const SizedBox(width: 8),
+
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 180),
                   child: selected
