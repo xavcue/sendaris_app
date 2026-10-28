@@ -8,6 +8,8 @@ import '../../../../app/router/app_routes.dart';
 import '../../data/repositories/composite_monthly_calendar_repository.dart';
 import '../../domain/models/monthly_calendar_record.dart';
 import '../viewmodels/monthly_calendar_view_model.dart';
+import '../widgets/month_year_picker.dart';
+import '../widgets/monthly_coverage_summary.dart';
 
 class MonthlyCalendarView extends StatefulWidget {
   const MonthlyCalendarView({
@@ -50,7 +52,6 @@ class _MonthlyCalendarViewState extends State<MonthlyCalendarView> {
       final previousViewModel = _viewModel;
 
       _viewModel = _createViewModel();
-
       previousViewModel.dispose();
 
       unawaited(_viewModel.load());
@@ -103,18 +104,60 @@ class _MonthlyCalendarContent extends StatelessWidget {
     return '$day/$month/${date.year}';
   }
 
+  Future<void> _pickMonth(
+    BuildContext context,
+    MonthlyCalendarViewModel viewModel,
+  ) async {
+    final selected = await showMonthYearPicker(
+      context: context,
+      initialMonth: viewModel.visibleMonth,
+    );
+
+    if (!context.mounted || viewModel.isDisposed || selected == null) {
+      return;
+    }
+
+    final activeViewModel = context.read<MonthlyCalendarViewModel>();
+
+    if (!identical(activeViewModel, viewModel)) {
+      return;
+    }
+
+    viewModel.selectDate(DateTime(selected.year, selected.month));
+  }
+
   Future<void> _pickDate(
     BuildContext context,
     MonthlyCalendarViewModel viewModel, {
     required bool isStartDate,
   }) async {
-    final firstDate = isStartDate
-        ? DateTime(2000)
-        : (viewModel.startDate ?? DateTime(2000));
+    final currentYear = DateTime.now().year;
+    final maximumDate = DateTime(currentYear, 12, 31);
+    final minimumDate = DateTime(2000);
 
-    final lastDate = isStartDate
-        ? (viewModel.endDate ?? DateTime(2100))
-        : DateTime(2100);
+    var firstDate = isStartDate
+        ? minimumDate
+        : (viewModel.startDate ?? minimumDate);
+
+    var lastDate = isStartDate
+        ? (viewModel.endDate ?? maximumDate)
+        : maximumDate;
+
+    if (firstDate.isAfter(maximumDate)) {
+      firstDate = maximumDate;
+    }
+
+    if (lastDate.isAfter(maximumDate)) {
+      lastDate = maximumDate;
+    }
+
+    if (firstDate.isBefore(minimumDate)) {
+      firstDate = minimumDate;
+    }
+
+    if (lastDate.isBefore(firstDate)) {
+      lastDate = firstDate;
+    }
 
     var initialDate = isStartDate
         ? (viewModel.startDate ?? viewModel.selectedDate)
@@ -242,7 +285,8 @@ class _MonthlyCalendarContent extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 'Selecciona una fecha para consultar los '
-                'registros del seguimiento actual.',
+                'registros del seguimiento actual. '
+                'Toca el mes para cambiar de mes o año.',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: colors.onSurfaceVariant,
                 ),
@@ -265,21 +309,45 @@ class _MonthlyCalendarContent extends StatelessWidget {
                             icon: const Icon(Icons.chevron_left_rounded),
                           ),
                           Expanded(
-                            child: Text(
-                              _monthLabel(viewModel.visibleMonth),
-                              key: const Key('monthly-calendar-month'),
-                              textAlign: TextAlign.center,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w700,
+                            child: TextButton(
+                              key: const Key(
+                                'monthly-calendar-open-month-picker',
+                              ),
+                              onPressed: () {
+                                unawaited(_pickMonth(context, viewModel));
+                              },
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      _monthLabel(viewModel.visibleMonth),
+                                      key: const Key('monthly-calendar-month'),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Icon(
+                                    Icons.arrow_drop_down_rounded,
+                                    size: 21,
+                                  ),
+                                ],
                               ),
                             ),
                           ),
                           IconButton(
                             key: const Key('monthly-calendar-next'),
                             tooltip: 'Mes siguiente',
-                            onPressed: () {
-                              viewModel.changeMonth(1);
-                            },
+                            onPressed: viewModel.canGoToNextMonth
+                                ? () {
+                                    viewModel.changeMonth(1);
+                                  }
+                                : null,
                             icon: const Icon(Icons.chevron_right_rounded),
                           ),
                         ],
@@ -335,6 +403,80 @@ class _MonthlyCalendarContent extends StatelessWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: 18),
+              Text(
+                'Registros del '
+                '${viewModel.selectedDate.day} de '
+                '${_months[viewModel.selectedDate.month - 1]}',
+                key: const Key('monthly-calendar-selected-day'),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (viewModel.isLoading)
+                const Center(child: CircularProgressIndicator())
+              else if (viewModel.errorMessage != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    viewModel.errorMessage!,
+                    key: const Key('monthly-calendar-error'),
+                  ),
+                )
+              else if (records.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    viewModel.hasDateFilter
+                        ? 'Sin registros para esta fecha '
+                              'dentro del periodo seleccionado.'
+                        : 'Sin registros en esta fecha.',
+                    key: const Key('monthly-calendar-empty'),
+                  ),
+                )
+              else
+                ...records.map(
+                  (record) => Card(
+                    key: Key(
+                      'monthly-calendar-record-'
+                      '${record.type.name}-${record.id}',
+                    ),
+                    margin: const EdgeInsets.only(bottom: 7),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 4,
+                      ),
+                      leading: Icon(
+                        _recordIcon(record.type),
+                        color: colors.primary,
+                      ),
+                      title: Text(record.type.label),
+                      subtitle: Text(record.description),
+                      trailing: record.sourceRecord == null
+                          ? null
+                          : const Icon(Icons.chevron_right_rounded),
+                      onTap: record.sourceRecord == null
+                          ? null
+                          : () {
+                              unawaited(
+                                _openRecord(context, viewModel, record),
+                              );
+                            },
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 18),
+              MonthlyCoverageSummary(
+                index: viewModel.index,
+                visibleMonth: viewModel.visibleMonth,
+                startDate: viewModel.startDate,
+                endDate: viewModel.endDate,
+                isLoading: viewModel.isLoading,
+                hasError: viewModel.errorMessage != null,
+              ),
+              const SizedBox(height: 12),
               OutlinedButton.icon(
                 key: const Key('monthly-calendar-filter-toggle'),
                 onPressed: viewModel.toggleFilters,
@@ -452,70 +594,6 @@ class _MonthlyCalendarContent extends StatelessWidget {
                   ],
                 ),
               ],
-              const SizedBox(height: 18),
-              Text(
-                'Registros del '
-                '${viewModel.selectedDate.day} de '
-                '${_months[viewModel.selectedDate.month - 1]}',
-                key: const Key('monthly-calendar-selected-day'),
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 8),
-              if (viewModel.isLoading)
-                const Center(child: CircularProgressIndicator())
-              else if (viewModel.errorMessage != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Text(
-                    viewModel.errorMessage!,
-                    key: const Key('monthly-calendar-error'),
-                  ),
-                )
-              else if (records.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Text(
-                    viewModel.hasDateFilter
-                        ? 'Sin registros para esta fecha '
-                              'dentro del periodo seleccionado.'
-                        : 'Sin registros en esta fecha.',
-                    key: const Key('monthly-calendar-empty'),
-                  ),
-                )
-              else
-                ...records.map(
-                  (record) => Card(
-                    key: Key(
-                      'monthly-calendar-record-'
-                      '${record.type.name}-${record.id}',
-                    ),
-                    margin: const EdgeInsets.only(bottom: 7),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 4,
-                      ),
-                      leading: Icon(
-                        _recordIcon(record.type),
-                        color: colors.primary,
-                      ),
-                      title: Text(record.type.label),
-                      subtitle: Text(record.description),
-                      trailing: record.sourceRecord == null
-                          ? null
-                          : const Icon(Icons.chevron_right_rounded),
-                      onTap: record.sourceRecord == null
-                          ? null
-                          : () {
-                              unawaited(
-                                _openRecord(context, viewModel, record),
-                              );
-                            },
-                    ),
-                  ),
-                ),
             ],
           ),
         ),
@@ -530,13 +608,10 @@ class _MonthlyCalendarContent extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
 
     final month = viewModel.visibleMonth;
-
     final first = DateTime(month.year, month.month);
 
     final leading = first.weekday - 1;
-
     final days = DateTime(month.year, month.month + 1, 0).day;
-
     final total = ((leading + days + 6) ~/ 7) * 7;
 
     final now = DateTime.now();
@@ -562,7 +637,6 @@ class _MonthlyCalendarContent extends StatelessWidget {
         final date = DateTime(month.year, month.month, day);
 
         final count = viewModel.countForDay(date);
-
         final selected = date == viewModel.selectedDate;
 
         final isToday =

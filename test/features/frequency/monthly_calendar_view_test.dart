@@ -69,6 +69,7 @@ void main() {
       findsOneWidget,
     );
 
+    // Al iniciar, los filtros deben permanecer contraídos.
     expect(
       find.byKey(const Key('monthly-calendar-type-behavior')),
       findsNothing,
@@ -76,14 +77,23 @@ void main() {
 
     expect(find.text('Consulta avanzada de frecuencias'), findsNothing);
 
+    // Expandir los filtros sin modificar los registros.
     await tester.tap(find.byKey(const Key('monthly-calendar-filter-toggle')));
 
     await tester.pumpAndSettle();
 
-    expect(
-      find.byKey(const Key('monthly-calendar-type-behavior')),
-      findsOneWidget,
+    final mainScrollable = find.byType(Scrollable).first;
+
+    // Los filtros ahora se encuentran debajo de los
+    // registros del día y de la tarjeta de cobertura.
+    // La prueba debe desplazarse hasta ellos.
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('monthly-calendar-start-date-button')),
+      200,
+      scrollable: mainScrollable,
     );
+
+    await tester.pumpAndSettle();
 
     expect(
       find.byKey(const Key('monthly-calendar-start-date-button')),
@@ -94,6 +104,23 @@ void main() {
       find.byKey(const Key('monthly-calendar-end-date-button')),
       findsOneWidget,
     );
+
+    // Desplazarse hasta los filtros de tipos.
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('monthly-calendar-type-behavior')),
+      200,
+      scrollable: mainScrollable,
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('monthly-calendar-type-behavior')),
+      findsOneWidget,
+    );
+
+    // La expansión de filtros no modifica el conteo.
+    expect(find.textContaining('2 registros en'), findsOneWidget);
   });
 
   testWidgets('descarta respuestas antiguas al cambiar de seguimiento', (

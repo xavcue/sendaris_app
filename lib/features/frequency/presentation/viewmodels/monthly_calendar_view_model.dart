@@ -58,6 +58,15 @@ class MonthlyCalendarViewModel extends ChangeNotifier {
 
   String? get errorMessage => _errorMessage;
 
+  // El límite superior es el año actual y se consulta
+  // dinámicamente, sin mantener un año fijo en el código.
+  bool get canGoToNextMonth {
+    final currentYear = _clock().year;
+
+    return _visibleMonth.year < currentYear ||
+        (_visibleMonth.year == currentYear && _visibleMonth.month < 12);
+  }
+
   int get monthCount {
     return _index?.countForMonth(
           _visibleMonth,
@@ -93,8 +102,16 @@ class MonthlyCalendarViewModel extends ChangeNotifier {
       return;
     }
 
-    _visibleMonth = DateTime(_visibleMonth.year, _visibleMonth.month + offset);
+    final nextMonth = DateTime(
+      _visibleMonth.year,
+      _visibleMonth.month + offset,
+    );
 
+    if (nextMonth.year > _clock().year) {
+      return;
+    }
+
+    _visibleMonth = nextMonth;
     _selectedDate = DateTime(_visibleMonth.year, _visibleMonth.month);
 
     notifyListeners();
@@ -107,12 +124,15 @@ class MonthlyCalendarViewModel extends ChangeNotifier {
 
     final normalized = _dateOnly(date);
 
+    if (normalized.year > _clock().year) {
+      return;
+    }
+
     if (_selectedDate == normalized) {
       return;
     }
 
     _selectedDate = normalized;
-
     _visibleMonth = DateTime(normalized.year, normalized.month);
 
     notifyListeners();
