@@ -616,75 +616,88 @@ class _MonthlyCalendarContent extends StatelessWidget {
 
     final now = DateTime.now();
 
-    return GridView.builder(
-      key: const Key('monthly-calendar-grid'),
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 7,
-        mainAxisSpacing: 3,
-        crossAxisSpacing: 3,
-        childAspectRatio: 0.72,
-      ),
-      itemCount: total,
-      itemBuilder: (context, cell) {
-        final day = cell - leading + 1;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 3.0;
 
-        if (day < 1 || day > days) {
-          return const SizedBox.shrink();
-        }
+        final cellWidth = (constraints.maxWidth - spacing * 6) / 7;
 
-        final date = DateTime(month.year, month.month, day);
+        // Calendario más compacto sin reducir el espacio táctil
+        // ni el tamaño de los números del día y sus conteos.
+        final cellHeight = (cellWidth / 0.90).clamp(48.0, 62.0).toDouble();
 
-        final count = viewModel.countForDay(date);
-        final selected = date == viewModel.selectedDate;
-
-        final isToday =
-            date.year == now.year &&
-            date.month == now.month &&
-            date.day == now.day;
-
-        return Semantics(
-          button: true,
-          label:
-              '$day de ${_months[date.month - 1]}, '
-              '$count registros',
-          child: InkWell(
-            key: Key('monthly-calendar-day-$day'),
-            borderRadius: BorderRadius.circular(12),
-            onTap: () {
-              viewModel.selectDate(date);
-            },
-            child: Container(
-              decoration: BoxDecoration(
-                color: selected ? colors.primaryContainer : null,
-                border: isToday ? Border.all(color: colors.primary) : null,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    '$day',
-                    style: TextStyle(
-                      fontWeight: selected
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                    ),
-                  ),
-                  if (count > 0)
-                    Text(
-                      '$count',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: colors.primary,
-                      ),
-                    ),
-                ],
-              ),
-            ),
+        return GridView.builder(
+          key: const Key('monthly-calendar-grid'),
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 7,
+            mainAxisSpacing: spacing,
+            crossAxisSpacing: spacing,
+            mainAxisExtent: cellHeight,
           ),
+          itemCount: total,
+          itemBuilder: (context, cell) {
+            final day = cell - leading + 1;
+
+            if (day < 1 || day > days) {
+              return const SizedBox.shrink();
+            }
+
+            final date = DateTime(month.year, month.month, day);
+
+            final count = viewModel.countForDay(date);
+            final selected = date == viewModel.selectedDate;
+
+            final isToday =
+                date.year == now.year &&
+                date.month == now.month &&
+                date.day == now.day;
+
+            return Semantics(
+              button: true,
+              label:
+                  '$day de ${_months[date.month - 1]}, '
+                  '$count registros',
+              child: InkWell(
+                key: Key('monthly-calendar-day-$day'),
+                borderRadius: BorderRadius.circular(12),
+                onTap: () {
+                  viewModel.selectDate(date);
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: selected ? colors.primaryContainer : null,
+                    border: isToday ? Border.all(color: colors.primary) : null,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '$day',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: selected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      ),
+                      if (count > 0)
+                        Text(
+                          '$count',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: colors.primary,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
         );
       },
     );
