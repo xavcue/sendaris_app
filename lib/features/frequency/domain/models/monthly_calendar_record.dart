@@ -111,6 +111,36 @@ class MonthlyCalendarIndex {
     return count;
   }
 
+  // HU-21 / MET-01:
+  // Cuenta cada fecha con al menos un registro una sola vez.
+  // Se consideran todos los tipos y no se aplican los filtros
+  // visuales del calendario.
+  int countDaysWithRecords({
+    required DateTime startDate,
+    required DateTime endDate,
+  }) {
+    final start = _dayOnly(startDate);
+    final end = _dayOnly(endDate);
+
+    if (end.isBefore(start)) {
+      throw ArgumentError.value(
+        endDate,
+        'endDate',
+        'La fecha final no puede ser anterior a la inicial.',
+      );
+    }
+
+    var daysWithRecords = 0;
+
+    for (final day in _byDate.keys) {
+      if (!day.isBefore(start) && !day.isAfter(end)) {
+        daysWithRecords++;
+      }
+    }
+
+    return daysWithRecords;
+  }
+
   static DateTime _dayOnly(DateTime date) {
     return DateTime(date.year, date.month, date.day);
   }
