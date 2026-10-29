@@ -19,6 +19,8 @@ class MonthlyCalendarRecord {
     required this.date,
     required this.type,
     required this.description,
+    this.eventDateTime,
+    this.createdAt,
     this.sourceRecord,
   });
 
@@ -28,9 +30,19 @@ class MonthlyCalendarRecord {
   final CalendarRecordType type;
   final String description;
 
+  // HU-19: fecha y hora del evento, cuando se dispone de ella.
+  // Si el tipo no registra hora, se utiliza su fecha original.
+  final DateTime? eventDateTime;
+
+  // Permite desempatar acontecimientos con la misma fecha de evento.
+  // Corresponde a la creación del registro fuente.
+  final DateTime? createdAt;
+
   // Registro original que consumen las pantallas de detalle.
   // No se persiste ni constituye una copia en Firestore.
   final Object? sourceRecord;
+
+  DateTime get chronologicalDate => eventDateTime ?? date;
 }
 
 class MonthlyCalendarIndex {
@@ -63,7 +75,7 @@ class MonthlyCalendarIndex {
       return records;
     }
 
-    return List.unmodifiable(
+    return List<MonthlyCalendarRecord>.unmodifiable(
       records.where((record) => selectedTypes.contains(record.type)),
     );
   }
@@ -111,6 +123,44 @@ class MonthlyCalendarIndex {
     return count;
   }
 
+  // HU-19: consulta derivada de registros en un intervalo inclusivo.
+  // No modifica los registros fuente ni el índice.
+  // El orden cronológico se aplica posteriormente en TimelineCalculator.
+  List<MonthlyCalendarRecord> recordsInPeriod({
+    required DateTime startDate,
+    required DateTime endDate,
+    Set<CalendarRecordType>? selectedTypes,
+  }) {
+    final start = _dayOnly(startDate);
+    final end = _dayOnly(endDate);
+
+    if (end.isBefore(start)) {
+      throw ArgumentError.value(
+        endDate,
+        'endDate',
+        'La fecha final no puede ser anterior a la inicial.',
+      );
+    }
+
+    final result = <MonthlyCalendarRecord>[];
+
+    for (final entry in _byDate.entries) {
+      final day = entry.key;
+
+      if (day.isBefore(start) || day.isAfter(end)) {
+        continue;
+      }
+
+      for (final record in entry.value) {
+        if (selectedTypes == null || selectedTypes.contains(record.type)) {
+          result.add(record);
+        }
+      }
+    }
+
+    return List<MonthlyCalendarRecord>.unmodifiable(result);
+  }
+
   // HU-21 / MET-01:
   // Cuenta cada fecha con al menos un registro una sola vez.
   // Se consideran todos los tipos y no se aplican los filtros
@@ -151,7 +201,6 @@ class MonthlyCalendarIndex {
     DateTime? endDate,
   ) {
     final start = startDate == null ? null : _dayOnly(startDate);
-
     final end = endDate == null ? null : _dayOnly(endDate);
 
     if (start != null && date.isBefore(start)) {
@@ -204,7 +253,7 @@ class MonthlyCalendarIndex {
       });
     }
 
-    return Map.unmodifiable(
+    return Map<DateTime, List<MonthlyCalendarRecord>>.unmodifiable(
       grouped.map(
         (key, value) =>
             MapEntry(key, List<MonthlyCalendarRecord>.unmodifiable(value)),

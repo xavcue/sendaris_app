@@ -287,11 +287,6 @@ void main() {
 
         await tester.pumpAndSettle();
 
-        expect(
-          find.byKey(const Key('monthly-calendar-month-total')),
-          findsOneWidget,
-        );
-
         final calendarCoverage = find.byKey(
           const Key('monthly-calendar-coverage-card'),
         );
@@ -320,6 +315,22 @@ void main() {
         );
 
         expect(progress.value, closeTo(1 / totalDays, 0.000001));
+
+        // La cobertura aparece primero.
+        // El contador mensual puede quedar fuera
+        // del area visible en un movil compacto.
+        final monthTotal = find.byKey(
+          const Key('monthly-calendar-month-total'),
+        );
+
+        await _scrollTo(tester, monthTotal);
+
+        expect(monthTotal, findsOneWidget);
+
+        expect(
+          tester.widget<Text>(monthTotal).data,
+          contains('2 registros en'),
+        );
 
         expect(find.textContaining('mejora'), findsNothing);
 
