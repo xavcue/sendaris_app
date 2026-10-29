@@ -161,6 +161,27 @@ class IndicatorsView extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 14),
+            AnimatedEntrance(
+              delay: const Duration(milliseconds: 270),
+              duration: const Duration(milliseconds: 450),
+              beginScale: 0.99,
+              child: AnimatedPressableScale(
+                child: _IndicatorOptionCard(
+                  key: const Key('indicators-period-comparison-option'),
+                  title: 'Comparar periodos',
+                  subtitle:
+                      'Contrasta los indicadores descriptivos '
+                      'de dos intervalos del mismo seguimiento.',
+                  icon: Icons.compare_arrows_rounded,
+                  accentColor: const Color(0xFF5B9FA8),
+                  enabled: hasTracking,
+                  onTap: () {
+                    context.push('/period-comparison');
+                  },
+                ),
+              ),
+            ),
           ],
         ),
       ),

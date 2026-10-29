@@ -39,6 +39,7 @@ import '../../features/frequency/data/repositories/composite_monthly_calendar_re
 import '../../features/frequency/presentation/views/monthly_calendar_view.dart';
 import '../../features/home/presentation/views/home_placeholder_view.dart';
 import '../../features/indicators/presentation/views/indicators_view.dart';
+import '../../features/period_comparison/presentation/views/period_comparison_view.dart';
 import '../../features/routine/domain/models/routine.dart';
 import '../../features/routine/domain/repositories/routine_repository.dart';
 import '../../features/routine/domain/services/routine_factory.dart';
@@ -1198,6 +1199,35 @@ abstract final class AppRouter {
                 state: state,
                 child: DurationView(
                   repository: durationRepository,
+                  anonymousId: anonymousId,
+                ),
+              ),
+            );
+          },
+        ),
+        GoRoute(
+          path: '/period-comparison',
+          name: 'period-comparison',
+          pageBuilder: (context, state) {
+            final anonymousId = trackingViewModel.activeAnonymousId;
+
+            if (anonymousId == null) {
+              return _animatedPage(
+                state: state,
+                child: HomePlaceholderView(
+                  trackingViewModel: trackingViewModel,
+                ),
+              );
+            }
+
+            return _animatedPage(
+              state: state,
+              child: _ambientScreen(
+                state: state,
+                child: PeriodComparisonView(
+                  key: ValueKey('period-comparison-$anonymousId'),
+                  durationRepository: durationRepository,
+                  routineComplianceRepository: routineComplianceRepository,
                   anonymousId: anonymousId,
                 ),
               ),
