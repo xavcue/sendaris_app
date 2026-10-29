@@ -106,11 +106,11 @@ class IndicatorsView extends StatelessWidget {
               child: AnimatedPressableScale(
                 child: _IndicatorOptionCard(
                   key: const Key('indicators-frequency-option'),
-                  title: 'Calendario de registros',
+                  title: 'Explorar registros',
                   subtitle:
-                      'Consulta los registros y sus conteos '
-                      'por fecha.',
-                  icon: Icons.event_note_rounded,
+                      'Consulta los acontecimientos mediante '
+                      'calendario o línea temporal.',
+                  icon: Icons.manage_search_rounded,
                   accentColor: const Color(0xFF5D8EB8),
                   enabled: hasTracking,
                   onTap: () {

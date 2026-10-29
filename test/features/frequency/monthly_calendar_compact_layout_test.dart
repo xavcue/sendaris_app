@@ -98,14 +98,47 @@ void main() {
       expect(recordCount.style?.fontSize, 12);
       expect(recordCount.style?.fontWeight, FontWeight.bold);
 
-      expect(find.textContaining('2 registros en'), findsOneWidget);
+      // La cobertura ahora aparece encima del calendario.
+      // En pantallas compactas, el día 15 puede quedar
+      // fuera de la región visible.
+      //
+      // Debe hacerse visible ANTES de intentar pulsarlo.
+      await tester.ensureVisible(day);
+      await tester.pumpAndSettle();
+
+      expect(day, findsOneWidget);
 
       await tester.tap(day);
       await tester.pumpAndSettle();
 
+      // Verificar el contador mensual sin depender
+      // de que esté dentro del viewport inicial.
+      final monthTotal = find.byKey(const Key('monthly-calendar-month-total'));
+
+      await tester.scrollUntilVisible(
+        monthTotal,
+        160,
+        scrollable: find.byType(Scrollable).first,
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(monthTotal, findsOneWidget);
+
+      expect(tester.widget<Text>(monthTotal).data, contains('2 registros en'));
+
+      // Comprobar que realmente se seleccionó el día 15.
       final selectedDate = find.byKey(
         const Key('monthly-calendar-selected-day'),
       );
+
+      await tester.scrollUntilVisible(
+        selectedDate,
+        160,
+        scrollable: find.byType(Scrollable).first,
+      );
+
+      await tester.pumpAndSettle();
 
       expect(selectedDate, findsOneWidget);
 

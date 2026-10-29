@@ -207,7 +207,9 @@ void main() {
     expect(result, isNull);
   });
 
-  testWidgets('los registros anteceden a cobertura y filtros', (tester) async {
+  testWidgets('la cobertura precede al calendario y conserva los filtros', (
+    tester,
+  ) async {
     final repository = _FakeCalendarRepository();
 
     tester.view.physicalSize = const Size(440, 1500);
@@ -240,8 +242,15 @@ void main() {
     expect(filters, findsOneWidget);
 
     expect(
-      tester.getTopLeft(selectedDay).dy,
-      lessThan(tester.getTopLeft(coverage).dy),
+      tester.getTopLeft(coverage).dy,
+      lessThan(
+        tester.getTopLeft(find.byKey(const Key('monthly-calendar-grid'))).dy,
+      ),
+    );
+
+    expect(
+      tester.getTopLeft(find.byKey(const Key('monthly-calendar-grid'))).dy,
+      lessThan(tester.getTopLeft(selectedDay).dy),
     );
 
     expect(
