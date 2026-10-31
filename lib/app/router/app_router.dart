@@ -19,6 +19,7 @@ import '../../features/behavior/presentation/views/behavior_detail_view.dart';
 import '../../features/behavior/presentation/views/behavior_form_view.dart';
 import '../../features/behavior/presentation/views/behavior_management_view.dart';
 import '../../features/duration/domain/repositories/duration_repository.dart';
+import '../../features/duration/domain/services/duration_overview_service.dart';
 import '../../features/duration/presentation/views/duration_view.dart';
 import '../../features/dysregulation/domain/models/dysregulation_record.dart';
 import '../../features/dysregulation/domain/repositories/dysregulation_management_repository.dart';
@@ -39,6 +40,8 @@ import '../../features/frequency/data/repositories/composite_monthly_calendar_re
 import '../../features/frequency/presentation/views/monthly_calendar_view.dart';
 import '../../features/home/presentation/views/home_placeholder_view.dart';
 import '../../features/indicators/presentation/views/indicators_view.dart';
+import '../../features/internal_reports/domain/services/internal_report_service.dart';
+import '../../features/internal_reports/presentation/views/internal_report_view.dart';
 import '../../features/period_comparison/presentation/views/period_comparison_view.dart';
 import '../../features/routine/domain/models/routine.dart';
 import '../../features/routine/domain/repositories/routine_repository.dart';
@@ -48,6 +51,7 @@ import '../../features/routine/presentation/views/routine_form_view.dart';
 import '../../features/routine/presentation/views/routine_management_view.dart';
 import '../../features/routine/presentation/views/routines_view.dart';
 import '../../features/routine_compliance/domain/repositories/routine_compliance_repository.dart';
+import '../../features/routine_compliance/domain/services/routine_overview_service.dart';
 import '../../features/routine_compliance/presentation/views/routine_compliance_view.dart';
 import '../../features/routine_status/domain/models/routine_status_record.dart';
 import '../../features/routine_status/domain/repositories/routine_status_management_repository.dart';
@@ -1200,6 +1204,54 @@ abstract final class AppRouter {
                 child: DurationView(
                   repository: durationRepository,
                   anonymousId: anonymousId,
+                ),
+              ),
+            );
+          },
+        ),
+        GoRoute(
+          path: '/internal-report',
+          name: 'internal-report',
+          pageBuilder: (context, state) {
+            final anonymousId = trackingViewModel.activeAnonymousId;
+            final expectedUserId = authViewModel.currentUserId;
+
+            if (anonymousId == null) {
+              return _animatedPage(
+                state: state,
+                child: HomePlaceholderView(
+                  trackingViewModel: trackingViewModel,
+                ),
+              );
+            }
+
+            return _animatedPage(
+              state: state,
+              child: _ambientScreen(
+                state: state,
+                child: InternalReportView(
+                  key: ValueKey('internal-report-$anonymousId'),
+                  service: InternalReportService(
+                    calendarLoader: monthlyCalendarRepository.recover,
+                    durationService: DurationOverviewService(
+                      durationRepository,
+                    ),
+                    routineService: RoutineOverviewService(
+                      routineComplianceRepository,
+                    ),
+                  ),
+                  anonymousId: anonymousId,
+                  pdfScopeChanges: Listenable.merge([
+                    authViewModel,
+                    trackingViewModel,
+                    ?privateAccessPermission,
+                  ]),
+                  pdfIsAuthorized: () =>
+                      expectedUserId != null &&
+                      authViewModel.isAuthenticatedAppReady &&
+                      authViewModel.currentUserId == expectedUserId &&
+                      trackingViewModel.activeAnonymousId == anonymousId &&
+                      (privateAccessPermission?.value ?? true),
                 ),
               ),
             );

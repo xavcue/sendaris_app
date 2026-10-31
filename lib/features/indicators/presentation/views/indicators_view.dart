@@ -182,6 +182,27 @@ class IndicatorsView extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 14),
+            AnimatedEntrance(
+              delay: const Duration(milliseconds: 320),
+              duration: const Duration(milliseconds: 450),
+              beginScale: 0.99,
+              child: AnimatedPressableScale(
+                child: _IndicatorOptionCard(
+                  key: const Key('indicators-internal-report-option'),
+                  title: 'Reportes internos',
+                  subtitle:
+                      'Consulta el resumen de registros e indicadores '
+                      'de un periodo del seguimiento.',
+                  icon: Icons.description_outlined,
+                  accentColor: const Color(0xFF94755C),
+                  enabled: hasTracking,
+                  onTap: () {
+                    context.push('/internal-report');
+                  },
+                ),
+              ),
+            ),
           ],
         ),
       ),

@@ -1,3 +1,4 @@
+
 name: sendaris
 description: "Aplicación móvil Sendaris."
 publish_to: "none"
@@ -24,6 +25,10 @@ dependencies:
   shared_preferences: ^2.5.6
   google_sign_in: ^7.2.0
   local_auth: ^3.0.2
+
+  pdf: 3.13.1
+  flutter_pdfview: 1.4.5
+  flutter_file_dialog: ^3.3.3
 
 dev_dependencies:
   flutter_test:
