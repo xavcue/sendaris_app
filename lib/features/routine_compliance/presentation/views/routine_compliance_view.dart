@@ -7,6 +7,7 @@ import '../../../routine_status/domain/models/routine_status.dart';
 import '../../domain/repositories/routine_compliance_repository.dart';
 import '../../domain/services/routine_overview_service.dart';
 import '../viewmodels/routine_overview_view_model.dart';
+import '../widgets/routine_status_distribution_bar.dart';
 
 class RoutineComplianceView extends StatefulWidget {
   const RoutineComplianceView({
@@ -396,6 +397,8 @@ class _RoutineOverviewResults extends StatelessWidget {
             color: colors.onSurfaceVariant,
           ),
         ),
+        const SizedBox(height: 12),
+        RoutineStatusDistributionBar(overview: overview),
         const SizedBox(height: 12),
         GridView.builder(
           key: const Key('routine-overview-status-grid'),

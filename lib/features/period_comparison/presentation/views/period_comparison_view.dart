@@ -11,6 +11,7 @@ import '../../domain/models/comparison_period.dart';
 import '../../domain/models/period_comparison_result.dart';
 import '../../domain/services/period_comparison_service.dart';
 import '../viewmodels/period_comparison_view_model.dart';
+import '../widgets/period_comparison_bar_chart.dart';
 
 class PeriodComparisonView extends StatefulWidget {
   const PeriodComparisonView({
@@ -474,6 +475,9 @@ class _ComparisonResults extends StatelessWidget {
             valueB: _formatDuration(result.periodB, type),
             detailA: _validCount(result.periodA, type),
             detailB: _validCount(result.periodB, type),
+            numericA: result.periodA.averageMinutesFor(type),
+            numericB: result.periodB.averageMinutesFor(type),
+            unit: 'minutos',
           ),
           const SizedBox(height: 14),
         ],
@@ -484,6 +488,10 @@ class _ComparisonResults extends StatelessWidget {
           valueB: _formatPercentage(result.periodB.routineCompliancePercentage),
           detailA: _routineCount(result.periodA),
           detailB: _routineCount(result.periodB),
+          numericA: result.periodA.routineCompliancePercentage,
+          numericB: result.periodB.routineCompliancePercentage,
+          unit: '%',
+          isPercentage: true,
         ),
         const SizedBox(height: 20),
         Row(
@@ -563,6 +571,10 @@ class _ComparisonMetricCard extends StatelessWidget {
     required this.valueB,
     required this.detailA,
     required this.detailB,
+    required this.numericA,
+    required this.numericB,
+    required this.unit,
+    this.isPercentage = false,
   });
 
   final String metricKey;
@@ -571,6 +583,10 @@ class _ComparisonMetricCard extends StatelessWidget {
   final String valueB;
   final String detailA;
   final String detailB;
+  final double? numericA;
+  final double? numericB;
+  final String unit;
+  final bool isPercentage;
 
   @override
   Widget build(BuildContext context) {
@@ -628,6 +644,15 @@ class _ComparisonMetricCard extends StatelessWidget {
                   ],
                 );
               },
+            ),
+            PeriodComparisonBarChart(
+              metricKey: metricKey,
+              valueA: numericA,
+              valueB: numericB,
+              displayA: valueA,
+              displayB: valueB,
+              unit: unit,
+              isPercentage: isPercentage,
             ),
           ],
         ),
