@@ -4,6 +4,8 @@ import '../../domain/models/duration_metric_type.dart';
 import '../../domain/models/duration_observation.dart';
 import '../../domain/models/duration_result.dart';
 import '../../domain/services/duration_overview_service.dart';
+import '../formatters/duration_display_formatter.dart';
+import 'duration_observation_chart.dart';
 
 class DurationSummaryCards extends StatelessWidget {
   const DurationSummaryCards({required this.overview, super.key});
@@ -17,36 +19,10 @@ class DurationSummaryCards extends StatelessWidget {
     return '$day/$month/${date.year}';
   }
 
+  /// Punto de entrada compartido por Duraciones, Comparar periodos,
+  /// Reportes internos y el generador PDF.
   static String formatDuration(DurationMetricType type, double minutes) {
-    if (type != DurationMetricType.sleep) {
-      return _formatMinutes(minutes);
-    }
-
-    final normalized = double.parse(minutes.toStringAsFixed(1));
-
-    final hours = normalized ~/ 60;
-    final remaining = normalized - (hours * 60);
-
-    if (hours == 0) {
-      return _formatMinutes(remaining);
-    }
-
-    if (remaining.abs() < 0.000001) {
-      return '$hours h';
-    }
-
-    return '$hours h ${_formatMinutes(remaining)}';
-  }
-
-  static String _formatMinutes(double minutes) {
-    final normalized = double.parse(minutes.toStringAsFixed(1));
-    final rounded = normalized.roundToDouble();
-
-    if ((normalized - rounded).abs() < 0.000001) {
-      return '${rounded.toInt()} min';
-    }
-
-    return '${normalized.toStringAsFixed(1)} min';
+    return DurationDisplayFormatter.format(type, minutes);
   }
 
   @override
@@ -150,7 +126,6 @@ class _DurationSummaryCard extends StatelessWidget {
 
     final count = result.validRecordCount;
     final hasData = result.hasSufficientData;
-
     final average = result.averageMinutes;
 
     final formattedAverage = hasData && average != null
@@ -228,6 +203,8 @@ class _DurationSummaryCard extends StatelessWidget {
               ),
             ),
             if (hasData) ...[
+              const SizedBox(height: 12),
+              DurationObservationChart(type: type, result: result),
               const SizedBox(height: 7),
               ExpansionTile(
                 key: Key('duration-summary-expansion-${type.name}'),
@@ -268,7 +245,6 @@ class _DurationObservationRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-
     final minutes = observation.durationMinutes;
 
     if (minutes == null) {

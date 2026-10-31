@@ -28,7 +28,6 @@ class _FakeDurationRepository implements DurationRepository {
 
   final List<DurationObservation> observations;
   final Object? error;
-
   final List<String> requests = [];
 
   @override
@@ -150,7 +149,7 @@ void main() {
 
     expect(find.text('7 h 30 min'), findsOneWidget);
     expect(find.text('15 min'), findsOneWidget);
-    expect(find.text('12.5 min'), findsOneWidget);
+    expect(find.text('12 min 30 s'), findsOneWidget);
 
     expect(
       find.byKey(const Key('duration-summary-count-sleep')),
@@ -340,6 +339,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('30 min'), findsNothing);
+
     expect(find.text('9 min'), findsOneWidget);
   });
 }

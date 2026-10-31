@@ -190,8 +190,12 @@ void main() {
         );
 
         expect(find.text('7 h 30 min'), findsOneWidget);
+
         expect(find.text('15 min'), findsOneWidget);
-        expect(find.text('12.5 min'), findsOneWidget);
+
+        // El promedio 12,5 minutos se presenta
+        // mediante el formateador unificado de Sendaris.
+        expect(find.text('12 min 30 s'), findsOneWidget);
 
         expect(find.byKey(const Key('duration-summary-sleep')), findsOneWidget);
 
@@ -296,6 +300,7 @@ void main() {
         expect(calendarCoverage, findsOneWidget);
 
         final current = DateTime.now();
+
         final totalDays = DateTime(current.year, current.month + 1, 0).day;
 
         expect(find.text('1 de $totalDays días con registros'), findsOneWidget);
@@ -318,7 +323,7 @@ void main() {
 
         // La cobertura aparece primero.
         // El contador mensual puede quedar fuera
-        // del area visible en un movil compacto.
+        // del área visible en un móvil compacto.
         final monthTotal = find.byKey(
           const Key('monthly-calendar-month-total'),
         );
